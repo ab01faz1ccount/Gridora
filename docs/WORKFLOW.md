@@ -25,5 +25,8 @@
 ## Definition of done for a PR
 Tests pass in CI, lint and types clean, docs updated, no cross-module imports against the rules, no new unreviewed dependency, limitations stated.
 
+## CI workflows
+Agents cannot edit `.github/`. Put the proposed workflow in your module folder as `ci/<name>.yml.proposed` inside your PR; Agent 0 reviews and commits it as `.github/workflows/<name>.yml`.
+
 ## Phase documentation
 At the end of each phase, Agent 0 produces `docs/phases/PHASE-N.md`. Agents contribute a short "what works / what doesn't" section in their module README, which Agent 0 consolidates.
