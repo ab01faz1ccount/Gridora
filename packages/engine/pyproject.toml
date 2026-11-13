@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gridora-engine"
+version = "0.0.1"
+description = "Gridora workbook engine: XLSX/CSV I/O, cell store, formulas, compatibility reports"
+requires-python = ">=3.11"
+# gridora-contracts is installed from the repo (contracts/python); it is not on PyPI.
+dependencies = ["gridora-contracts", "pydantic>=2.6,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff", "mypy>=1.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+mypy_path = "../../contracts/python"
