@@ -1,0 +1,392 @@
+# Agent 3 — Implementation Plan (Step 0)
+
+Owner: Agent 3. Scope: `apps/web/`, `apps/api/`, `deploy/`.
+Status: **PLAN ONLY. No implementation code exists. Nothing below is claimed to work.**
+Branch: `agent3/plan`. Awaiting Agent 0 review.
+
+Inputs read: `agents/AGENT_3_PLATFORM.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `docs/SECURITY_MODEL.md`, `docs/MODULE_BOUNDARIES.md`, `docs/I18N_SPEC.md`, `docs/TESTING_STRATEGY.md`, `docs/DATA_MODEL.md`, `docs/INTEGRATION_PLAN.md`, `docs/DECISIONS.md`, and `contracts/` (Python + TypeScript).
+
+---
+
+## 0. Summary of decisions
+
+| Topic | Decision |
+|---|---|
+| Frontend stack | React 18 + TypeScript (strict) + Vite |
+| Server state | TanStack Query (workspaces, files, jobs, history, tools) |
+| UI/ephemeral state | Zustand (selection, active sheet, panels, display prefs, pending edits) |
+| Grid cell data | Own `BlockCache` store (not in TanStack Query), read via `useSyncExternalStore` |
+| Grid rendering | Custom, DOM-based, windowed rows and columns; canvas only if the 100k-row benchmark fails |
+| Forms | Own renderer for a documented subset of JSON Schema, driven by `OperationDescriptor.params_schema` |
+| i18n | Own thin typed catalog (`fa.json`, `en.json`) + browser `Intl` APIs; no i18n framework |
+| Jalali display | `Intl.DateTimeFormat` with the `persian` calendar (no library); explicit conversion operations are Agent 2's |
+| Charts | Apache ECharts, tree-shaken, bundled |
+| Backend | FastAPI, SQLAlchemy 2 (async), Alembic, PostgreSQL |
+| Job runner | Postgres-backed `jobs` table + in-process runner behind a `JobRunner` interface (no Redis/Celery) |
+| Passwords/sessions | argon2id; server-side sessions; HttpOnly cookie; synchronizer CSRF token |
+| Stub swap | One env var per module: `GRIDORA_ENGINE=stub\|real`, `GRIDORA_DATAOPS=stub\|real` |
+| Deploy | Docker Compose: `nginx`, `api`, `postgres`, `backup`; nothing outbound at runtime |
+
+---
+
+## 1. Delivery order (small PRs, one concern each)
+
+Follows the slice order of `docs/INTEGRATION_PLAN.md`. Each PR carries tests, a README "what works / what doesn't" update and a truthful status-table update.
+
+| # | PR | Folder | Slice |
+|---|---|---|---|
+| 1 | `api-skeleton`: app factory, config, request-id, envelope, error mapping, `/healthz` `/readyz`, OpenAPI conformance harness | api | — |
+| 2 | `api-auth`: schema + first Alembic migration, argon2id, sessions, CSRF, login rate limit, audit log, owner-scoped repository base, isolation-test harness | api | — |
+| 3 | `api-files`: storage layout, streaming upload with limits, download, no-path-leak scanner fixture | api | 1 |
+| 4 | `api-composition`: protocol wiring, stub `WorkbookEngine` (CSV only), stub `OperationExecutor`, config swap, import-boundary test | api | 1 |
+| 5 | `api-workbooks`: jobs table + runner, import job, open, windowed `cells` GET | api | 1 |
+| 6 | `web-skeleton`: Vite app, shell, RTL, i18n catalog, API client, login, workspaces | web | — |
+| 7 | `web-grid`: `DataSource`, `BlockCache`, virtualization, selection, keyboard (LTR + RTL), 100k benchmark | web | 1 |
+| 8 | `web-import`: upload UI, job polling, compatibility panel | web | 1–2 |
+| 9 | `api-history` + `web-edit`: cell edits, history service, undo/redo, optimistic edits, history panel | both | 3 |
+| 10 | `web-operations`: descriptor-driven forms, preview, destructive confirm | web | 4 |
+| 11 | `deploy-stack`: compose, nginx, `.env.example`, healthchecks, TLS notes, backup/restore scripts | deploy | — |
+| 12 | Data Tables view + bridge, charts, versioned save + export, saved Tools | both | 5–8 |
+| 13 | `e2e`: Playwright Definition-of-Success flow | web | — |
+
+PR 11 may move earlier if Agent 0 wants `docker compose up` verified sooner.
+
+---
+
+## 2. Backend (`apps/api`)
+
+### 2.1 Layout
+
+```
+apps/api/
+  pyproject.toml                 # deps pinned via lockfile
+  alembic.ini
+  migrations/                    # Alembic, one revision per schema change
+  src/gridora_api/
+    main.py                      # app factory
+    config.py                    # pydantic-settings; all env in one place
+    core/
+      envelope.py                # ApiSuccess / meta.request_id
+      errors.py                  # DomainError(code, http_status) + handlers
+      middleware.py              # request-id, security headers, access log
+      csrf.py  ratelimit.py  security.py
+    api/v1/                      # thin routers, no business logic
+      auth.py workspaces.py files.py jobs.py workbooks.py
+      tables.py operations.py history.py tools.py charts.py
+    db/
+      models.py session.py
+      repos/                     # every function REQUIRES owner_id; no unscoped getters
+    services/                    # business logic; routers call only these
+      auth.py workspaces.py files.py uploads.py jobs.py
+      workbooks.py history.py tables.py tools.py charts.py audit.py
+    storage/
+      layout.py                  # UUID-derived paths; the only place that builds a path
+      atomic.py                  # temp file + fsync + rename
+    jobs/
+      runner.py                  # JobRunner interface + Postgres impl
+      handlers.py                # import / export / operation
+    composition/                 # THE ONLY package allowed to import gridora_engine / gridora_dataops
+      wiring.py                  # builds WorkbookEngine, OperationExecutor, TableStore from config
+      exec_context.py            # ExecContext implementation (engine-backed)
+      stubs/engine_stub.py       # clearly marked STUB
+      stubs/executor_stub.py     # clearly marked STUB
+    cli.py                       # create-user, reset-password, check-config
+  tests/
+```
+
+Rules enforced by a test (AST scan, no extra dependency):
+- Only `composition/` may import `gridora_engine` or `gridora_dataops`.
+- `gridora_engine` and `gridora_dataops` are never imported together outside `composition/`.
+- Routers may not import `db/` directly.
+- Nothing returns or logs a filesystem path to a client.
+
+### 2.2 Envelope and errors
+- Success `{data, meta:{request_id}}`; failure `{error:{code,message,details,request_id}}`, exactly as `API_CONTRACTS.md` §1.
+- `DomainError(code)` maps to HTTP status through one table that is checked against `ERROR_CODES` from `contracts/`.
+- FastAPI's default 422 request-validation response is **replaced**: request validation errors become `400 validation_failed` with `details[].path` as a JSON pointer. HTTP 422 is used only for `unsupported_workbook` and `import_failed`, per the contract.
+- Unknown routes and other users' resources: `404 not_found`. Unhandled exceptions: `500 internal_error`, no stack trace, `request_id` logged server-side.
+- Every response gets `X-Request-ID`.
+
+### 2.3 Auth, sessions, CSRF
+- argon2id via `argon2-cffi`; parameters configurable and recorded; rehash on login if parameters change.
+- Session token: 256-bit random, only its SHA-256 stored in Postgres. Cookie: `HttpOnly`, `Secure` (disable only via an explicit dev flag), `SameSite=Strict`, `__Host-` prefix when Secure. Rotated at login (no fixation); idle and absolute timeouts; logout deletes the row.
+- CSRF: synchronizer token stored in the session row, compared in constant time against `X-CSRF-Token` on every mutating method. Exempt: `POST /auth/login` only (protected by rate limit + SameSite).
+- Login rate limiting: Postgres counters keyed by (normalized username, IP) with backoff → `429 rate_limited`. nginx adds a coarse second layer.
+- Roles `user` / `admin`. Admin gets user management and backup settings only; no code path lets an admin read another user's files.
+- User creation in v1: CLI (`python -m gridora_api.cli create-user`) and an optional bootstrap-admin env on first start. Admin HTTP endpoints are not in the contract (see §10).
+
+### 2.4 Isolation
+- Every owned table has `owner_id NOT NULL` and a composite index `(owner_id, id)`.
+- Repositories take `owner_id` as a required argument and filter by it; a missing or foreign row raises `not_found`.
+- Mandatory CI test: iterate **every route in the generated OpenAPI**, create two users, create a resource with user A, access it with user B, expect `404`. The test fails if a route with an ID path parameter has no isolation case, so new routes cannot silently skip it.
+- Postgres row-level security as defense in depth is noted but **not** planned for v1 (extra complexity; revisit in Phase 4).
+
+### 2.5 File storage
+- Layout: `${DATA_ROOT}/users/<owner_uuid>/<kind>/<file_uuid>[.<ext>]`, built only by `storage/layout.py`. Clients get IDs only.
+- Uploads: stream to `${DATA_ROOT}/quarantine/<uuid>` while counting bytes and hashing (SHA-256). Abort with `413 file_too_large` the moment the count passes `MAX_UPLOAD_BYTES` (100 MB, from `contracts/`). Also enforced by `Content-Length` pre-check and nginx `client_max_body_size`. The parser must be a streaming one; buffering the whole body is not acceptable. Library choice is deferred to PR 3 and goes through DECISIONS.md.
+- Type check does not trust the client `Content-Type`: extension allowlist plus magic-byte check (ZIP signature for XLSX; text/encoding probe for CSV) → `415 unsupported_media_type`.
+- Structural validation of XLSX (zip limits, XML limits) is the **engine's** job at import. The API's job is to run import in a job with a timeout and memory limit and to surface `unsupported_workbook` / `import_failed`.
+- After validation: move to the final path (atomic rename), insert `FileRecord(kind="original")`. Originals are never rewritten.
+- Saving creates a new `FileRecord(kind="workbook", parent_id=<previous>)` via temp file + fsync + rename (`atomic.py`).
+- Download streams with a sanitized `Content-Disposition` (RFC 5987 for Persian names); `display_name` is never used as a path component.
+
+### 2.6 PostgreSQL schema outline
+(Outline only; the exact DDL lands in migrations.)
+
+| Table | Key columns |
+|---|---|
+| `users` | id, username (unique, citext), password_hash, role, is_active, created_at |
+| `sessions` | id, user_id, token_sha256, csrf_token, created_at, last_seen_at, expires_at, ip, user_agent |
+| `login_attempts` | key, window_start, count |
+| `workspaces` | id, owner_id, name, created_at |
+| `files` | id, owner_id, workspace_id, kind, display_name, size_bytes, sha256, parent_id, storage_key (internal, never serialized), created_at |
+| `documents` | id, owner_id, kind (`workbook`\|`table`) — single registry so `{document_id}` routes resolve in one lookup |
+| `workbooks` | id (= documents.id), owner_id, workspace_id, file_id (original), current_file_id, last_saved_seq, name, compat_json, created_at |
+| `data_tables` | id (= documents.id), owner_id, workspace_id, name, current_version, source_json, created_at |
+| `table_versions` | table_id, version, storage_key, columns_json, row_count, sha256, created_at |
+| `history_entries` | id, document_id, owner_id, seq, operation_json, delta_json \| delta_blob_file_id, label, undone, created_at; unique (document_id, seq) |
+| `tools` | id, owner_id, name, description, pipeline_json, inputs_json, created_at |
+| `chart_specs` | id, owner_id, document_id, spec_json, created_at |
+| `jobs` | id, owner_id, kind, status, progress, payload_json, result_ref, error_json, attempts, created_at, started_at, finished_at |
+| `audit_log` | id, ts, actor_id, action, target_kind, target_id, ip, request_id, outcome |
+
+Notes:
+- Deltas larger than a threshold (default 256 KB, configurable) go to a blob file; the row stores the reference. This keeps a 100k-row sort from bloating Postgres.
+- Audit events (per `SECURITY_MODEL.md`): logins (success and failure), logout, uploads, deletes, exports.
+- Who owns the Parquet bytes versus the metadata rows for Data Tables is an open question (§10, item 5).
+
+### 2.7 Job runner
+Options considered: Celery + Redis, arq + Redis, Postgres queue library, own minimal runner.
+
+**Choice: Postgres-backed `jobs` table and a small in-process runner behind a `JobRunner` interface.**
+- No new infrastructure (Redis would be one more container to ship, back up and secure in an offline deployment).
+- Claim with `SELECT … FOR UPDATE SKIP LOCKED`; status transitions `queued → running → succeeded|failed`; progress is coarse because the protocols have no progress callback (§10, item 8).
+- On startup, jobs left `running` by a crashed process are marked `failed` (`internal_error`) rather than silently retried, because imports and operations are not guaranteed idempotent.
+- Constraint that drives the design: a `WorkbookHandle` is an in-memory object owned by the engine and is not guaranteed to be picklable or shareable. Operations on an open workbook therefore must run in the process that holds the handle, serialized per document (per-document asyncio lock + worker thread). CPU-bound engine calls run in a thread pool so the event loop stays responsive.
+- **Import jobs** are the exception: they only need a file path. They will run through a `ProcessPoolExecutor` with `RLIMIT_AS`/CPU limits, which is the "isolated worker with resource limits" Phase 3 target in `SECURITY_MODEL.md`. Until that lands, the limits are timeout-only and this plan says so in the README.
+- **Honest limitation:** v1 runs a single API worker process because the working-copy cache lives in memory. Horizontal scaling is not supported and will be documented.
+
+### 2.8 Working copies and history
+- Working-copy cache: `document_id → (WorkbookHandle, last_used)`, LRU with a configurable cap (count and estimated memory). Eviction is safe because state is reconstructible.
+- Rehydration after a restart or eviction: load `current_file_id` (last saved version) with `import_xlsx`/`import_csv`, then replay `history_entries` with `seq > last_saved_seq` and `undone = false` via `engine.apply_delta(..., inverse=False)`. Replay-equals-live is a required test.
+- Every mutation (cell edit, operation, undo, redo) goes through `history.py`, inside one DB transaction with the engine call serialized per document:
+  - new entry gets `seq = max+1`; entries with `undone = true` are deleted first (redo tail truncated);
+  - undo = apply inverse of the highest non-undone entry (`cell_patch` via `engine.apply_delta`; `table_version` via `TableStore.restore_version`);
+  - the cap (500 entries or 200 MB of deltas, from `DATA_MODEL.md` §6) triggers a forced save of a version, then the oldest entries are dropped.
+- Mutating requests carry `base_seq`; a mismatch returns `409 version_conflict`. This protects against two tabs on one document. (Needs a contract note, §10 item 4.)
+- Save never overwrites: new file version, `last_saved_seq` updated, original untouched.
+
+### 2.9 Composition layer and stubs
+- `composition/wiring.py` is the single place that reads `GRIDORA_ENGINE` / `GRIDORA_DATAOPS` and returns objects typed as the `contracts/` Protocols. Everything else depends on the Protocols.
+- Swapping stub for real = change one env value (plus installing the package). No other file changes. A test asserts that the same API test suite runs against the stub and, when it exists, the real implementation (parametrized fixture), restricted to features both support.
+- `ExecContext` is implemented here on top of `WorkbookEngine` (`read_range` → `get_cells`; `write_range` → `apply_cell_edits`, returning its `Delta`).
+- **Stub engine (CSV only, in-memory):** stdlib `csv`; UTF-8 with/without BOM and Windows-1256 detection; single sheet; `import_xlsx` raises `unsupported_workbook`; cell edits and deltas; `recalculate` is a no-op, formulas are stored as text and **not evaluated**.
+- **Stub executor:** a handful of simple operations (e.g. sort, trim, find/replace, remove duplicates) over `sheet_range` only, with real JSON-Schema `params_schema`, `validate`, `preview`, `apply` and inverse deltas, so the UI form generator and destructive flow can be built and tested. No `data_table` targets, no Polars/DuckDB.
+- Honesty markers: every stub file starts with a `STUB` banner; responses carry `X-Gridora-Engine: stub` (and `X-Gridora-Dataops: stub`); `/readyz` reports which implementation is loaded; the UI shows a persistent "stub engine" badge when the header says so; compatibility reports from the stub never claim `supported` for anything XLSX-specific.
+
+### 2.10 OpenAPI conformance
+- Response and request models reuse `gridora_contracts` pydantic models directly (wrapped in a generic envelope) so there is no second definition to drift.
+- CI test A: the generated OpenAPI route table equals the route table in `API_CONTRACTS.md` (maintained as `tests/contract_routes.py`; any difference fails and must be explained).
+- CI test B: every response in the integration tests is validated against the contract models.
+- schemathesis (proposed in `TESTING_STRATEGY.md`) is added as a dependency in the PR that wires it, with the usual DECISIONS entry.
+- Infra endpoints `/healthz` and `/readyz` live outside `/api/v1` and are not part of the contract.
+
+---
+
+## 3. Frontend (`apps/web`)
+
+### 3.1 Layout
+
+```
+apps/web/
+  package.json  vite.config.ts  tsconfig.json  eslint config  vitest config  playwright config
+  src/
+    main.tsx
+    app/              # providers, router, shell layout
+    api/              # client.ts: fetch wrapper (unwrap envelope, CSRF header, error→typed ApiError, request_id)
+    i18n/             # fa.json  en.json  index.ts (t, locale store, number/date/digit formatters)
+    state/            # zustand stores: ui, prefs, pending-edits
+    features/
+      auth/ workspaces/ import/ operations/ tables/ charts/ history/ tools/ export/
+    grid/
+      geometry.ts     # index <-> pixel math (incl. scaled scrolling)
+      datasource.ts   # DataSource interface
+      block-cache.ts  # LRU of fetched blocks + in-flight dedupe
+      Grid.tsx  Row.tsx  Cell.tsx  HeaderBar.tsx
+      selection.ts  keyboard.ts  editor.tsx
+    components/       # small accessible UI kit (dialog, menu, tabs, toast…)
+    styles/           # tokens.css, logical-property CSS only
+  public/fonts/       # bundled Persian font (woff2)
+  e2e/                # Playwright
+```
+
+Types come from `contracts/typescript/index.ts` through a TS path alias (`@contracts`); **no copy** is made. Docker build context must therefore be the repo root (noted in §6).
+
+### 3.2 State management
+- **Server state → TanStack Query:** workspaces, files, jobs (polling with backoff 500 ms → 2 s), history, tools, descriptors (`GET /operations`, cached).
+- **UI state → Zustand:** active workspace/document/sheet, selection, open panels, display prefs, pending edits.
+- **Grid cell data is deliberately not in TanStack Query.** It changes at cell granularity and needs block-level subscriptions; it lives in `BlockCache`, exposed through `useSyncExternalStore` so only the cells whose block changed re-render.
+- Display prefs (digits: Latin/Persian/Arabic-Indic; calendar: Gregorian/Jalali; locale) are stored in `localStorage` in v1. A server-side per-user pref would need a contract change (§10).
+
+### 3.3 Grid virtualization for 100k rows
+Goal: only what is on screen (plus a margin) is fetched and rendered; editing is unaffected.
+
+- **`DataSource` interface** (`fetchBlock(r0, c0, rows, cols, signal) → block`) with two implementations: sheet windows (`GET …/cells`) and Data Table pages (`GET /tables/{id}/rows`). One grid component serves both views.
+- **Geometry:** fixed default row height and per-column widths; visible range = f(scrollTop, viewport). Rows and columns are windowed (columns matter: 100+ columns are common). Rendered rows come from a small pooled set positioned absolutely with `transform`, with CSS `contain: strict` on the viewport.
+- **Browser element-height limit:** a 1,048,576-row sheet exceeds the pixel-height cap of some browsers (roughly 17–33 M px depending on the browser). The scroll container therefore uses a capped proxy height and a scale factor once total height passes a threshold; `geometry.ts` owns the mapping and has unit tests at 100k, 1M rows and the boundary. Exact browser limits will be measured in PR 7 rather than assumed.
+- **Fetching:** the sheet is divided into fixed-size blocks (default 100 rows × 26 cols, tuned by the benchmark; must stay under the server's max window). Visible blocks are requested first, neighbors prefetched in the scroll direction. Requests are de-duplicated, cancelled with `AbortController` when scrolled away, and fast scrolling is debounced. Unloaded cells render as skeletons. The cache is an LRU bounded by block count.
+- **Rendering choice:** DOM, not canvas, for the first implementation. Reasons: correct RTL and bidi shaping for Persian text for free, native IME, text selection, accessibility. At ~40 rows × ~20 columns the DOM stays under a thousand cells. If the Playwright benchmark misses its frame budget, the fallback is a canvas cell layer with a DOM editor overlay. That decision is taken from measurements, not preference.
+- **Optimistic edits:** a `pendingEdits` map keyed by (sheet, r, c) overlays the cache and is rendered in a "pending" style. Edits are queued per document and sent serially in `PATCH …/cells` with `base_seq`. On success, the returned changed cells (including recalculated ones) are merged into the cache and pending entries are dropped. On failure, pending entries are rolled back, an i18n error toast is shown, and `409 version_conflict` triggers a refetch of visible blocks. Undo/redo invalidates the blocks touched by the returned delta.
+- **Keyboard and selection:** anchor + focus range; arrows, Shift+arrows, Tab/Enter, Home/End, PageUp/PageDown, F2/Enter to edit, Esc to cancel, Delete to clear. Ctrl+arrow "jump to data edge" requires knowing data beyond the loaded blocks, so it is deferred. Fill handle, paste of ranges larger than a window, and column-resize persistence are **not in the first cut** (consistent with "fill handle later").
+- **Frozen panes** from `SheetMeta.frozen` are rendered with sticky positioning.
+- **Rich formatting is limited at first:** cells carry opaque style ids `s` and format hints `t`, but no contract exposes the style table or formatted display text (§10, item 6). Until it does, the grid shows raw values with basic number/date/bool formatting and ignores styles. This will be stated in the web README.
+
+### 3.4 RTL and i18n
+- `document.documentElement.dir = "rtl"` and `lang="fa"` by default; `en` switches to `ltr`. All CSS uses logical properties (`margin-inline-start`, `inset-inline-end`, `text-align: start`…); a stylelint rule forbids physical `left`/`right` for layout (plugin to be recorded in DECISIONS).
+- **Catalog:** `src/i18n/{fa,en}.json`, typed keys, `t(key, params)`. A CI check fails if the two catalogs have different keys, and an ESLint rule (`no-literal-string` style) fails on literal user-visible strings in JSX. Persian plural rules and number/date formatting come from `Intl.PluralRules` / `Intl.NumberFormat` / `Intl.DateTimeFormat`.
+- **Fonts:** a Persian-capable font is bundled in `public/fonts/` as woff2 and loaded by `@font-face`; no CDN. Candidate: Vazirmatn (expected SIL OFL; license to be verified and recorded in `THIRD_PARTY_NOTICES.md` before it is added).
+- **Digits:** storage and wire values stay Latin. Display uses `Intl.NumberFormat` with `numberingSystem` `arabext` (Persian) or `arab`. Input accepts all three digit sets and the Persian decimal/thousands separators; a `normalizeNumericInput` function runs before anything is sent. Digit mapping is never applied to formula text.
+- **Dates:** wire values are ISO/serial. Jalali display uses `Intl.DateTimeFormat("fa-IR-u-ca-persian")`; this works offline in modern browsers but depends on the browser's ICU data, which Playwright tests will pin. Where Jalali display cannot round-trip to an Excel number format, it is flagged in the UI as Gridora-side display, matching `I18N_SPEC.md`.
+- **Bidi:** file names, formulas and Latin fragments inside RTL text use `<bdi>` / `unicode-bidi: plaintext`.
+- **Sheet direction:** each grid sets its own `dir` from `SheetMeta.rtl`, independent of UI language. In an RTL sheet column A is on the right and ArrowRight moves to the previous column (visual direction). Directional icons (undo/redo, arrows) are mirrored.
+- **Cell editor / formula bar:** `dir` follows content: LTR when the text starts with `=`, otherwise auto/RTL.
+
+### 3.5 Operation panels from `OperationDescriptor`
+- `GET /operations` → a form generated from `params_schema`. The renderer supports a **documented subset** of JSON Schema: `string`, `number`/`integer`, `boolean`, `enum`, `array`, `object`, `required`, `default`, `minimum`/`maximum`, `description`. Picker widgets (column, range, expression builder) need an agreed vocabulary with Agent 2 (§10, item 7).
+- A schema keyword the renderer does not support is rendered as an explicit "unsupported field" error with a code, never silently dropped. A contract-style test runs every descriptor from the stub (and later the real executor) through the renderer.
+- Validation is server-authoritative: the form calls the preview endpoint and maps `ValidationError.path` (JSON pointer) to the matching field. No client-side JSON-Schema validator in v1.
+- **Preview:** if `supports_preview`, show `PreviewResult` before apply.
+- **Destructive operations:** `destructive: true` opens a confirm dialog; the apply request then sends `confirm_destructive: true`. If the server still answers `409 operation_conflict`, its warning text is shown and re-confirmed. Workspace deletion uses the same dialog with `?confirm=true`.
+
+### 3.6 Other UI areas
+- **Workspaces, import, compatibility panel:** upload with progress → job polling → compatibility report grouped by `status`, showing `preserved` / `editable` flags and `location`. The report text is displayed as given; the UI does not rewrite statuses.
+- **Data Tables view + bridge:** same grid, paged table `DataSource`; dialogs for `from-range` (header row, dtype overrides, preview) and `to-sheet`.
+- **Charts:** ECharts via `echarts/core` with only the needed chart types and components. `ChartSpec` + `ChartData` → ECharts options in one mapping module; RTL handled by axis inversion and Persian font family; digit formatting through the same formatters as the grid.
+- **History panel:** list from `GET …/history` (cursor paging); undo/redo buttons; redo tail shown as undone.
+- **Saved Tools:** list/create/run; run dialog is generated from `ToolInput[]`.
+- **Export:** format picker → job → download link; export compatibility report shown the same way as the import report.
+
+### 3.7 Security (web)
+Strict CSP delivered by nginx (and by the API for its own responses): `default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'`. No inline scripts, no CDN. The one runtime risk to verify early: ECharts and any style handling must work under this CSP; if a relaxation is needed it is recorded in DECISIONS.md, not applied silently.
+
+---
+
+## 4. Deploy (`deploy/`)
+
+```
+deploy/
+  docker-compose.yml
+  .env.example                   # every setting, with safe defaults and comments
+  api.Dockerfile                 # multi-stage, non-root; build context = repo root
+  web.Dockerfile                 # builds static bundle, copies into the nginx image
+  nginx/nginx.conf, conf.d/gridora.conf
+  certs/README.md                # where certificates go; not committed
+  TLS.md                         # internal CA, provided certificates, dev self-signed
+  backup/backup.sh restore.sh    # + entrypoint/cron for the backup service
+  scripts/smoke.sh               # post-start checks used in CI and by operators
+```
+
+- **Services:** `nginx` (TLS, static bundle, reverse proxy `/api`, security headers, CSP, `client_max_body_size`, long timeouts for upload/download, login rate-limit zone), `api`, `postgres`, `backup` (optional profile).
+- **Migrations:** `api` entrypoint runs `alembic upgrade head` under a Postgres advisory lock so a second start cannot race.
+- **Healthchecks:** postgres `pg_isready`; api `/healthz` (liveness) and `/readyz` (DB reachable, storage writable, engine/dataops adapter loaded); nginx a local status check. Compose `depends_on` uses `condition: service_healthy`.
+- **Volumes:** `pgdata`, `dataroot` (api read-write, backup read-only), `backups`.
+- **Backup:** nightly `pg_dump` (custom format) + file snapshot with `rsync --link-dest` (chosen over restic to avoid a new dependency; restic stays an option). Retention configurable. `restore.sh` restores DB and files. Because files are immutable-versioned, file restore is additive (per `ARCHITECTURE.md` §10). Restore is **documented now and verified in Phase 4**, as scheduled.
+- **No outbound network at runtime:** no CDN, fonts, analytics or update checks; the runtime containers need no egress. Build-time registry access is allowed; air-gapped builds (vendored wheels/npm cache or `docker save` bundles) are a Phase 4 item and will be reported as such until verified.
+- **Pinned artifacts:** lockfiles for pip and npm; base images pinned by tag now and by digest at release.
+- **Runtime hardening:** non-root users, read-only root filesystem where possible, no published ports except nginx.
+
+---
+
+## 5. Test plan
+
+| Layer | What | Tooling |
+|---|---|---|
+| Unit (api) | services, repos, storage layout, envelope/error mapping, history (undo/redo/truncate/compaction), job state machine | pytest |
+| Unit (web) | geometry math (100k, 1M rows, scaling boundary), block cache LRU/cancel/dedupe, selection + RTL keyboard, input normalization, formatters (digits, Jalali), form renderer, API client | Vitest |
+| Contract | route table equals `API_CONTRACTS.md`; responses validate against `gridora_contracts` models; error codes ⊆ `ERROR_CODES` | pytest (+ schemathesis once approved) |
+| Isolation | OpenAPI-driven two-user matrix described in §2.4; admin cannot read user files | pytest + Postgres service |
+| Session/CSRF | missing/wrong token, expired and logged-out sessions, session rotation on login, cookie flags, rate limit → 429 | pytest |
+| Upload limits | exactly 100 MB passes; 100 MB + 1 byte → 413; lying `Content-Length`; wrong magic bytes → 415; non-ZIP named `.xlsx`; interrupted upload leaves no final file | pytest |
+| No path leak | a test-client fixture scans **every** response body and header in the whole suite for `DATA_ROOT`, `/users/`, storage keys; any hit fails the test | pytest fixture |
+| Boundaries | AST import-linter test from §2.1 | pytest |
+| Stub swap | same API scenarios parametrized over `stub` and (when it exists) `real` | pytest |
+| History/rehydration | live state equals state rebuilt from last save + replayed entries after cache eviction/restart | pytest |
+| Jobs | claim/skip-locked, crash recovery, timeout, error mapping to `import_failed` | pytest |
+| i18n | `fa`/`en` key parity; no literal UI strings; RTL screenshot snapshots of key screens; Persian fixture data (sheet names, text, digits) | Vitest, ESLint, Playwright |
+| Grid performance | 100k rows × 20 columns seeded via the stub: rendered cell count stays bounded after jumping to the bottom, request count/size bounded, scroll frame time measured and recorded. Numbers are reported as measurements on stated hardware, not as budgets met | Playwright |
+| E2E | Definition-of-Success flow: workspace → import → view/edit → operation → chart → save → reopen → undo/redo → save tool → export → read compatibility report | Playwright |
+
+**Stub caveat for E2E:** while only the stub exists, XLSX import, formulas, real compatibility reporting and Data Tables cannot be exercised. Those steps will be marked skipped with the reason in the output; they will not be faked as passing.
+
+**CI gates** (from `TESTING_STRATEGY.md`): ruff, mypy, tsc, ESLint, stylelint, unit + contract + isolation tests, license scan, Docker image build. CI workflows live in `.github/`, which is outside my folders (§10, item 10).
+
+---
+
+## 6. Dependencies expected (each needs a DECISIONS.md / THIRD_PARTY_NOTICES.md entry via PR)
+
+Licenses below are my expectation and are **to be verified** in the PR that adds each dependency; none is recorded as checked yet.
+
+| Area | Candidate | Expected license | Why / alternative |
+|---|---|---|---|
+| Web | react, react-dom, vite, typescript | MIT / MIT / MIT / Apache-2.0 | mainstream; named in ARCHITECTURE |
+| Web | @tanstack/react-query, zustand | MIT | server vs. UI state; alt: Redux Toolkit (heavier) |
+| Web | echarts | Apache-2.0 | named in ARCHITECTURE |
+| Web (dev) | vitest, @playwright/test, eslint, stylelint (+ logical-properties plugin, literal-string rule) | MIT / Apache-2.0 / MIT | testing and RTL/i18n enforcement |
+| Web | Persian font (Vazirmatn) | OFL (verify) | offline Persian rendering |
+| Api | fastapi, pydantic-settings, uvicorn | MIT / MIT / BSD | named in ARCHITECTURE |
+| Api | sqlalchemy 2, alembic, asyncpg | MIT / MIT / Apache-2.0 | named in ARCHITECTURE; async driver choice verified in PR 2 |
+| Api | argon2-cffi | MIT | argon2id |
+| Api | streaming multipart parser | TBD in PR 3 | enforce 100 MB without buffering |
+| Api (test) | pytest, httpx, schemathesis, ruff, mypy | — | per TESTING_STRATEGY |
+
+Deliberately **not** added: Redis/Celery, an i18n framework, a UI component framework, a JSON-Schema form library, a client-side JSON-Schema validator, a Jalali library (display uses `Intl`).
+
+---
+
+## 7. Risks
+
+1. **Contract gaps** (§10) can block integration details; mitigated by working against current contracts and filing `CONTRACT_CHANGE`.
+2. **Stub drift:** a stub that is more permissive than the real engine hides bugs. Mitigation: shared parametrized tests, `STUB` markers, UI badge, and stubs that return `unsupported_workbook` instead of pretending.
+3. **Working-copy memory:** a 100k × 20 workbook per open document may be large; cache cap + LRU + rehydration; real numbers measured once the real engine exists.
+4. **Single-process limit:** working copies live in memory, so v1 supports one API process. Documented limitation.
+5. **Custom grid complexity** (IME, RTL selection, copy/paste, accessibility): scoped cut in §3.3; canvas fallback is measurement-driven.
+6. **Browser height limits** at ~1M rows: handled by scaled scrolling; limits to be measured.
+7. **Delta size:** large operations produce large deltas; threshold-to-blob and the history cap handle it, but compaction needs the engine's save path to be fast.
+8. **CSP vs. ECharts / fonts:** verified early in PR 6/12.
+9. **No progress callback** in `OperationExecutor`: long operations show only queued/running/done.
+10. **Offline builds:** runtime is offline-capable by design; air-gapped build is not verified until Phase 4.
+11. **Jalali display depends on browser ICU data:** pinned in tests, noted in docs.
+
+---
+
+## 8. Honesty and status
+
+- `docs/INTEGRATION_PLAN.md` rows for `apps/api`, `apps/web`, `deploy/` stay **Planned** until code lands; this PR changes only `apps/PLAN.md`.
+- Nothing in this plan is claimed to work. Performance figures will be reported as measurements.
+- Every implementation PR lists known limitations and updates the `apps/README.md` "what works / what doesn't" section.
+
+---
+
+## 9. What this PR touches
+
+Only `apps/PLAN.md`. No contract, docs, engine, dataops or CI changes.
+
+---
+
+## 10. CONTRACT_CHANGE requests and questions for Agent 0
+
+I keep working against the current contracts and will not edit `contracts/`.
+
+1. **CSRF token delivery.** `API_CONTRACTS.md` requires `X-CSRF-Token` but never says where the client obtains it. Proposal: `POST /auth/login` and `GET /auth/me` return `{user, csrf_token}`.
+2. **User management.** Local accounts need creation and disabling. Proposal: v1 uses a CLI + bootstrap env; if HTTP admin endpoints are wanted (`/admin/users`), they need defining.
+3. **Response shape of mutating calls.** `PATCH …/cells`, `undo`, `redo` and `save` do not define their responses. Needed: the new `HistoryEntry` (with `seq`), and the changed cells including recalculated ones (so the grid can update without refetching everything). Proposal: a `CellsChangedResult { history_entry, cells: Cell[], sheet_id }`.
+4. **Concurrency and window limits.** Add `base_seq` (or `If-Match`) on mutating document requests → `409 version_conflict`; specify the maximum `CellWindow` size (my proposed default: 1000 rows × 100 cols, configurable).
+5. **Real-module entry points and Data Table storage.** The contracts do not say how `apps/api` constructs the real implementations (e.g. `gridora_engine.create_engine(config)`, `gridora_dataops.create_executor(config)` / `create_table_store(storage)`), and `TableStore` methods get a `table_id` but no storage root. Proposal: the API injects a storage-location callback (`path_for(table_id, version)`) while Postgres keeps the metadata and ownership rows. Needs agreement with Agents 1 and 2.
+6. **Styles and number formats.** `Cell.s` and `Cell.t` are opaque, and `Workbook.styles_ref` from `DATA_MODEL.md` is not in the TypeScript/pydantic `Workbook`. There is no way for the web app to learn bold/fill/number-format/date-format. Options: an endpoint exposing the style table, and/or engine-provided formatted display text. Not needed for slices 1–3; needed before the grid can look like a spreadsheet.
+7. **`params_schema` vocabulary.** Agree with Agent 2 on JSON-Schema keywords and `x-` hints for column pickers, range pickers and expression builders, and on whether `ValidationError.path` is relative to `params` (`/column`) or the whole operation (`/params/column` as in the §1 example).
+8. **Job progress.** Protocols have no progress callback; confirm coarse status is acceptable for v1.
+9. **Doc/contract inconsistencies noticed** (no action needed from me, flagging for tidy-up): `API_CONTRACTS.md` §11 shows `import_xlsx -> tuple[Workbook, CompatibilityReport]` while `protocols.py` returns `(WorkbookHandle, Workbook, CompatibilityReport)`; `DATA_MODEL.md` `PipelineStep` nests `operation: Omit<Operation,…>` while the TypeScript contract flattens it (`type`, `schema_version`, `params`); `DATA_MODEL.md` `SheetMeta` has no `rtl` although the contract and `I18N_SPEC.md` use it.
+10. **CI location.** The contracts workflow lives in `.github/workflows/`, outside the folders I may modify. Please either add an `apps.yml` workflow or allow me to propose it in a PR.
+11. **Export result.** Confirm `Job.result_ref` for export jobs is a `FileRecord` id (download via `GET /files/{id}/download`).
+12. **Per-user display prefs** (digits, calendar) stay client-side in v1; if server persistence is wanted, a `PATCH /auth/me` shape is needed.
+13. **Jalali conversion library** for explicit operations is Agent 2's decision; this plan uses `Intl` for display only and will record that in DECISIONS.md.
