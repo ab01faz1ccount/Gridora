@@ -49,8 +49,9 @@ def test_enum_values_get_label_keys() -> None:
         "upper": "ops.t_case.params.mode.options.upper", "lower": "ops.t_case.params.mode.options.lower"}
 
 
-def test_production_registry_is_empty_in_m0() -> None:
-    assert default_registry().all() == []  # honest: no operations until M1
+def test_production_registry_is_sorted_and_unique() -> None:
+    types = [s.type for s in default_registry().all()]
+    assert types == sorted(set(types))
 
 
 def test_required_keys_listing_includes_category_and_enums() -> None:
