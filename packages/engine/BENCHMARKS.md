@@ -28,3 +28,28 @@ Reading it honestly:
   column-chunked store (18 MB). The store design is not the bottleneck at this size.
 - Single-cell edit, recalculation and delta size are not measured: those features do not exist yet.
 - The container has one CPU and shared hardware; treat absolute times as indicative only.
+
+## Probe — cost of parsing a 100k x 20 worksheet (NOT the XLSX reader)
+
+`benchmarks/probe_xlsx_sheet_parse.py` measures a lower bound for XLSX open before the reader
+exists (Phase 2 review C1.1). Same environment as above. Synthetic sheet XML in Excel's usual
+shape, 77.6 MB uncompressed, 1,939,473 cells.
+
+| Operation | Result |
+|---|---|
+| expat with no handlers (floor) | 0.98 s |
+| expat stream parse of `<sheetData>` into the real `SheetStore` | 5.75 s |
+| tracemalloc peak of that parse | 25.4 MB (strings not included: shared strings are not parsed) |
+| Row byte-offset index via `bytes.find(b"<row ")` | 0.10 s (100,000 rows) |
+| Parse a 100-row window on demand from the original bytes | 3.7 ms |
+
+What this means, and what it does not:
+- Eager full parse is a **lower bound of ~6 s** for the worksheet alone on this 1-CPU container.
+  The real reader also parses shared strings (~390k entries here), styles, formulas and features,
+  so eager open will be slower. If "open" must mean "everything materialized", pure Python is
+  likely to miss a "few seconds" target.
+- A lazy design looks viable: index rows cheaply, parse only the requested window. The byte-scan
+  index is a *hint*: it must be validated when a row is parsed and fall back to a full safe parse
+  on mismatch (a crafted file can contain `<row ` inside a comment or CDATA section).
+- Not measured: shared-string parsing, formulas, `<dimension>`/used-range correctness, memory of
+  the string table, real Excel-produced files (the XML here is synthetic).
