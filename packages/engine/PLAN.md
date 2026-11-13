@@ -1,8 +1,85 @@
 # packages/engine — Implementation Plan (Step 0)
 
-Owner: Agent 1. Status: **proposal, awaiting Agent 0 review.** This document describes intent only. Nothing here is implemented, and no statement below should be read as "supported" or "working".
+Owner: Agent 1. Status: **approved with conditions (docs/reviews/PHASE2_REVIEW.md); revised for Phase 2.** Sections 1-20 are the original Step 0 text; **section 0 supersedes anything below that conflicts with it.** Progress: E0 and E1 are implemented on their own branches (PRs pending); the spike has not started.
 
 Scope reminder: I touch `packages/engine/` only. I do not import `packages/dataops` or `apps/*`, I do not edit `contracts/`, and I do not copy external code (see §14 and §18).
+
+---
+
+## 0. Phase 2 amendments (supersede conflicting text below)
+
+Contracts are **v0.2.0**; I work against `contracts/` only. Window cap is now **1000 x 100**.
+
+### 0.1 Contract change decisions (C1.4)
+
+| CC | Decision (PHASE2_REVIEW) | Effect on the engine |
+|---|---|---|
+| CC-1 `file_id` | Accepted | keyword-only `file_id` on both imports (done, E0) |
+| CC-2 `close(wb)` | Accepted; handles not thread-safe | done (E0); closing an unknown handle is a no-op |
+| CC-3 styles/layout | Accepted as optional `FormattingEngine` | not needed before slice 3; not implemented; conformance test asserts it is not claimed |
+| CC-4 delta semantics | Accepted, **normative** | cell_patch `before/after` include recalculated dependents; `apply_delta` never recalculates |
+| CC-5 structure ops | Accepted as optional `StructureEngine`, after E8 | shape of `change` is reviewed before implementation |
+| CC-6 CSV report / `infer_types` | Accepted | report in `Workbook.compat`; `CsvImportOptions` dataclass (done, E1) |
+| CC-7 error values | Accepted: `#SPILL!`, `#CALC!`, `#GETTING_DATA` | anything else maps to `#VALUE!` plus a report item, original XML preserved |
+| CC-8 `reason` in `ErrorDetail.code` | Accepted | `GridoraEngineError.to_detail()` (done, E0) |
+| **CC-9 (new)** `export_csv` returns `None`, so export notes (neutralized cells) have no channel | **Proposed** | interim non-contract `last_export_report(wb)`; proposal: `export_csv` returns a `CompatibilityReport` |
+| **CC-10 (new)** snapshot (section 0.4) | **Proposed, Phase 4** | optional `SnapshotEngine` protocol; no work before E6 |
+| **CC-11 (new)** per-patch cap | Review decided: 200,000 cells per `cell_patch`, larger fails with typed `too_large_for_history` | engine enforces the cap when building deltas (E5); I will co-propose the "write into a new sheet" delta with Agents 2 and 3 before M2 closes |
+
+### 0.2 Decisions on my questions (A1-1 ... A1-6)
+
+- A1-1 spike: 3 working days, hard stop, proposed order (section 14 unchanged).
+- A1-2 working assumption accepted, **with the performance gate C1.1** (0.3).
+- A1-3 real Excel files: the owner supplies them (still needed before any "works in Excel" claim; sections 12 and R3).
+- A1-4 limits: 100:1 max compression ratio, 500 MB total uncompressed, **5 M non-empty cells**; tuned after E1 (implemented as `ResourceLimits` defaults).
+- A1-5 CSV formula injection: **default on** for text cells starting with `= + -  @` (I also include TAB and CR, the OWASP set); numeric cells never touched; `csv_neutralize_formulas=False` turns it off; always reported. Consequence to note: text such as `+98912...` is prefixed on export and does not round-trip.
+- A1-6 `.xlsm`: **accept and preserve VBA, never run it.** Export must carry the macro-enabled main content type and the report must say the file needs the `.xlsm` extension (R11 is therefore resolved in favor of accept-and-preserve).
+- ADR-011: import is thread-based in v1; process isolation is a Phase 4 limitation. The engine does not rely on process isolation for correctness; section 10 already states that hard memory/time limits are the API worker's job.
+
+### 0.3 C1.1 — performance gate: measurements so far
+
+Measured at E1 (details and caveats in `BENCHMARKS.md`, 1-CPU container, Python 3.12.3):
+- CSV import of 100k x 20: **4.35 s**, +81 MB RSS; contract-max window read 142 ms; export 1.0 s.
+- Probe (not the reader): eager streaming parse of a synthetic 100k x 20 worksheet is **~5.75 s** with no shared strings, styles or formulas (expat floor 0.98 s). Real eager XLSX open will be slower, and I expect it to miss "a few seconds" for a fully materialized workbook.
+- A **lazy row-window design** looks viable: a byte scan indexes 100,000 rows in 0.10 s and a 100-row window parses in 3.7 ms.
+
+Position: the gate is **not clearly missed**, but eager XLSX open probably will miss. I propose, and ask Agent 0 to acknowledge before E3 starts, that the XLSX reader materializes lazily:
+- Open = package safety checks + parse of workbook/styles/shared strings + row-offset index (hints) + features outside `<sheetData>`.
+- Rows are parsed from the original bytes on demand (windows) or all at once when an operation needs the whole sheet (recalculation, dataops table conversion).
+- The byte-scan index is only a hint: every row parse goes through the safe expat path and falls back to a full safe parse on mismatch (a crafted `<row ` inside a comment or CDATA must not mislead the reader). Hostile-file budgets apply to all parsing.
+- Open risks: honest `row_count`/`col_count` without a full parse (I plan: last indexed row plus `spans`/`<dimension>` as hints, corrected when rows are parsed), formulas (a second cheap scan for `<f` mapped to rows), and shared-string table memory (~390k entries in the probe file).
+- The `SheetStore` interface stays swappable (already isolated behind `put/get/window`). If the lazy design fails in the E4 benchmark, I stop and bring the Rust-core option to Agent 0 before E5, per C1.1.
+
+### 0.4 C1.2 — snapshot format (designed now, built in Phase 4)
+
+Purpose (ADR-011): a separate, low-privilege process parses a hostile file; the API receives a validated result and later reloads it without touching the hostile bytes again. Also the base for history rehydration (snapshot + deltas).
+
+- **Engine-owned, versioned, binary, no pickle/marshal/eval.** Little-endian, explicit lengths.
+- Layout: magic `GRSNAP` + `format_version` (u16); a bounded JSON header (<= 1 MiB: engine/contracts versions, workbook name, date system, sheet metas, the import `CompatibilityReport`, counts, limits used, section table with offsets, lengths, SHA-256); then sections: **strings** (count + length-prefixed UTF-8), **cells** per sheet (the store's chunks: column, chunk index, 256 tag bytes, 256 x float64), **formulas** per sheet (from E7), and **package** (for XLSX: every part as already-decompressed, size-validated opaque bytes, the relationship graph, part states, per-sheet row-offset index).
+- The loader never parses a zip: the package section replaces the original archive, so the trusted side only handles length-prefixed blobs.
+- **Integrity is not authenticity.** SHA-256 detects corruption; the API must authenticate the channel (for example an HMAC key held by the API). The loader still validates every length and count against `ResourceLimits` before allocating, because a compromised parser process is an adversary.
+- Compatibility: loader rejects newer `format_version`; migrations for older ones live in the engine.
+- Tests (when built): snapshot -> load -> export equals direct export byte for byte; truncated, oversized-count and wrong-checksum snapshots fail with typed errors.
+- Interface: optional `SnapshotEngine` protocol (CC-10), Agent 0's decision in Phase 4.
+
+### 0.5 C1.3 — replay determinism (named test)
+
+`tests/roundtrip/test_replay_determinism.py::test_replay_determinism` (written with E5; implemented when `apply_cell_edits` exists):
+1. Import a workbook (CSV and, from E4, XLSX with formulas), apply a seeded random sequence of cell edits, keeping every returned delta.
+2. At step k, take a snapshot of live state (the in-memory store until the snapshot format exists, then the real format).
+3. Load it into a fresh engine and `apply_delta(..., inverse=False)` for deltas k+1..n.
+4. Assert full state equality with the live workbook using a canonical fingerprint (sheet metas; every non-empty cell's value, formula, style id; string table content by value) — never object identity.
+5. Also assert undo of k+1..n returns exactly the step-k fingerprint, and redo returns the final one.
+It passes by design only because deltas contain dependents and `apply_delta` does not recalculate (CC-4). The test also forbids hidden state: no clocks or RNG may influence a delta (volatile functions are not recalculated during replay).
+
+### 0.6 Progress against section 15
+
+| PR | State |
+|---|---|
+| E0 skeleton, errors, limits, `create_engine`, conformance tests | implemented, branch `agent1/e0-skeleton` |
+| E1 CSV import/export, store, `get_cells`, dates, registry, benchmark, probe | implemented, branch `agent1/e1-csv-store` (stacked on E0) |
+| E2 spike | **not started** |
+| E3 onward | blocked on the 0.3 acknowledgment only for the reader design; the zip/XML safety layer does not depend on it |
 
 ---
 
@@ -79,7 +156,7 @@ Boundaries inside the engine: `package/` knows nothing about cells; `model/` kno
 
 ## 3. Internal data model
 
-**Handle.** `WorkbookHandle.id` is a UUID. The engine keeps a registry `id -> WorkbookState`. A handle is **not thread-safe**; `apps/api` must serialize calls per workbook (documented in the README). Memory is released by a `close` method that does not exist in the contract yet (CC-2).
+**Handle.** `WorkbookHandle.id` is a UUID. The engine keeps a registry `id -> WorkbookState`. A handle is **not thread-safe**; `apps/api` must serialize calls per workbook (documented in the README). Memory is released by `close` (CC-2, accepted).
 
 **Sheet storage.** Cells are sparse in the contract but 100k × 20 = 2M cells is the working target. A dict of Python objects per cell is likely too heavy, so the default is a **column-chunked typed store** behind a `SheetStore` interface:
 - per column: a tag array (empty/num/str/bool/err/formula-cached), a float64 array for number/bool/error-code, and an index array into a per-workbook string table for text;
@@ -89,7 +166,7 @@ This is a hypothesis to be validated by the benchmark in §13; the interface let
 
 **Values.** Numbers are stored as floats (as Excel does). Strings keep original text, never normalized (Persian `ي`/`ك` variants are user data; normalizing is a dataops operation, never silent). Dates are numbers with a date number format; `DateValue` is produced only at the edge in `get_cells` when the number format classifies as date/time (built-in ids plus custom-format token scan outside quotes and `[...]`). Excel's 1900 leap-year quirk (serial 60) and the 1904 system are handled in `dates.py` and tested. Jalali conversion is **not** in the engine (I18N_SPEC: display-side).
 
-**Error values.** Contract `ErrValue` has 7 literals. Files can contain others (`#SPILL!`, `#CALC!`, `#GETTING_DATA`, …). Until Agent 0 decides (CC-7), they are mapped to `#VALUE!` in `get_cells` **and reported** (`xlsx.error_value.unmapped`), while the original XML stays untouched if the cell is not edited.
+**Error values.** Contract v0.2.0 `ErrValue` includes `#SPILL!`, `#CALC!` and `#GETTING_DATA` (CC-7). Any other error value found in a file is mapped to `#VALUE!` in `get_cells` **and reported** (`xlsx.error_value.unmapped`), while the original XML stays untouched if the cell is not edited.
 
 **Deltas (ADR-005).**
 - `apply_cell_edits` returns one `CellPatchDelta` whose `before`/`after` contain **every cell whose stored content or value changed**: the edited cells and the recalculated dependents. Consequences: undo/redo is a pure patch application (`apply_delta(inverse=...)`) with no recalculation required, results are deterministic, and the API can return `delta.after` to the browser as the "changed cells" response. Cost: large fan-out produces large deltas; a cap with a typed error is planned (see risks R5). This needs Agent 0 confirmation (CC-4).
@@ -177,7 +254,7 @@ Registry entries declare dependencies ("a pivot cache references a sheet range",
 - **Quoting/newlines**: RFC 4180 style, quoted newlines, `""` escapes, mixed `\r\n`/`\n`.
 - **Persian digits**: a field consisting entirely of digits (Latin, Persian `۰-۹`, Arabic-Indic `٠-٩`) with optional Persian separators (`٫` decimal, `٬` thousands) is normalized to Latin digits **before number parsing** (I18N_SPEC). Text fields that merely contain Persian digits among words are left unchanged. The number of normalized fields is reported (`csv.persian_digits_normalized`, info).
 - **Leading zeros / identifiers**: fields such as `0912…` (phone), national IDs, postal codes with leading zeros stay **text**; numbers are inferred only when `str(float)` round-trips the original token (no loss of leading zeros, no >15-digit precision loss). Type inference is conservative; an `infer_types` option (default on, off = all text) is proposed.
-- **Output**: `export_csv` writes UTF-8 **with BOM** by default (Excel opens Persian text correctly with it); Windows-1256 optional, and unmappable characters raise a typed error rather than being replaced silently. Spreadsheet-formula injection (`=`, `+`, `-`, `@` leading cells) is *not* neutralized by default (fidelity); an opt-in flag is planned and the decision is raised in §19.
+- **Output**: `export_csv` writes UTF-8 **with BOM** by default (Excel opens Persian text correctly with it); Windows-1256 optional, and unmappable characters raise a typed error rather than being replaced silently. Text cells starting with `=`, `+`, `-`, `@` (and TAB/CR) are prefixed with `'` on export **by default** (A1-5), reported, and the behavior can be switched off by configuration; numeric cells are never touched.
 - `import_csv` returns no report per contract; the report is attached as `Workbook.compat` (CC-6, clarification only).
 
 ---
@@ -219,7 +296,7 @@ Registry entries declare dependencies ("a pivot cache references a sheet range",
 
 ## 10. Security and resource limits
 
-All limits live in `ResourceLimits` (injectable, with safe defaults). **Defaults below are proposals to be tuned against the 100k × 20 benchmark file and agreed with Agent 0.**
+All limits live in `ResourceLimits` (injectable, with safe defaults). **Defaults are now agreed (A1-4): 100:1 ratio, 500 MB total uncompressed, 5 M non-empty cells; to be tuned after E1/E4 benchmarks.**
 
 | Threat | Control |
 |---|---|
@@ -324,11 +401,11 @@ Aligned to `docs/INTEGRATION_PLAN.md` slices; each PR small, with tests and READ
 | R8 | No real Excel files in the corpus | false confidence | corpus README states provenance; owner asked to supply files (§12) |
 | R9 | Cooperative time limits cannot stop a pathological single C-level call | DoS | OS-level limits in the API worker process (Phase 3); engine runs only on pre-validated, budgeted streams |
 | R10 | Contract gaps (styles, layout, structure ops, handle lifecycle) block a usable UI | schedule | §17 raised now; I keep working against the current contract |
-| R11 | `xlsm` handling (macro-enabled content type vs `.xlsx` extension) | Excel refuses to open | VBA part preserved; main content type preserved as-is; export reports the extension requirement; decision requested (§19) |
+| R11 | `xlsm` handling (macro-enabled content type vs `.xlsx` extension) | Excel refuses to open | **Decided (A1-6):** accept, preserve VBA, never run it; keep the macro-enabled main content type; the export report states that the file needs the `.xlsm` extension |
 
 ---
 
-## 17. CONTRACT_CHANGE proposals
+## 17. CONTRACT_CHANGE proposals (statuses: see §0.1; text below is the original proposal)
 
 None of these block Step 1 or the first PRs. I keep working against the current contract until Agent 0 decides.
 
@@ -352,7 +429,7 @@ None of these block Step 1 or the first PRs. I keep working against the current 
 
 ---
 
-## 19. Open questions for Agent 0
+## 19. Open questions for Agent 0 (all answered in docs/reviews/PHASE2_REVIEW.md; see §0.2)
 
 1. Approve the proposed spike timebox (3 working days, hard stop) and the candidate order, or set another.
 2. Accept the "own pure-Python package layer + own baseline evaluator, Rust core only if the spike justifies it" working assumption for E0–E7.
