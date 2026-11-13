@@ -96,7 +96,7 @@ def main() -> None:
     t = time.perf_counter()
     store = parse(p)
     print(f"expat stream parse into SheetStore: {time.perf_counter() - t:.2f} s, "
-          f"cells={store._budget.cells}")  # noqa: SLF001
+          f"cells={store._budget.cells}")
     del store
     tracemalloc.start()
     store = parse(p)

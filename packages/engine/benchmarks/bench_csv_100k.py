@@ -82,7 +82,7 @@ def main() -> None:
     h, wb = timed("import_csv", lambda: eng.import_csv(p, opts))
     print(f"RSS growth after import           {rss_mb() - base:9.1f} MB")
     sid = wb.sheets[0].id
-    st = eng._open[h.id]  # noqa: SLF001 (benchmark introspection)
+    st = eng._open[h.id]
     print(f"cells={st.budget.cells} chunks_bytes={st.budget.bytes_used / 1e6:.1f} MB "
           f"strings={len(st.strings)}")
     for r0, label in ((0, "top"), (rows // 2, "middle"), (max(rows - 100, 0), "bottom")):
@@ -99,7 +99,7 @@ def main() -> None:
     # Separate pass: tracemalloc peak (Python-level allocations), slows the import down.
     gc.collect()
     tracemalloc.start()
-    h, wb = eng.import_csv(p, opts)
+    h, _wb = eng.import_csv(p, opts)
     cur, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     print(f"tracemalloc current/peak          {cur / 1e6:9.1f} / {peak / 1e6:.1f} MB")
