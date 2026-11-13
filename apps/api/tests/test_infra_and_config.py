@@ -20,7 +20,11 @@ def test_healthz(client: TestClient) -> None:
 def test_readyz_ok_and_creates_data_root(client: TestClient, settings: Settings) -> None:
     r = client.get("/readyz")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "checks": {"storage": "ok", "db": "ok"}}
+    assert r.json() == {
+        "status": "ok",
+        "checks": {"storage": "ok", "db": "ok", "composition": "ok"},
+        "implementations": {"engine": "stub", "dataops": "stub"},
+    }
     assert settings.data_root.is_dir()
 
 
