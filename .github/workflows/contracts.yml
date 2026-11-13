@@ -1,0 +1,31 @@
+name: contracts
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e contracts/python pytest
+      - run: pytest contracts/python/tests -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npx --yes typescript@5 tsc --noEmit --strict --target es2020 contracts/typescript/index.ts
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: engine and dataops must not import each other or apps
+        run: |
+          set -e
+          if [ -d packages/engine ] && grep -rEn "(import|from)[[:space:]]+(gridora_dataops|apps)" packages/engine --include=*.py; then
+            echo "engine imports a forbidden module"; exit 1; fi
+          if [ -d packages/dataops ] && grep -rEn "(import|from)[[:space:]]+(gridora_engine|apps)" packages/dataops --include=*.py; then
+            echo "dataops imports a forbidden module"; exit 1; fi
+          echo ok
