@@ -1,8 +1,8 @@
 # Operation parameter schemas — vocabulary for form generation
 
-Status: **vocabulary version 1, specification (condition C2.3).** Nothing here is implemented yet; M1 adds the first generated schemas and a golden test per operation. Audience: Agent 3 (form renderer), Agent 0 (review). Owner: Agent 2.
+Status: **vocabulary version 1, specification (condition C2.3).** Implemented from M1 on (PR for `sort`, `filter`, `remove_duplicates`), where golden tests pin the generated schemas. Audience: Agent 3 (form renderer), Agent 0 (review). Owner: Agent 2.
 
-`OperationDescriptor.params_schema` is a JSON Schema (draft 2020-12) generated from each operation's pydantic params model, plus the `x-gridora-*` keywords below. The **generated schema is normative**; examples in this file are illustrative and may differ in detail from what ships.
+`OperationDescriptor.params_schema` is a JSON Schema (draft 2020-12) generated from each operation's pydantic params model, plus the `x-gridora-*` keywords below. The **generated schema is normative** and is pinned by golden files in `tests/golden/` (one per operation, from M1 on); examples in this file are illustrative and may differ in detail.
 
 ## 1. Standard JSON Schema subset used
 
@@ -18,7 +18,7 @@ The renderer must understand exactly this subset; anything else must fall back t
 | `minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems` | client hints; the server is the authority |
 | `items` | arrays (lists of keys, conditions, ...) |
 | `anyOf` | only two shapes: nullable value (`[X, {"type":"null"}]`), or a discriminated union where every branch has a `const` discriminator property (`"kind"`, `"mode"`) |
-| `$defs` / `$ref` | local references only (`#/$defs/...`) |
+| `$defs` / `$ref` | local references only (`#/$defs/...`), and only for **recursive** structures (e.g. filter condition groups); every other nested model is inlined |
 | `title`, `description` | **i18n keys, not display text** (see section 3) |
 
 Not used: `pattern` (server-side only), `format`, `if/then/else`, `dependentRequired`, `patternProperties`, `oneOf`, remote `$ref`. Conditional visibility uses `x-gridora-visible-if`.
@@ -40,6 +40,7 @@ Unknown `x-gridora-*` keywords must be ignored by the renderer. The root schema 
 | `x-gridora-enum-labels` | `{ "<enum value>": "<i18n key>" }` | display labels for `enum` values |
 | `x-gridora-unit` | i18n key | unit hint next to numeric fields |
 | `x-gridora-persian-option` | `true` | marks options specific to Persian text handling, so the UI may group or highlight them |
+| `x-gridora-hidden` | `true` | internal field (the `kind` discriminator of a union branch); never rendered, always submitted with its `const`/default value |
 
 **Tool inputs.** A step parameter can be bound at run time by a `{"$input": "<name>"}` placeholder (`ToolInput.kind` = `column` | `range` | `value`). Allowed positions are derived from the schema: `column` inputs only where `x-gridora-column` is true; `range` inputs only where the schema references the contract `Range` shape; `value` inputs only where the schema type is a scalar (`string`, `integer`, `number`, `boolean`). The form renderer for Tool authoring may offer "bind to a Tool input" on exactly those fields.
 
@@ -55,7 +56,7 @@ Descriptor and schema texts are keys; the text lives in `gridora_dataops.catalog
 | an enum value label | `ops.<type>.params.<name>.options.<value>` |
 | validation message / hint | `errors.<code>.message`, `errors.<code>.hint` (same catalog; `ValidationError.message` carries an English default, the UI may translate by `code`) |
 
-Nested parameter names are joined with dots (`ops.sort.params.keys.items.direction.title`). Persian text is required for every key; English may be added later but a test fails if a key is missing from `fa`.
+Top-level parameter names are joined with dots (`ops.sort.params.keys.title`). **Fields of a nested model are keyed by the model's name**, not by the path, so every use of the model shares one set of texts: `ops.sort.defs.SortKey.direction.title`, `ops.filter.defs.Condition.op.options.eq`, `ops.filter.defs.Group.logic.title`. Array items of plain values use `<param>.items.title`. Persian text is required for every key; English may be added later but a test fails if a key is missing from `fa`.
 
 ## 4. Error paths
 
@@ -79,13 +80,13 @@ Nested parameter names are joined with dots (`ops.sort.params.keys.items.directi
         "type": "object", "additionalProperties": false, "required": ["column"],
         "properties": {
           "column":    {"type": "string", "x-gridora-column": true,
-                        "title": "ops.sort.params.keys.items.column.title"},
+                        "title": "ops.sort.defs.SortKey.column.title"},
           "direction": {"type": "string", "enum": ["asc", "desc"], "default": "asc",
-                        "title": "ops.sort.params.keys.items.direction.title",
-                        "x-gridora-enum-labels": {"asc": "ops.sort.params.keys.items.direction.options.asc",
-                                                   "desc": "ops.sort.params.keys.items.direction.options.desc"}},
+                        "title": "ops.sort.defs.SortKey.direction.title",
+                        "x-gridora-enum-labels": {"asc": "ops.sort.defs.SortKey.direction.options.asc",
+                                                   "desc": "ops.sort.defs.SortKey.direction.options.desc"}},
           "nulls":     {"type": "string", "enum": ["first", "last"], "default": "last",
-                        "title": "ops.sort.params.keys.items.nulls.title"}
+                        "title": "ops.sort.defs.SortKey.nulls.title"}
         }
       }
     },
@@ -98,7 +99,7 @@ Nested parameter names are joined with dots (`ops.sort.params.keys.items.directi
 
 ## 6. Recursive structures
 
-`filter` conditions and `computed_column` expressions are trees. Their shape is defined in PLAN.md sections 3 and 7 and appears in `$defs`, but the form renderer is expected to use the dedicated `condition-builder` / `expression-builder` widgets. Until Agent 3 provides them, the fallback row ("unsupported field") applies and those two operations can still be run from a saved Tool or via the API.
+`filter` conditions and `computed_column` expressions are trees. Their shape appears in `$defs` (for `filter`: `Condition` / `Group` with a hidden `kind` discriminator, see `tests/golden/filter.schema.json` from M1 on), but the form renderer is expected to use the dedicated `condition-builder` / `expression-builder` widgets. Until Agent 3 provides them, the fallback row ("unsupported field") applies and those two operations can still be run from a saved Tool or via the API.
 
 ## 7. Versioning
 
