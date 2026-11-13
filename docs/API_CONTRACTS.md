@@ -115,7 +115,7 @@ These are the only cross-module calls. Defined in `contracts/` and imported by `
 
 ```python
 class WorkbookEngine(Protocol):                      # implemented by packages/engine (Agent 1)
-    def import_xlsx(self, path: Path) -> tuple[Workbook, CompatibilityReport]: ...
+    def import_xlsx(self, path: Path, *, file_id: str | None = None) -> tuple[WorkbookHandle, Workbook, CompatibilityReport]: ...
     def import_csv(self, path: Path, options: CsvOptions) -> Workbook: ...
     def get_cells(self, wb: WorkbookHandle, sheet_id: str, window: Window) -> CellWindow: ...
     def apply_cell_edits(self, wb: WorkbookHandle, sheet_id: str, edits: list[CellEdit]) -> Delta: ...
@@ -135,6 +135,18 @@ class TableStore(Protocol):                          # implemented by packages/d
     def create_from_rows(...); def read_page(...); def sheet_range_to_table(...); def table_to_cells(...)
 ```
 `ExecContext` is the bridge: it gives `dataops` read/write access to sheet ranges through `WorkbookEngine` (passed in by the API), so `dataops` never imports `engine`.
+
+## 11a. Contract v0.2 additions (Phase 2 review; `contracts/` is normative, this section summarizes)
+
+- `POST /auth/login` and `GET /auth/me` return `AuthResult {user, csrf_token}`.
+- Mutating document calls take `base_seq` (`CellEditRequest`, `OperationRequest`); a stale value returns `409 version_conflict`.
+- `PATCH cells`, `undo`, `redo`, sheet operations return `CellsChangedResult {history_entry, sheet_id, cells}`, where `cells` includes recalculated dependents.
+- Max window is 1000 rows x 100 cols (`MAX_WINDOW_*`).
+- `GET /operations?locale=fa` returns descriptors; `GET /operations/i18n?locale=fa` returns the flat key->text catalog from `gridora_dataops.catalog(locale)`.
+- Export jobs: `Job.result_ref` is a `FileRecord` id, downloaded via `GET /files/{id}/download`.
+- `ValidationError.path` is a JSON pointer relative to the root of the Operation (`/params/column`).
+- Optional engine extensions (`FormattingEngine`, `StructureEngine`) are feature-detected by `apps/api`.
+- User management in v1 is a CLI plus bootstrap-admin env; there are no HTTP admin endpoints.
 
 ## 12. Versioning
 

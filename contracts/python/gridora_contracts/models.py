@@ -13,6 +13,9 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
+CONTRACT_VERSION = "0.2.0"
+MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
+MAX_WINDOW_COLS = 100
 
 
 class _Base(BaseModel):
@@ -37,7 +40,8 @@ class BoolValue(_Base):
 
 class ErrValue(_Base):
     k: Literal["err"] = "err"
-    e: Literal["#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!", "#REF!", "#VALUE!"]
+    e: Literal["#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!", "#REF!", "#VALUE!",
+               "#SPILL!", "#CALC!", "#GETTING_DATA"]
 
 
 class DateValue(_Base):
@@ -77,8 +81,8 @@ class Range(_Base):
 class Window(_Base):
     row0: int = Field(ge=0)
     col0: int = Field(ge=0)
-    rows: int = Field(ge=1, le=2000)
-    cols: int = Field(ge=1, le=200)
+    rows: int = Field(ge=1, le=MAX_WINDOW_ROWS)
+    cols: int = Field(ge=1, le=MAX_WINDOW_COLS)
 
 
 class CellWindow(_Base):
@@ -202,7 +206,7 @@ MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # owner decision: 100 MB
 # ----------------------------------------------------------- validation ----
 class ValidationError(_Base):
     code: str
-    path: str  # JSON pointer into params, e.g. "/params/column"
+    path: str  # JSON pointer relative to the ROOT of the Operation, e.g. "/params/column"
     message: str
     hint: Optional[str] = None
 
@@ -233,6 +237,9 @@ class Operation(_Base):
     type: str  # key in the operation registry
     schema_version: int = SCHEMA_VERSION
     target: Target
+    # Additional inputs (e.g. the right-hand table of a join). The API verifies ownership of
+    # every target generically; modules never look ids up in params.
+    extra_targets: list[Target] = []
     params: dict[str, Any] = {}
 
 
@@ -255,10 +262,13 @@ class CellPatchDelta(_Base):
 
 
 class TableVersionDelta(_Base):
+    """from_version == 0 means "the table did not exist" (operation created it);
+    undo then removes it from view, redo restores it. restore_version is a pointer swap."""
+
     kind: Literal["table_version"] = "table_version"
     table_id: str
-    from_version: int
-    to_version: int
+    from_version: int = Field(ge=0)
+    to_version: int = Field(ge=1)
 
 
 class SheetStructureDelta(_Base):
@@ -368,9 +378,66 @@ class ChartData(_Base):
     series: list[dict[str, Any]]  # {"name": str, "values": list[number|None]}
 
 
+# ------------------------------------------------- styles and layout ----
+class StyleInfo(_Base):
+    """Resolved formatting for one style id (Cell.s). Optional engine extension."""
+
+    id: int
+    number_format: Optional[str] = None
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    font_name: Optional[str] = None
+    font_size: Optional[float] = None
+    font_color: Optional[str] = None  # "#RRGGBB"
+    fill_color: Optional[str] = None  # "#RRGGBB"
+    halign: Optional[Literal["left", "center", "right", "justify"]] = None
+    wrap: bool = False
+
+
+class SheetLayout(_Base):
+    sheet_id: str
+    col_widths: dict[int, float] = {}  # only non-default
+    row_heights: dict[int, float] = {}
+    hidden_cols: list[int] = []
+    hidden_rows: list[int] = []
+    merges: list[Range] = []
+
+
+# ------------------------------------------------- request / response ----
+class User(_Base):
+    id: str
+    username: str
+    role: Literal["user", "admin"]
+
+
+class AuthResult(_Base):
+    user: User
+    csrf_token: str  # returned by POST /auth/login and GET /auth/me
+
+
+class CellEditRequest(_Base):
+    base_seq: int  # last history seq the client has seen; mismatch -> 409 version_conflict
+    edits: list[CellEdit]
+
+
+class OperationRequest(_Base):
+    base_seq: int
+    operation: Operation
+    confirm_destructive: bool = False
+
+
+class CellsChangedResult(_Base):
+    """Response of PATCH cells / undo / redo / operations on sheets."""
+
+    history_entry: "HistoryEntry"
+    sheet_id: str
+    cells: list[Cell]  # changed cells INCLUDING recalculated dependents (== delta.after)
+
+
 # ------------------------------------------------------------------ api ----
 class ErrorDetail(_Base):
-    code: str
+    code: str  # may carry a module-level stable sub-code (e.g. "zip.ratio_exceeded")
     path: Optional[str] = None
     message: str
     hint: Optional[str] = None
@@ -402,3 +469,4 @@ ERROR_CODES = (
     "version_conflict", "operation_conflict", "file_too_large", "unsupported_media_type",
     "unsupported_workbook", "import_failed", "rate_limited", "internal_error",
 )
+CellsChangedResult.model_rebuild()

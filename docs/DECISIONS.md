@@ -39,3 +39,13 @@ Format: Context · Decision · Consequences. Status: Proposed → Accepted (afte
 ## ADR-009 — Persian-first UI with RTL
 **Decision:** All UI strings go through i18n from day one; layout is RTL-aware (logical CSS properties); the grid supports RTL sheets. Locale handling for Jalali dates and Persian digits is scoped in Phase 2.
 **Consequences:** Affects grid component design early, which is cheaper than retrofitting. Status: Accepted.
+
+## ADR-010 — Contract v0.2 (Phase 2 review outcome)
+**Decision:** Accept the agents' CONTRACT_CHANGE proposals as recorded in `docs/reviews/PHASE2_REVIEW.md`: typed `read_range`/value-only `write_range`, `extra_targets` on Operation, `validate(op, ctx?)`, `chart_data`/`validate_tool`/`bind_tool`, versioned `read_page`, `close`, `file_id`, optional `FormattingEngine` and `StructureEngine`, request/response models with `base_seq`, window cap 1000x100, three more error values. Real modules export fixed factory functions.
+**Consequences:** Python and TypeScript contracts bumped to 0.2.0. Agents rebase before coding. Status: Accepted.
+
+## ADR-011 — Import isolation deferred to Phase 4
+**Context:** Agent 3 planned imports in a ProcessPool with resource limits, but an in-memory `WorkbookHandle` cannot be returned from another process.
+**Decision:** v1 imports in a worker thread under the engine's own budgeted limits plus a timeout. Phase 4 adds process isolation using an engine-defined snapshot format (Agent 1 proposes it in the engine plan revision).
+**Consequences:** Hostile-file safety in v1 relies on the engine's limits; this is stated in the README and SECURITY_MODEL. Status: Accepted.
+

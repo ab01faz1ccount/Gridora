@@ -21,12 +21,11 @@ Workbook {
   id, file_id, name,
   sheets: SheetMeta[],            // ordered
   defined_names: DefinedName[],
-  styles_ref: string,             // opaque handle into engine style table
   date_system: "1900"|"1904",
   compat: CompatibilityReport     // latest import/export report
 }
 SheetMeta { id, name, index, visible: "visible"|"hidden"|"very_hidden",
-            row_count, col_count, frozen?: {rows:number, cols:number} }
+            row_count, col_count, frozen?: {rows:number, cols:number}, rtl: boolean }
 DefinedName { name, scope: "workbook"|string /*sheet_id*/, ref: string }
 ```
 
@@ -72,7 +71,9 @@ Target = { kind:"sheet_range", sheet_id, range: Range } | { kind:"data_table", t
 
 Operation {
   id, type: string,                    // key in the operation registry, e.g. "sort", "dedupe"
-  schema_version, target: Target, params: object   // validated against the op's param schema
+  schema_version, target: Target,
+  extra_targets: Target[],             // e.g. right table of a join; API verifies ownership of ALL targets
+  params: object                       // validated against the op's param schema
 }
 
 OperationDescriptor {                  // what the registry exposes; drives GUI forms
@@ -90,7 +91,8 @@ OperationResult {
 }
 
 Pipeline { id, name, steps: PipelineStep[], input_kind: "sheet_range"|"data_table" }
-PipelineStep { operation: Omit<Operation,"id"|"target">, label?: string }
+PipelineStep { type: string, schema_version: number, params: object, label?: string }  // flat; contracts/ is normative
+// Tool bindings: a param value {"$input": "<name>"} is replaced at run time (bind_tool).
 ```
 Execution contract (implemented by `dataops`):
 `describe() → OperationDescriptor`, `validate(op) → ValidationError[]`, `preview(op, limit) → PreviewResult` (no mutation), `apply(op) → OperationResult`.
@@ -100,8 +102,8 @@ Execution contract (implemented by `dataops`):
 ```ts
 HistoryEntry { id, document_id, seq, operation: Operation, delta: Delta,
                label, created_at, undone: boolean }
-Delta = { kind:"cell_patch", sheet_id, before: Cell[], after: Cell[] }       // sheet edits
-      | { kind:"table_version", table_id, from_version, to_version }          // table edits
+Delta = { kind:"cell_patch", sheet_id, before: Cell[], after: Cell[] }       // sheet edits; includes recalculated dependents
+      | { kind:"table_version", table_id, from_version, to_version }          // table edits; from_version 0 = "table was created"
       | { kind:"sheet_structure", ... }                                        // insert/delete/rename; defined by engine
 ```
 Undo applies the inverse; redo re-applies. A new operation after an undo truncates the redo tail. History is per document, capped by size (default 500 entries or 200 MB of deltas), oldest entries are compacted into a snapshot version.

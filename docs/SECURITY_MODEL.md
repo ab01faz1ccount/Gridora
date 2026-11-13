@@ -20,7 +20,7 @@ Self-hosted, no outbound data flows, least privilege, all uploads hostile.
 - Upload size cap; decompressed-size and compression-ratio caps; entry-count cap; reject path traversal in zip entries.
 - XML parsed with external entities and DTDs disabled (e.g. defusedxml-class behavior in Python; equivalent in any native code).
 - Sheet dimension and cell-count caps; timeouts; imports run in a job with memory limits.
-- Parsing in an isolated worker process with resource limits (Phase 3 target).
+- v1 (Phase 3): import runs in a worker thread with the engine's budgeted limits and a timeout. OS-level isolation (separate process with RLIMIT) is a **Phase 4** target because a `WorkbookHandle` cannot cross processes; it requires an engine snapshot format (ADR-011). Until then this is a documented limitation.
 - VBA/macros and embedded objects are preserved as opaque data and **never executed**.
 
 **Formula safety:** no network, file, or shell functions; external workbook links not followed.

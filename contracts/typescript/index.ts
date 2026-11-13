@@ -3,13 +3,16 @@
 // Rows/cols are 0-based. IDs are UUID strings. Timestamps are ISO-8601 UTC.
 
 export const SCHEMA_VERSION = 1;
+export const CONTRACT_VERSION = "0.2.0";
+export const MAX_WINDOW_ROWS = 1000;
+export const MAX_WINDOW_COLS = 100;
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 export type CellValue =
   | { k: "num"; n: number }
   | { k: "str"; s: string }
   | { k: "bool"; b: boolean }
-  | { k: "err"; e: "#DIV/0!" | "#N/A" | "#NAME?" | "#NULL!" | "#NUM!" | "#REF!" | "#VALUE!" }
+  | { k: "err"; e: "#DIV/0!" | "#N/A" | "#NAME?" | "#NULL!" | "#NUM!" | "#REF!" | "#VALUE!" | "#SPILL!" | "#CALC!" | "#GETTING_DATA" }
   | { k: "date"; iso: string };
 
 export interface Cell { r: number; c: number; v?: CellValue; f?: string; s?: number; t?: string }
@@ -62,7 +65,11 @@ export type Target =
   | { kind: "sheet_range"; range: Range }
   | { kind: "data_table"; table_id: string };
 
-export interface Operation { id?: string; type: string; schema_version: number; target: Target; params: Record<string, unknown> }
+export interface Operation {
+  id?: string; type: string; schema_version: number; target: Target;
+  extra_targets: Target[];   // e.g. right-hand table of a join; API verifies ownership of all targets
+  params: Record<string, unknown>;
+}
 export interface OperationDescriptor {
   type: string; label: string; category: string; description: string;
   params_schema: Record<string, unknown>; targets: ("sheet_range" | "data_table")[];
@@ -114,3 +121,18 @@ export const ERROR_CODES = [
   "version_conflict", "operation_conflict", "file_too_large", "unsupported_media_type",
   "unsupported_workbook", "import_failed", "rate_limited", "internal_error",
 ] as const;
+
+export interface StyleInfo {
+  id: number; number_format?: string; bold: boolean; italic: boolean; underline: boolean;
+  font_name?: string; font_size?: number; font_color?: string; fill_color?: string;
+  halign?: "left" | "center" | "right" | "justify"; wrap: boolean;
+}
+export interface SheetLayout {
+  sheet_id: string; col_widths: Record<number, number>; row_heights: Record<number, number>;
+  hidden_cols: number[]; hidden_rows: number[]; merges: Range[];
+}
+export interface User { id: string; username: string; role: "user" | "admin" }
+export interface AuthResult { user: User; csrf_token: string }
+export interface CellEditRequest { base_seq: number; edits: CellEdit[] }
+export interface OperationRequest { base_seq: number; operation: Operation; confirm_destructive: boolean }
+export interface CellsChangedResult { history_entry: HistoryEntry; sheet_id: string; cells: Cell[] }

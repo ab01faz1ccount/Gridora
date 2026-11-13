@@ -37,7 +37,7 @@ Legend: Planned · In progress · Implemented · Tested · Integrated
 | Module | Status | Tested | Integrated | Known limitations |
 |---|---|---|---|---|
 | Architecture & contract docs | Implemented | n/a | n/a | Owner decisions applied; agents may raise CONTRACT_CHANGE |
-| `contracts/` (pydantic + TypeScript) | Tested | 8 smoke tests pass; TS strict typecheck passes | No | Proves self-consistency only; no module implements it yet. No JSON Schema export yet |
+| `contracts/` (pydantic + TypeScript) v0.2.0 | Tested | 13 smoke tests pass; TS strict typecheck passes | No | Proves self-consistency only; no module implements it yet. No JSON Schema export yet |
 | `packages/engine` | Planned | — | — | Library choice pending spike |
 | `packages/dataops` | Planned | — | — | — |
 | `apps/api` | Planned | — | — | — |
