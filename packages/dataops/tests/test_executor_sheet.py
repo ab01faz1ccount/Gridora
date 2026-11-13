@@ -167,7 +167,7 @@ def test_preview_raises_with_all_errors(ex: DataOpsExecutor) -> None:
     assert e.value.code == "validation_failed" and e.value.errors[0].code == "unknown_column"
 
 
-def test_data_table_target_is_explicitly_not_implemented(ex: DataOpsExecutor) -> None:
+def test_data_table_target_without_a_store_is_a_typed_error(ex: DataOpsExecutor) -> None:
     from gridora_contracts.models import DataTableTarget
     o = Operation(type="t_case", target=DataTableTarget(table_id="t1"), params={"column": "a"})
     res = ex.apply(o, make_ctx())

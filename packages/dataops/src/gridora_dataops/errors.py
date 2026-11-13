@@ -21,6 +21,9 @@ ERROR_CODES = (
     "would_overwrite",
     "too_large_for_history",
     "version_unavailable",
+    "version_conflict",
+    "owner_unknown",
+    "table_not_found",
     "not_implemented",
     "validation_failed",
 )

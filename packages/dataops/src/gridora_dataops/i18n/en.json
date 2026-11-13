@@ -3,8 +3,10 @@
   "errors.invalid_param.message": "A parameter value is invalid.",
   "errors.mixed_column_types.message": "The column mixes data types (for example numbers and text).",
   "errors.not_implemented.message": "This feature is not implemented yet.",
+  "errors.owner_unknown.message": "The table owner is unknown.",
   "errors.range_has_error_values.message": "The range contains error values (such as #N/A) and this operation does not support them yet.",
   "errors.range_has_formulas.message": "The range contains formulas and this operation would turn them into values. Confirm converting formulas to values first.",
+  "errors.table_not_found.message": "Table not found.",
   "errors.too_large_for_history.message": "The change is too large to record in the history.",
   "errors.type_mismatch.message": "The value or operator does not fit the column type.",
   "errors.unknown_column.message": "No column with this name exists in the data.",
@@ -12,6 +14,7 @@
   "errors.unknown_param.message": "Unknown parameter.",
   "errors.unsupported_target.message": "This operation cannot run on this kind of target.",
   "errors.validation_failed.message": "The operation parameters are invalid.",
+  "errors.version_conflict.message": "This table version already exists; versions are immutable.",
   "errors.version_unavailable.message": "This table version is no longer available.",
   "errors.would_overwrite.message": "This operation would overwrite non-empty cells outside the range.",
   "ops.categories.analyze": "Analyze",
@@ -22,10 +25,12 @@
   "ops.categories.order": "Order",
   "ops.categories.reshape": "Reshape",
   "ops.categories.select": "Select",
+  "ops.change_type.label": "Change type",
   "ops.filter.description": "Keeps only rows that match the conditions. On a sheet the result is created as a new table.",
   "ops.filter.label": "Filter",
   "ops.groups.advanced": "Advanced options",
   "ops.remove_duplicates.label": "Remove duplicates",
   "ops.sort.description": "Sorts rows by one or more columns, respecting Persian alphabetical order.",
-  "ops.sort.label": "Sort"
+  "ops.sort.label": "Sort",
+  "warnings.values_set_to_null": "Some values could not be converted and were left empty."
 }

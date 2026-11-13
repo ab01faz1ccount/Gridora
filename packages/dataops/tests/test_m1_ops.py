@@ -42,13 +42,13 @@ def cond(column: str, op: str, value=None, **kw) -> dict:  # type: ignore[no-unt
 
 
 # ------------------------------------------------------------ registry / golden schemas
-def test_production_registry_ships_the_m1_operations() -> None:
-    assert [s.type for s in default_registry().all()] == ["filter", "remove_duplicates", "sort"]
+def test_production_registry_ships_the_current_operations() -> None:
+    assert [s.type for s in default_registry().all()] == ["change_type", "filter", "remove_duplicates", "sort"]
 
 
 @pytest.mark.parametrize("spec", default_registry().all(), ids=lambda s: s.type)
 def test_flags_match_the_operations_catalog(spec) -> None:  # type: ignore[no-untyped-def]
-    catalog = {"sort": (False, True), "filter": (False, True), "remove_duplicates": (True, True)}
+    catalog = {"sort": (False, True), "filter": (False, True), "remove_duplicates": (True, True), "change_type": (True, True)}
     assert (spec.destructive, spec.supports_preview) == catalog[spec.type]
 
 
@@ -276,11 +276,17 @@ def test_nested_unknown_column_path() -> None:
     assert [(e.code, e.path) for e in errs] == [("unknown_column", "/params/where/items/1/column")]
 
 
-def test_filter_preview_works_and_never_writes_but_apply_on_sheet_is_not_implemented_yet() -> None:
+def test_filter_preview_never_writes() -> None:
     ex, ctx = DataOpsExecutor(), sheet()
     before = ctx.snapshot()
     pv = ex.preview(run("filter", ctx, where=cond("نمره", "gt", 1)), ctx, 10)
     assert pv.rows == [["گل", 3.0], ["باران", 2.0]] and pv.total_rows == 2
+    assert ctx.snapshot() == before and ctx.writes == 0
+
+
+def test_filter_apply_on_a_sheet_without_a_table_store_is_a_typed_error_and_writes_nothing() -> None:
+    ex, ctx = DataOpsExecutor(), sheet()
+    before = ctx.snapshot()
     res = ex.apply(run("filter", ctx, where=cond("نمره", "gt", 1)), ctx)
     assert res.status == "error" and res.errors[0].code == "not_implemented"
     assert ctx.snapshot() == before and ctx.writes == 0
