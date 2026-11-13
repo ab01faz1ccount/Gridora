@@ -4,6 +4,7 @@ Domain code raises DomainError(code=...). The HTTP status comes from ONE table t
 against gridora_contracts.ERROR_CODES by a test, so the two cannot drift silently.
 No stack trace, exception text or path is ever put in a response.
 """
+
 from __future__ import annotations
 
 import logging
@@ -146,7 +147,10 @@ async def _http_error(request: Request, exc: Exception) -> JSONResponse:
     if exc.status_code == 405:
         # The contract has no dedicated code; keep the real 405 status with the generic code.
         return error_response(
-            request, "bad_request", "Method not allowed.", status=405,
+            request,
+            "bad_request",
+            "Method not allowed.",
+            status=405,
             headers=dict(exc.headers or {}),
         )
     if exc.status_code == 401:
@@ -164,7 +168,9 @@ async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
     # Logged server-side with the request id; the client only gets the generic envelope.
     log.error(
         "unhandled exception request_id=%s type=%s",
-        request_id_of(request), type(exc).__name__, exc_info=exc,
+        request_id_of(request),
+        type(exc).__name__,
+        exc_info=exc,
     )
     return error_response(request, "internal_error", _GENERIC_MESSAGE["internal_error"])
 

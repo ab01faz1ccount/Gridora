@@ -4,6 +4,7 @@ Rows look like:  | GET/POST | `/workspaces` | ... |   -> (GET, /api/v1/workspace
 Query strings in the doc (`?r0&c0`) are dropped. v0.2 additions that are only described in
 prose (section 11a) are listed explicitly in EXTRA_ROUTES.
 """
+
 from __future__ import annotations
 
 import re

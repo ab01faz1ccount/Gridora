@@ -60,11 +60,21 @@ def test_status_table_matches_contract_error_codes() -> None:
 
 @pytest.mark.parametrize(
     ("code", "status"),
-    [("bad_request", 400), ("validation_failed", 400), ("unauthenticated", 401),
-     ("forbidden", 403), ("not_found", 404), ("version_conflict", 409),
-     ("operation_conflict", 409), ("file_too_large", 413), ("unsupported_media_type", 415),
-     ("unsupported_workbook", 422), ("import_failed", 422), ("rate_limited", 429),
-     ("internal_error", 500)],
+    [
+        ("bad_request", 400),
+        ("validation_failed", 400),
+        ("unauthenticated", 401),
+        ("forbidden", 403),
+        ("not_found", 404),
+        ("version_conflict", 409),
+        ("operation_conflict", 409),
+        ("file_too_large", 413),
+        ("unsupported_media_type", 415),
+        ("unsupported_workbook", 422),
+        ("import_failed", 422),
+        ("rate_limited", 429),
+        ("internal_error", 500),
+    ],
 )
 def test_statuses_follow_api_contracts_table(code: str, status: int) -> None:
     assert STATUS_BY_CODE[code] == status
