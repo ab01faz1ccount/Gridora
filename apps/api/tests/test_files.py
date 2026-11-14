@@ -41,7 +41,7 @@ def test_upload_csv_and_xlsx_are_stored_under_uuid_paths(
         r = upload(alice, ws, name, data)
         assert r.status_code == 201, r.text
         rec = r.json()["data"]["file"]
-        assert r.json()["data"]["job_id"] is None  # import jobs arrive with PR 5
+        assert r.json()["data"]["job_id"]  # an import job was queued
         assert rec["kind"] == "original" and rec["display_name"] == name
         assert rec["size_bytes"] == len(data) and rec["sha256"] == hashlib.sha256(data).hexdigest()
         path = (

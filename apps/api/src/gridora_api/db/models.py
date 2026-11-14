@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -18,7 +20,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy import DateTime as DT
-from sqlalchemy.dialects.postgresql import CITEXT
+from sqlalchemy.dialects.postgresql import CITEXT, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -109,3 +111,65 @@ class StoredFile(Base):
     )
     storage_key: Mapped[str] = mapped_column(Text)  # internal; never serialized
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
+class Document(Base):
+    """Registry of every document id (workbook or table): one lookup resolves `{document_id}`."""
+
+    __tablename__ = "documents"
+    __table_args__ = (CheckConstraint("kind in ('workbook','table')", name="kind"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
+class WorkbookRow(Base):
+    __tablename__ = "workbooks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("files.id", ondelete="CASCADE"), unique=True
+    )  # the original upload; one working workbook per original in v1
+    current_file_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("files.id", ondelete="SET NULL"), nullable=True
+    )  # latest saved version; None until the first save
+    last_saved_seq: Mapped[int] = mapped_column(Integer, default=0)
+    name: Mapped[str] = mapped_column(String(255))
+    meta_json: Mapped[dict[str, Any]] = mapped_column(JSONB)  # contract Workbook (incl. compat)
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
+class JobRow(Base):
+    __tablename__ = "jobs"
+    __table_args__ = (
+        CheckConstraint("kind in ('import','export','operation')", name="kind"),
+        CheckConstraint("status in ('queued','running','succeeded','failed')", name="status"),
+        Index("ix_jobs_status_created_at", "status", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    progress: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    result_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(TZ, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(TZ, nullable=True)

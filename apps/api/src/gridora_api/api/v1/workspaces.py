@@ -8,12 +8,12 @@ from fastapi.responses import FileResponse
 from gridora_contracts.models import FileRecord
 from gridora_contracts.models import Workspace as WorkspaceOut
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
 from ...core.errors import DomainError, request_id_of
-from ...db.models import StoredFile, Workspace
+from ...db.models import Document, StoredFile, WorkbookRow, Workspace
 from ...db.repos.owned import get_owned, list_owned
 from ...db.session import get_db
 from ...services import audit
@@ -43,7 +43,7 @@ class NameBody(BaseModel):
 class UploadResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
     file: FileRecord
-    job_id: str | None = None  # import jobs arrive with PR 5
+    job_id: str
 
 
 def ws_out(w: Workspace) -> WorkspaceOut:
@@ -121,6 +121,12 @@ async def delete_workspace(
         db, StoredFile, ctx.user.id, StoredFile.workspace_id == w.id, limit=100_000
     )
     keys = [f.storage_key for f in files]
+    doc_ids = (
+        (await db.execute(select(WorkbookRow.id).where(WorkbookRow.workspace_id == w.id)))
+        .scalars()
+        .all()
+    )
+    await db.execute(delete(Document).where(Document.id.in_(doc_ids)))
     await db.execute(
         delete(Workspace).where(Workspace.id == w.id, Workspace.owner_id == ctx.user.id)
     )
@@ -135,6 +141,8 @@ async def delete_workspace(
         request_id=request_id_of(request),
     )
     await db.commit()
+    for d in doc_ids:
+        request.app.state.copies.drop(str(d))
     file_service.remove_stored(request.app.state.layout, keys)  # after commit; best effort
 
 
@@ -162,6 +170,12 @@ async def upload_file(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[U
         rec = await file_service.finalize_upload(
             db, request.app.state.layout, owner_id=ctx.user.id, workspace_id=w.id, stored=stored
         )
+        job_id = await request.app.state.runner.submit(
+            db,
+            ctx.user.id,
+            "import",
+            {"file_id": str(rec.id), "request_id": request_id_of(request)},
+        )
         audit.record(
             db,
             action="file.upload",
@@ -178,7 +192,7 @@ async def upload_file(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[U
             file_service.remove_stored(request.app.state.layout, [rec.storage_key])
         stored.quarantine.unlink(missing_ok=True)
         raise
-    return ok(request, UploadResult(file=file_out(rec)))
+    return ok(request, UploadResult(file=file_out(rec), job_id=str(job_id)))
 
 
 @router.get("/files/{id}/download")
