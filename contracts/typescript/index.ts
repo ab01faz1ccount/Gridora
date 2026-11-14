@@ -3,7 +3,7 @@
 // Rows/cols are 0-based. IDs are UUID strings. Timestamps are ISO-8601 UTC.
 
 export const SCHEMA_VERSION = 1;
-export const CONTRACT_VERSION = "0.2.0";
+export const CONTRACT_VERSION = "0.3.0";
 export const MAX_WINDOW_ROWS = 1000;
 export const MAX_WINDOW_COLS = 100;
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

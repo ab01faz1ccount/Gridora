@@ -1,0 +1,22 @@
+# Reviewed and committed by Agent 0 (source: agent proposal under ci/).
+name: engine
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths: ["packages/engine/**", "contracts/**"]
+  push:
+    branches: [main]
+    paths: ["packages/engine/**", "contracts/**"]
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e contracts/python -e "packages/engine[dev]"
+      - run: ruff check packages/engine
+      - run: mypy packages/engine/src
+      - run: pytest packages/engine/tests -q

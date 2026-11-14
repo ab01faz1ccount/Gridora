@@ -10,3 +10,7 @@ Normative shared types and module interfaces. **Owned by Agent 0.** Other agents
 Rule: the Python and TypeScript files must stay in sync. Any change touches both, plus `docs/DATA_MODEL.md`/`API_CONTRACTS.md` when the shape changes.
 
 Install for local development: `pip install -e contracts/python`. Run tests: `pytest contracts/python/tests`.
+
+## Changelog
+- **0.3.0** — `WorkbookEngine.export_csv` returns a `CompatibilityReport` (CC-9). Agents 1 and 3 update their implementations and stubs; the engine's non-contract `last_export_report` becomes unnecessary.
+- **0.2.0** — Phase 2 review changes (see `docs/reviews/PHASE2_REVIEW.md`, ADR-010).
