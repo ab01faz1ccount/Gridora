@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M5 (calendar, pipelines/tools, benchmarks) — in progress.**
+**Status: M5 (calendar, pipelines/tools done; benchmarks in progress).**
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -19,6 +19,8 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - **`computed_column`**: structured expression tree (literal / column / call of ~35 allow-listed functions), type-checked before running, errors point at the node (`/params/expr/args/1`), division by zero gives empty cells + a warning, limits of depth 20 and 200 nodes, no scripting.
 - **`chart_data(spec, ctx)`**: bar/line/pie/scatter/area -> plain categories and series (aggregate sum/avg/count/min/max per category in first-appearance order, nulls kept, `(خالی)` for empty categories, caps at 5,000 categories).
 - **`convert_calendar`** (Gregorian ⇄ Jalali, explicit only): date -> text `YYYY/MM/DD` with Persian or Latin digits, or three integer columns; Jalali text (any digit script, `/ - .` separators) -> date; replaces the column or writes a new one; unconvertible values fail with a count and examples, or become empty with a warning. Own implementation of the 33-year arithmetic cycle, **supported Jalali years 1300-1500**, checked against jdatetime and persiantools on every one of the 73,413 days of that range (all three libraries incl. convertdate agree on year starts from 1277); outside the range values are reported, never guessed.
+- **Pipelines** (`run_pipeline`): all-or-nothing, one result with its own delta per step. A dry run first plans every step on in-memory frames, chained exactly as they will run (including the growing/shrinking sheet range and steps that create a new table); only if everything passes are the steps applied one by one. A failure while applying rolls back earlier steps (table versions/tables created by the run are discarded, sheet cells are restored value by value) and says so if the rollback itself was incomplete (`rollback_incomplete`).
+- **Tools**: `bind_tool` replaces `{"$input": name}` placeholders (an unbound *optional* input drops the parameter so the default applies; wrong kinds, unknown/missing inputs and undeclared placeholders are reported with paths); `validate_tool` checks, without running anything, that column inputs sit at column parameters, value inputs at plain-value parameters, every input is used, operations exist and the static parameters are valid; with a context it also checks the first step's literal columns.
 - **`change_type`**: text/number/bool/date/datetime conversions; Persian/Arabic-Indic digits, `٬ ، ,` thousands separators and `٫` decimal separator understood; comma is only a decimal separator when asked (`decimal_separator=comma`); failures stop the operation with a count and examples (or become empty with `on_error=null` and a warning).
 - **`ParquetTableStore`** (`create_table_store(path_for)`): immutable zstd Parquet versions written atomically (temp + fsync + hard link, never overwrites), `read_page` with Persian-aware stable sort, `restore_version` as a pointer swap (`version_unavailable` if compacted), per-owner isolation, all contract dtypes round-trip (decimal stored as Decimal(38,10)).
 - **Bridge**: `sheet_range_to_table` (explicit `header_row`, whole-number floats become int64, mixed columns become text and error cells empty *with warnings*, dtype overrides, `preview=True` stores nothing) and `table_to_cells` (never overwrites, 200,000-cell cap).
@@ -26,7 +28,8 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - Golden JSON-Schema files per operation (`tests/golden/`), Persian text for every schema key.
 
 ## What does not work yet (honest list)
-- Not built yet: pipelines (`run_pipeline`) and Tools (`bind_tool`/`validate_tool`) (M5), benchmarks (M5).
+- Not built yet: benchmarks (`BENCHMARKS.md`).
+- Pipelines: operations that need extra targets (`join`) cannot be steps (`PipelineStep` has no `extra_targets`); `range` Tool inputs are not accepted by any v1 parameter; each step re-reads its input (no in-memory hand-off between applied steps); on sheets, a rollback restores values only (formulas converted by a confirmed step cannot come back); `validate_tool` cannot know columns created by earlier steps.
 - `computed_column`: `round` rounds to a whole number only; text comparisons are plain code-point comparisons (no Persian collation); no Jalali date functions (`year/month/day` are Gregorian).
 - Analysis operations take sheet ranges by snapshotting them (the catalog lists tables); floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums are not guaranteed identical across machines with different thread counts.
 - `chart_data` reads a sheet source with its first row as header (the spec has no header flag).
