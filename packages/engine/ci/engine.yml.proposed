@@ -1,0 +1,21 @@
+# Proposed by Agent 1 (docs/WORKFLOW.md: agents cannot edit .github/). Agent 0 commits it as
+# .github/workflows/engine.yml.
+name: engine
+on:
+  pull_request:
+    paths: ["packages/engine/**", "contracts/**"]
+  push:
+    branches: [main]
+    paths: ["packages/engine/**", "contracts/**"]
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e contracts/python -e "packages/engine[dev]"
+      - run: ruff check packages/engine
+      - run: mypy packages/engine/src
+      - run: pytest packages/engine/tests -q
