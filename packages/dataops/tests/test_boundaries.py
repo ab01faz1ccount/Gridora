@@ -35,8 +35,19 @@ def test_only_stdlib_and_allowed_third_party() -> None:
         assert not extra, f"{name} imports unreviewed dependencies: {extra}"
 
 
-def test_no_path_construction_outside_resolver() -> None:
-    # dataops must not invent filesystem paths: no os/pathlib/open() use in M0 sources other than packaged i18n.
-    for f in SRC.rglob("*.py"):
-        text = f.read_text(encoding="utf-8")
-        assert "open(" not in text.replace("importlib", "") or f.name == "catalog.py", f.name
+FS_ALLOWED = {"catalog.py", str(Path("tables") / "store.py"), "table_store.py"}
+FS_MODULES = {"os", "pathlib", "shutil", "tempfile", "glob"}
+
+
+def test_filesystem_access_is_confined_to_the_store_and_catalog() -> None:
+    for name, roots in imported_roots().items():
+        if name in FS_ALLOWED:
+            continue
+        assert not (roots & FS_MODULES), f"{name} touches the filesystem: {roots & FS_MODULES}"
+        assert "open(" not in (SRC / name).read_text(encoding="utf-8").replace("importlib", ""), name
+
+
+def test_store_never_invents_paths() -> None:
+    # every path comes from the resolver supplied by apps/api; the store only derives siblings of those paths
+    text = (SRC / "tables" / "store.py").read_text(encoding="utf-8")
+    assert "Path(" not in text and "expanduser" not in text and "gettempdir" not in text

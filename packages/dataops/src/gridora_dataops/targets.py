@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import polars as pl
@@ -20,6 +20,7 @@ from gridora_contracts.models import (
     NumValue,
     Range,
     StrValue,
+    Warning_,
 )
 from gridora_contracts.protocols import ExecContext
 
@@ -34,6 +35,7 @@ class SheetFrame:
     names: list[str]
     formula_cells: int
     error_cells: int
+    warnings: list[Warning_] = field(default_factory=list)
 
 
 def _header_name(cell: Cell | None, index: int) -> str:
@@ -78,7 +80,21 @@ _DTYPES: dict[str, Any] = {
 }
 
 
-def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_formulas: bool) -> SheetFrame:
+def _as_text(kind: str, val: Any) -> str | None:
+    if val is None:
+        return None
+    if kind == "num":
+        return str(int(val)) if float(val).is_integer() else repr(float(val))
+    if kind == "bool":
+        return "true" if val else "false"
+    if kind in ("date", "datetime"):
+        return str(val.isoformat())
+    return str(val)
+
+
+def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_formulas: bool,
+                     lenient: bool = False) -> SheetFrame:
+    """`lenient` (bridge imports only): mixed-type columns become text and error values become empty, with warnings."""
     grid = ctx.read_range(rng)
     nrows, ncols = rng.r1 - rng.r0 + 1, rng.c1 - rng.c0 + 1
     grid = [(list(r) + [None] * ncols)[:ncols] for r in grid][:nrows]
@@ -93,6 +109,7 @@ def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_fo
         [f"column_{i + 1}" for i in range(ncols)]
 
     errors = 0
+    warnings: list[Warning_] = []
     data: dict[str, pl.Series] = {}
     for j, name in enumerate(names):
         kinds = set()
@@ -104,15 +121,26 @@ def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_fo
             elif kind != "null":
                 kinds.add(kind)
             values.append(val)
+        if len(kinds) > 1 and lenient:
+            values = [_as_text(k, v) for k, v in zip((_native(r[j])[0] for r in body), values)]
+            warnings.append(Warning_(code="mixed_column_types", severity="warn", location=name,
+                                     message=f"column '{name}' mixes {sorted(kinds)}; imported as text"))
+            kinds = {"str"}
         if len(kinds) > 1:
             raise DataOpsError("mixed_column_types", f"column '{name}' mixes {sorted(kinds)}",
                                path=pointer("target"), hint="v1 limitation: convert the column to one type first")
         dtype = _DTYPES[next(iter(kinds))] if kinds else pl.String
         data[name] = pl.Series(name, values, dtype=dtype)
-    if errors:
+    if errors and lenient:
+        warnings.append(Warning_(code="error_values_dropped", severity="warn",
+                                 message=f"{errors} error value(s) (#N/A, ...) were imported as empty cells"))
+    elif errors:
         raise DataOpsError("range_has_error_values", "the range contains error values (#N/A, ...)", path=pointer("target"))
+    if formulas and lenient:
+        warnings.append(Warning_(code="range_has_formulas", severity="info",
+                                 message=f"{formulas} formula cell(s): their current values were imported"))
     frame = pl.DataFrame(data) if data else pl.DataFrame()
-    return SheetFrame(frame, rng, has_header, names, formulas, errors)
+    return SheetFrame(frame, rng, has_header, names, formulas, errors, warnings)
 
 
 def _to_cell_value(x: Any) -> CellValue | None:
