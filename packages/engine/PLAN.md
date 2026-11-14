@@ -79,7 +79,8 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 | E0 skeleton, errors, limits, `create_engine`, conformance tests | implemented, branch `agent1/e0-skeleton` |
 | E1 CSV import/export, store, `get_cells`, dates, registry, benchmark, probe | implemented, branch `agent1/e1-csv-store` (stacked on E0) |
 | E2 spike | **not started** |
-| E3 onward | blocked on the 0.3 acknowledgment only for the reader design; the zip/XML safety layer does not depend on it |
+| E3 hostile-safe zip/XML, package model, byte-equal no-op round trip | implemented, branch `agent1/e3-package` (stacked on `agent1/v030-ci`) |
+| E4 onward | see Review 2 orders: E4 XLSX read + lazy row window + report, then E5 edits/undo; **no formulas (E7) yet** |
 
 ---
 
