@@ -31,6 +31,7 @@
   "ops.change_type.label": "Change type",
   "ops.clean_text.label": "Clean text",
   "ops.computed_column.label": "Computed column",
+  "ops.convert_calendar.label": "Convert calendar (Gregorian / Jalali)",
   "ops.fill.label": "Fill empty cells",
   "ops.filter.description": "Keeps only rows that match the conditions. On a sheet the result is created as a new table.",
   "ops.filter.label": "Filter",

@@ -30,6 +30,7 @@ def default_registry() -> OperationRegistry:
     from .ops.change_type import ChangeTypeOp
     from .ops.clean_text import CleanTextOp
     from .ops.computed_column import ComputedColumnOp
+    from .ops.convert_calendar import ConvertCalendarOp
     from .ops.fill import FillOp
     from .ops.filter import FilterOp
     from .ops.find_replace import FindReplaceOp
@@ -44,6 +45,7 @@ def default_registry() -> OperationRegistry:
 
     reg = OperationRegistry()
     for spec in (SortOp(), FilterOp(), RemoveDuplicatesOp(), ChangeTypeOp(), FindReplaceOp(), FillOp(), CleanTextOp(),
-                 SplitColumnOp(), MergeColumnsOp(), GroupAggregateOp(), PivotOp(), UnpivotOp(), JoinOp(), ComputedColumnOp()):
+                 SplitColumnOp(), MergeColumnsOp(), GroupAggregateOp(), PivotOp(), UnpivotOp(), JoinOp(), ComputedColumnOp(),
+                 ConvertCalendarOp()):
         reg.register(spec)
     return reg
