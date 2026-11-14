@@ -2,7 +2,7 @@
 
 Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` (v0.2.0, read-only).
 
-## Status: In progress (PR 1 skeleton, PR 2 auth, PR 3 workspaces/files)
+## Status: In progress (PRs 1-4: skeleton, auth, workspaces/files, composition + stubs)
 
 ### What works (each item has a test)
 - App factory (`gridora_api.main:create_app`), configuration from `GRIDORA_*` environment variables.
@@ -40,8 +40,30 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
   without a session, nothing changed). A test client scans every JSON body and every header of
   every response in the suite and fails the test on any server path or storage detail.
 
+- Composition (PR 4): `composition/wiring.py` is the only module that loads `gridora_engine` /
+  `gridora_dataops` (lazily, through the four fixed factories of contracts v0.2; a test enforces
+  that nothing else in the package imports or names them). `GRIDORA_ENGINE` / `GRIDORA_DATAOPS` =
+  `stub|real`, one setting each; `real` without the package fails at startup with a clear message;
+  a missing factory or an object that does not satisfy the protocol is refused. `PathResolver` is
+  handed to `create_table_store`. `FormattingEngine` / `StructureEngine` are feature-detected.
+- `EngineExecContext`: typed `read_range` (tiled beyond the 1000 x 100 window cap), value-only
+  `write_range` that clears uncovered cells in one delta, 200,000-cell cap per undoable step
+  (`operation_conflict` with detail code `too_large_for_history`).
+- **STUBS (clearly marked, not real implementations):**
+  - `StubEngine`: in-memory, single sheet, **CSV only** (UTF-8 with/without BOM, Windows-1256,
+    delimiter sniffing). XLSX import/export raise `unsupported_workbook`. Formulas are **not**
+    evaluated or stored (a formula edit is rejected with a JSON-pointer error; text that looks like a
+    formula stays text). No styles. Every import reports a `partial` compatibility item.
+  - `StubExecutor`: `sort`, `find_replace`, `remove_duplicates` on sheet ranges (real JSON-Schema
+    params, validate/preview/apply with undoable deltas, `range_has_formulas` refusal, pipelines with
+    one delta per step, `bind_tool`). No Persian-aware collation. `StubTableStore` and `chart_data`
+    answer `bad_request` ("needs the real dataops package").
+  - Visible at runtime: every response carries `X-Gridora-Engine` / `X-Gridora-Dataops`;
+    `/readyz` lists `implementations`.
+
 ### What does not work yet
-- No jobs, workbooks, engine or operations. `POST .../files` returns `job_id: null` until the
+- No jobs, workbooks routes or operation routes yet (PR 5 onward); the stubs are wired but no HTTP
+  route calls them. `POST .../files` returns `job_id: null` until the
   import job exists (PR 5). The file is stored but not parsed or validated beyond type/magic.
 - Lists are not paginated (capped at 1000 rows).
 - Only `.xlsx`, `.xlsm`, `.csv` are accepted; UTF-16 CSV is refused (needs a NUL-free text file).
@@ -49,6 +71,11 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
 - `POST /auth/logout` returns `204` with no body (the contract does not define a response).
 - Admin role exists but nothing uses it yet; there are no HTTP admin endpoints (Agent 0 decision).
 - The 405 response keeps status 405 with code `bad_request` (the contract has no 405 code).
+
+### Deviations from `apps/PLAN.md`
+- Routers import `db.repos` / `db.models` (owner-scoped repositories) instead of going through a
+  service layer for plain CRUD. The plan's "routers may not import db/" rule is not enforced; the
+  isolation matrix and the repository design are the actual guarantees.
 
 ### Known limitations (by design for v1, from the plan)
 - Single API worker process (working copies will live in memory). No horizontal scaling.

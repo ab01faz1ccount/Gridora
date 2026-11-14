@@ -12,6 +12,7 @@ from sqlalchemy import text
 from . import __version__
 from .api import infra
 from .api.v1.router import api_router
+from .composition.wiring import build_services
 from .config import Settings, get_settings
 from .core.errors import install_error_handlers
 from .core.middleware import RequestContextMiddleware
@@ -31,6 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     sessionmaker = make_sessionmaker(engine)
     hasher = Hasher(settings)
     layout = StorageLayout(settings.data_root)
+    services = build_services(settings, layout)  # fails fast if a configured module is missing
 
     async def db_check() -> bool:
         async with engine.connect() as conn:
@@ -38,6 +40,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return True
 
     readiness.register("db", db_check)
+
+    async def impl_check() -> bool:
+        return True  # build_services() already validated both implementations at startup
+
+    readiness.register("composition", impl_check)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -68,6 +75,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sessionmaker = sessionmaker
     app.state.hasher = hasher
     app.state.layout = layout
+    app.state.services = services
+    app.state.implementations = {"engine": services.engine_kind, "dataops": services.dataops_kind}
     app.state.limiter = LoginLimiter(
         settings.login_window_seconds,
         settings.login_max_failures_per_user,
@@ -75,7 +84,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     install_error_handlers(app)
-    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(
+        RequestContextMiddleware,
+        extra_headers={
+            "X-Gridora-Engine": services.engine_kind,
+            "X-Gridora-Dataops": services.dataops_kind,
+        },
+    )
     app.include_router(infra.router)
     app.include_router(api_router)
     return app
