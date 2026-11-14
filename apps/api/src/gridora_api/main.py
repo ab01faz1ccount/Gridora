@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from sqlalchemy import text
+from starlette.concurrency import run_in_threadpool
 
 from . import __version__
 from .api import infra
@@ -19,8 +20,11 @@ from .core.middleware import RequestContextMiddleware
 from .core.ratelimit import LoginLimiter
 from .core.readiness import ReadinessRegistry, storage_writable_check
 from .db.session import make_engine, make_sessionmaker
+from .jobs.handlers import make_import_handler
+from .jobs.runner import PostgresJobRunner
 from .services import auth as auth_service
 from .services.passwords import Hasher
+from .services.working_copies import WorkingCopies
 from .storage.layout import StorageLayout
 
 
@@ -58,8 +62,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except Exception:  # noqa: BLE001 - DB may be starting; /readyz reports it
             logging.getLogger("gridora").exception("bootstrap admin step failed")
         try:
+            await runner.start()
+        except Exception:  # noqa: BLE001 - DB may be starting; /readyz reports it
+            logging.getLogger("gridora").exception("job runner failed to start")
+        try:
             yield
         finally:
+            await runner.stop()
+            await run_in_threadpool(copies.close_all)
             await engine.dispose()
 
     app = FastAPI(
@@ -76,6 +86,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.hasher = hasher
     app.state.layout = layout
     app.state.services = services
+    copies = WorkingCopies(services.engine, settings.max_open_workbooks)
+    app.state.copies = copies
+    runner = PostgresJobRunner(
+        sessionmaker,
+        {"import": make_import_handler(app.state)},
+        poll_interval=settings.job_poll_interval_seconds,
+        max_concurrent=settings.max_concurrent_jobs,
+    )
+    app.state.runner = runner
     app.state.implementations = {"engine": services.engine_kind, "dataops": services.dataops_kind}
     app.state.limiter = LoginLimiter(
         settings.login_window_seconds,

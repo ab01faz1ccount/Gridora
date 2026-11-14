@@ -60,7 +60,7 @@ def migrated_db() -> None:
     command.upgrade(alembic_config(), "head")
 
 
-TABLES = "audit_log, login_attempts, files, workspaces, sessions, users"
+TABLES = "audit_log, login_attempts, jobs, workbooks, documents, files, workspaces, sessions, users"
 
 
 @pytest.fixture(autouse=True)
@@ -122,17 +122,23 @@ def forbidden_fragments(settings: Settings) -> list[str]:
 
 @pytest.fixture
 def make_client(app: FastAPI, settings: Settings) -> Iterator[Callable[[], ScanningClient]]:
+    """The FIRST client of a test runs the app lifespan (job runner, working copies). Later
+    clients share the same app without a second lifespan, so there is exactly one dispatcher,
+    as in production; their requests still run normally."""
     opened: list[ScanningClient] = []
+    entered: list[ScanningClient] = []
 
     def _make() -> ScanningClient:
         c = ScanningClient(app, base_url="https://testserver", raise_server_exceptions=False)
         c.forbidden = forbidden_fragments(settings)
-        c.__enter__()
+        if not entered:
+            c.__enter__()
+            entered.append(c)
         opened.append(c)
         return c
 
     yield _make
-    for c in opened:
+    for c in entered:
         c.__exit__(None, None, None)
 
 
@@ -188,3 +194,13 @@ def alice(login_as: Callable[[str], Session]) -> Session:
 @pytest.fixture
 def bob(login_as: Callable[[str], Session]) -> Session:
     return login_as("bob")
+
+
+def make_user_direct(username: str, password: str = PASSWORD) -> str:
+    """Create a user without an app (used when a test must act BEFORE the app starts)."""
+    hasher = Hasher(fast_settings(Path("unused")))
+
+    async def go(db: AsyncSession) -> str:
+        return str((await create_user(db, hasher, username=username, password=password)).id)
+
+    return run_db(go)

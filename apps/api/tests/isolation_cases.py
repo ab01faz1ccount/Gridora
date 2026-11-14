@@ -27,4 +27,13 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("GET", "/api/v1/files/{id}/download"): lambda c, ids: c.get(
         f"/api/v1/files/{ids['file']}/download"
     ),
+    ("GET", "/api/v1/jobs/{id}"): lambda c, ids: c.get(f"/api/v1/jobs/{ids['job']}"),
+    ("POST", "/api/v1/files/{id}/open"): lambda c, ids: c.post(f"/api/v1/files/{ids['file']}/open"),
+    ("GET", "/api/v1/workbooks/{id}"): lambda c, ids: c.get(f"/api/v1/workbooks/{ids['wb']}"),
+    ("GET", "/api/v1/workbooks/{id}/compatibility"): lambda c, ids: c.get(
+        f"/api/v1/workbooks/{ids['wb']}/compatibility"
+    ),
+    ("GET", "/api/v1/workbooks/{id}/sheets/{sheet_id}/cells"): lambda c, ids: c.get(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/cells?r0=0&c0=0&rows=5&cols=5"
+    ),
 }

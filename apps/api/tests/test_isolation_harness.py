@@ -6,7 +6,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .conftest import Session
-from .isolation_cases import CSV, ISOLATION_CASES
+from .helpers import import_csv
+from .isolation_cases import ISOLATION_CASES
 from .routes import implemented_routes
 
 
@@ -29,9 +30,7 @@ def test_every_case_is_404_for_another_user_and_changes_nothing(
     alice: Session, bob: Session
 ) -> None:
     ws = alice.post("/api/v1/workspaces", json={"name": "alice-ws"}).json()["data"]["id"]
-    up = alice.post(f"/api/v1/workspaces/{ws}/files", files=CSV)
-    assert up.status_code == 201
-    ids = {"ws": ws, "file": up.json()["data"]["file"]["id"]}
+    ids = {"ws": ws, **import_csv(alice, ws, "x.csv", b"a,b\n1,2\n")}
     for key, case in ISOLATION_CASES.items():
         r = case(bob, ids)
         assert r.status_code == 404, f"{key}: another user got {r.status_code}"
@@ -41,6 +40,7 @@ def test_every_case_is_404_for_another_user_and_changes_nothing(
     got = alice.get(f"/api/v1/workspaces/{ws}").json()["data"]
     assert got["name"] == "alice-ws"
     assert len(alice.get(f"/api/v1/workspaces/{ws}/files").json()["data"]) == 1
+    assert alice.get(f"/api/v1/workbooks/{ids['wb']}").status_code == 200
     assert alice.get(f"/api/v1/files/{ids['file']}/download").status_code == 200
 
 

@@ -2,7 +2,7 @@
 
 Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` (v0.2.0, read-only).
 
-## Status: In progress (PRs 1-4: skeleton, auth, workspaces/files, composition + stubs)
+## Status: In progress (PRs 1-5: skeleton, auth, workspaces/files, composition + stubs, jobs + workbooks)
 
 ### What works (each item has a test)
 - App factory (`gridora_api.main:create_app`), configuration from `GRIDORA_*` environment variables.
@@ -61,9 +61,29 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
   - Visible at runtime: every response carries `X-Gridora-Engine` / `X-Gridora-Dataops`;
     `/readyz` lists `implementations`.
 
+- Jobs and workbooks (PR 5): `jobs` table + in-process dispatcher (`jobs/runner.py`,
+  `PostgresJobRunner` behind a `JobRunner` interface). Claims with `FOR UPDATE SKIP LOCKED` (two
+  dispatchers never run the same job: tested with 30 jobs); concurrency cap; jobs left `running` by a
+  dead process are failed at startup (not retried), queued ones run; failures are recorded as
+  contract `ApiError` (internal crashes are generic, no internals). `GET /jobs/{id}`.
+- Upload now queues an `import` job (`job_id` is real). The import runs in a worker thread with a
+  time limit; the job result is the workbook id. `POST /files/{id}/open` (idempotent),
+  `GET /workbooks/{id}`, `GET /workbooks/{id}/compatibility`, and `GET .../sheets/{sheet_id}/cells`
+  (window caps 1000 x 100 enforced, lower configured caps win; empty windows are not errors).
+- Working copies (`services/working_copies.py`): LRU cap (`GRIDORA_MAX_OPEN_WORKBOOKS`), per-document
+  threading lock around every engine call (handles are not thread-safe), eviction closes the handle,
+  a cache miss rebuilds the copy from the stored file (tested: restart/eviction gives identical cells
+  and the same sheet ids). Workspace delete drops copies, documents and workbooks.
+- The API owns identity: `Workbook.id` is the document id, `file_id` the stored original, `name` the
+  user's display name.
+
 ### What does not work yet
-- No jobs, workbooks routes or operation routes yet (PR 5 onward); the stubs are wired but no HTTP
-  route calls them. `POST .../files` returns `job_id: null` until the
+- No cell edits, history, undo/redo, save, export, operations, tables or charts (PR 10 onward).
+  A rebuilt working copy is the stored file only; **history replay is not implemented yet** (no edits
+  exist yet, so nothing is lost).
+- Import time limit stops *waiting*; the worker thread itself cannot be killed (ADR-011, Phase 4).
+- With the stub engine, XLSX uploads are stored but their import job fails with
+  `unsupported_workbook`. `POST .../files` returns `job_id: null` until the
   import job exists (PR 5). The file is stored but not parsed or validated beyond type/magic.
 - Lists are not paginated (capped at 1000 rows).
 - Only `.xlsx`, `.xlsm`, `.csv` are accepted; UTF-16 CSV is refused (needs a NUL-free text file).
