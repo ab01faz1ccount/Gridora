@@ -1,0 +1,99 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "aggregations": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "title": "ops.group_aggregate.defs.Aggregation.column.title",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "ops.group_aggregate.defs.Aggregation.column.title",
+            "x-gridora-column": true
+          },
+          "fn": {
+            "enum": [
+              "sum",
+              "avg",
+              "count",
+              "count_distinct",
+              "min",
+              "max"
+            ],
+            "title": "ops.group_aggregate.defs.Aggregation.fn.title",
+            "type": "string",
+            "x-gridora-enum-labels": {
+              "avg": "ops.group_aggregate.defs.Aggregation.fn.options.avg",
+              "count": "ops.group_aggregate.defs.Aggregation.fn.options.count",
+              "count_distinct": "ops.group_aggregate.defs.Aggregation.fn.options.count_distinct",
+              "max": "ops.group_aggregate.defs.Aggregation.fn.options.max",
+              "min": "ops.group_aggregate.defs.Aggregation.fn.options.min",
+              "sum": "ops.group_aggregate.defs.Aggregation.fn.options.sum"
+            }
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "title": "ops.group_aggregate.defs.Aggregation.name.title",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "ops.group_aggregate.defs.Aggregation.name.title"
+          }
+        },
+        "required": [
+          "fn"
+        ],
+        "title": "ops.group_aggregate.defs.Aggregation.title",
+        "type": "object"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "ops.group_aggregate.params.aggregations.title",
+      "type": "array",
+      "x-gridora-order": 2
+    },
+    "by": {
+      "items": {
+        "title": "ops.group_aggregate.params.by.items.title",
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "ops.group_aggregate.params.by.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.group_aggregate.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "sort_groups": {
+      "default": false,
+      "title": "ops.group_aggregate.params.sort_groups.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    }
+  },
+  "required": [
+    "aggregations"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

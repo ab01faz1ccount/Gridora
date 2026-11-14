@@ -35,6 +35,7 @@ class PlanEnv:
 
     has_header: bool = True
     column_names: list[str] = field(default_factory=list)
+    extra_frames: list[pl.DataFrame] = field(default_factory=list)  # frames of Operation.extra_targets, in order
 
 
 @dataclass
@@ -56,6 +57,10 @@ class OperationSpec:
     rewrites_cells: ClassVar[bool] = True
     # Where the result of a sheet-range run goes: back into the range, or into a NEW table (e.g. filter).
     sheet_output: ClassVar[str] = "in_place"
+    # True for analysis operations: the source is never modified, the result is always a NEW table.
+    creates_table: ClassVar[bool] = False
+    # Number of Operation.extra_targets the operation needs (join: 1).
+    extra_inputs: ClassVar[int] = 0
     Params: ClassVar[builtins.type[ParamsModel]]
 
     def validate_static(self, params: ParamsModel) -> list[ValidationError]:
