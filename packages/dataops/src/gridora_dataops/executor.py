@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import polars as pl
 from gridora_contracts.models import (
@@ -93,13 +93,36 @@ class DataOpsExecutor:
         errs.extend(spec.validate_static(params))
         return spec, params, errs
 
-    def _check_columns(self, spec: OperationSpec, params: ParamsModel, names: list[str]) -> list[ValidationError]:
+    def _check_columns(self, spec: OperationSpec, params: ParamsModel, names: list[str],
+                       extra_names: Optional[list[list[str]]] = None) -> list[ValidationError]:
         schema = spec.descriptor().params_schema
         out = []
         for ptr, col, column_of in column_refs(schema, params.model_dump(mode="json")):
-            if column_of == "target" and col not in names:
-                out.append(verr("unknown_column", ptr, f"column '{col}' does not exist", hint="; ".join(names[:20])))
+            pool: Optional[list[str]] = names
+            if column_of.startswith("extra_targets/"):
+                i = int(column_of.split("/")[1])
+                pool = (extra_names or [])[i] if i < len(extra_names or []) else None
+            if pool is not None and col not in pool:
+                out.append(verr("unknown_column", ptr, f"column '{col}' does not exist", hint="; ".join(pool[:20])))
         return out
+
+    def _load_target(self, target: Target, ctx: ExecContext, *, has_header: bool = True, allow_formulas: bool = False,
+                     lenient: bool = False) -> _Source:
+        if isinstance(target, SheetRangeTarget):
+            sf = load_sheet_frame(ctx, target.range, has_header, allow_formulas=allow_formulas, lenient=lenient)
+            return _Source(sf.frame, sf.names, sf.has_header, sheet=sf)
+        assert isinstance(target, DataTableTarget)
+        store = self._store(ctx)
+        wanted: Optional[int] = getattr(target, "version", None)
+        frame, version = store.read_frame(ctx.user_id, target.table_id, wanted)
+        return _Source(frame, list(frame.columns), True,
+                       table=_TableRef(store, ctx.user_id, target.table_id, version, assumed=wanted is None))
+
+    def _load_extras(self, spec: OperationSpec, op: Operation, ctx: ExecContext) -> list[_Source]:
+        if len(op.extra_targets) != spec.extra_inputs:
+            raise DataOpsError("invalid_param", f"'{op.type}' needs {spec.extra_inputs} extra target(s)",
+                               path=pointer("extra_targets"))
+        return [self._load_target(t, ctx, allow_formulas=True, lenient=True) for t in op.extra_targets]
 
     @staticmethod
     def _store(ctx: ExecContext) -> ParquetTableStore:
@@ -112,27 +135,20 @@ class DataOpsExecutor:
         return store
 
     def _load(self, spec: OperationSpec, params: ParamsModel, op: Operation, ctx: ExecContext) -> _Source:
-        if isinstance(op.target, SheetRangeTarget):
-            allow = (not spec.rewrites_cells) or getattr(params, "formulas", None) == "convert_to_values"
-            sf = load_sheet_frame(ctx, op.target.range, spec.has_header(params), allow_formulas=allow)
-            return _Source(sf.frame, sf.names, sf.has_header, sheet=sf)
-        assert isinstance(op.target, DataTableTarget)
-        store = self._store(ctx)
-        owner = ctx.user_id
-        wanted: int | None = getattr(op.target, "version", None)  # contract may add it (see PR note)
-        frame, version = store.read_frame(owner, op.target.table_id, wanted)
-        return _Source(frame, list(frame.columns), True,
-                       table=_TableRef(store, owner, op.target.table_id, version, assumed=wanted is None))
+        allow = (not spec.rewrites_cells) or getattr(params, "formulas", None) == "convert_to_values"
+        return self._load_target(op.target, ctx, has_header=spec.has_header(params), allow_formulas=allow)
 
     def _plan(self, op: Operation, ctx: ExecContext) -> tuple[OperationSpec, _Source, pl.DataFrame, list[Warning_]]:
         spec, params, errs = self._resolve(op)
         if errs or spec is None or params is None:
             raise DataOpsError("validation_failed", "operation parameters are invalid", errors=errs)
         src = self._load(spec, params, op, ctx)
-        errs = self._check_columns(spec, params, src.names)
+        extras = self._load_extras(spec, op, ctx)
+        errs = self._check_columns(spec, params, src.names, [e.names for e in extras])
         if errs:
             raise DataOpsError("validation_failed", "operation parameters are invalid", errors=errs)
-        out = spec.plan(src.frame, params, PlanEnv(has_header=src.has_header, column_names=src.names))
+        out = spec.plan(src.frame, params, PlanEnv(has_header=src.has_header, column_names=src.names,
+                                                   extra_frames=[e.frame for e in extras]))
         warnings = list(out.warnings)
         if src.table is not None and src.table.assumed and len(src.table.store.versions(src.table.owner, src.table.table_id)) > 1:
             warnings.append(Warning_(code="table_version_assumed", severity="warn", location=src.table.table_id,
@@ -146,9 +162,10 @@ class DataOpsExecutor:
             return errs
         try:
             src = self._load(spec, params, op, ctx)
+            extras = self._load_extras(spec, op, ctx)
         except DataOpsError as e:
             return e.errors
-        return self._check_columns(spec, params, src.names)
+        return self._check_columns(spec, params, src.names, [x.names for x in extras])
 
     def preview(self, op: Operation, ctx: ExecContext, limit: int) -> PreviewResult:
         """Never mutates: no write_range, no store writes. Raises DataOpsError(validation_failed) on bad input."""
@@ -163,6 +180,14 @@ class DataOpsExecutor:
     def apply(self, op: Operation, ctx: ExecContext) -> OperationResult:
         try:
             spec, src, frame, warnings = self._plan(op, ctx)
+            if spec.creates_table or (src.sheet is not None and spec.sheet_output == "new_table"):
+                store = self._store(ctx)  # the source is never modified; the result is a NEW table
+                name = catalog("fa").get(f"ops.{spec.type}.label", spec.type)
+                dt = store.create_table(ctx.user_id, ctx.workspace_id, name, infer_table_frame(frame))
+                return OperationResult(
+                    status="ok", warnings=warnings, output=DataTableTarget(table_id=dt.id),
+                    affected=Affected(rows=frame.height, cells=frame.height * frame.width),
+                    delta=TableVersionDelta(table_id=dt.id, from_version=0, to_version=1))
             if src.table is not None:  # in-place on a data table: a new immutable version
                 t = src.table
                 dt = t.store.write_version(t.owner, t.table_id, frame, parent=t.version)
@@ -171,14 +196,6 @@ class DataOpsExecutor:
                     affected=Affected(rows=frame.height, cells=frame.height * frame.width),
                     delta=TableVersionDelta(table_id=t.table_id, from_version=t.version, to_version=dt.version))
             assert src.sheet is not None
-            if spec.sheet_output == "new_table":  # e.g. filter: the source rows are never lost
-                store = self._store(ctx)
-                name = catalog("fa").get(f"ops.{spec.type}.label", spec.type)
-                dt = store.create_table(ctx.user_id, ctx.workspace_id, name, infer_table_frame(frame))
-                return OperationResult(
-                    status="ok", warnings=warnings, output=DataTableTarget(table_id=dt.id),
-                    affected=Affected(rows=frame.height, cells=frame.height * frame.width),
-                    delta=TableVersionDelta(table_id=dt.id, from_version=0, to_version=1))
             delta, cells = commit_sheet_frame(ctx, src.sheet, frame, max_cells=self.max_patch_cells)
         except DataOpsError as e:
             return OperationResult(status="error", errors=e.errors)
@@ -189,7 +206,11 @@ class DataOpsExecutor:
         raise NotImplementedYet("run_pipeline (M5)")
 
     def chart_data(self, spec: ChartSpec, ctx: ExecContext) -> ChartData:
-        raise NotImplementedYet("chart_data (M4)")
+        """Plain values for the web app (no ECharts types). A sheet source is read with its first row as header."""
+        from .charts import build_chart_data
+
+        src = self._load_target(spec.source, ctx, has_header=True, allow_formulas=True, lenient=True)
+        return build_chart_data(spec, src.frame)
 
     def validate_tool(self, tool: Tool, target: Target, ctx: ExecContext | None = None) -> list[ValidationError]:
         raise NotImplementedYet("validate_tool (M5)")

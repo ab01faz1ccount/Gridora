@@ -1,0 +1,75 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "columns": {
+      "title": "ops.pivot.params.columns.title",
+      "type": "string",
+      "x-gridora-column": true
+    },
+    "fill_value": {
+      "anyOf": [
+        {
+          "title": "ops.pivot.params.fill_value.title",
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "ops.pivot.params.fill_value.title"
+    },
+    "fn": {
+      "default": "sum",
+      "enum": [
+        "sum",
+        "avg",
+        "count",
+        "min",
+        "max",
+        "first"
+      ],
+      "title": "ops.pivot.params.fn.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "avg": "ops.pivot.params.fn.options.avg",
+        "count": "ops.pivot.params.fn.options.count",
+        "first": "ops.pivot.params.fn.options.first",
+        "max": "ops.pivot.params.fn.options.max",
+        "min": "ops.pivot.params.fn.options.min",
+        "sum": "ops.pivot.params.fn.options.sum"
+      }
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.pivot.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "index": {
+      "items": {
+        "title": "ops.pivot.params.index.items.title",
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "ops.pivot.params.index.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "values": {
+      "title": "ops.pivot.params.values.title",
+      "type": "string",
+      "x-gridora-column": true
+    }
+  },
+  "required": [
+    "index",
+    "columns",
+    "values"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

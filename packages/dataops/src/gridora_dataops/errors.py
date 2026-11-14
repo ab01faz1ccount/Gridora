@@ -25,6 +25,9 @@ ERROR_CODES = (
     "owner_unknown",
     "table_not_found",
     "not_implemented",
+    "result_too_large",
+    "chart_too_many_categories",
+    "chart_series_mismatch",
     "validation_failed",
 )
 

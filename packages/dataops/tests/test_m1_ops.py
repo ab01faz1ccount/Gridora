@@ -47,6 +47,8 @@ CATALOG = {
     "sort": ("order", False), "filter": ("select", False), "remove_duplicates": ("clean", True),
     "find_replace": ("clean", True), "fill": ("clean", False), "clean_text": ("clean", True),
     "split_column": ("reshape", True), "merge_columns": ("reshape", False), "change_type": ("reshape", True),
+    "group_aggregate": ("analyze", False), "pivot": ("analyze", False), "unpivot": ("analyze", False),
+    "join": ("combine", False), "computed_column": ("calculate", False),
 }
 
 
@@ -304,3 +306,8 @@ def test_filter_apply_on_a_sheet_without_a_table_store_is_a_typed_error_and_writ
 def test_variant_fold() -> None:
     out = pl.DataFrame({"w": ["كي", "کی", "۱۲۳", "١٢٣", "ک‌ـتاب"]}).select(variant_fold(pl.col("w")))["w"].to_list()
     assert out == ["کی", "کی", "123", "123", "کتاب"]
+
+
+def test_hamza_sorts_just_after_alef_and_folded_letters_tie() -> None:
+    out = sort_plan(pl.DataFrame({"w": ["ب", "ء", "ا", "آ", "أ"]}), [{"column": "w"}])["w"].to_list()
+    assert out == ["آ", "ا", "أ", "ء", "ب"]  # آ < ا = أ (original order kept) < ء < ب

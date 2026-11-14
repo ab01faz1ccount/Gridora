@@ -29,16 +29,21 @@ def default_registry() -> OperationRegistry:
     """The production registry: every operation the package ships."""
     from .ops.change_type import ChangeTypeOp
     from .ops.clean_text import CleanTextOp
+    from .ops.computed_column import ComputedColumnOp
     from .ops.fill import FillOp
     from .ops.filter import FilterOp
     from .ops.find_replace import FindReplaceOp
+    from .ops.group_aggregate import GroupAggregateOp
+    from .ops.join import JoinOp
     from .ops.merge_columns import MergeColumnsOp
+    from .ops.pivot import PivotOp
     from .ops.remove_duplicates import RemoveDuplicatesOp
     from .ops.sort import SortOp
     from .ops.split_column import SplitColumnOp
+    from .ops.unpivot import UnpivotOp
 
     reg = OperationRegistry()
     for spec in (SortOp(), FilterOp(), RemoveDuplicatesOp(), ChangeTypeOp(), FindReplaceOp(), FillOp(), CleanTextOp(),
-                 SplitColumnOp(), MergeColumnsOp()):
+                 SplitColumnOp(), MergeColumnsOp(), GroupAggregateOp(), PivotOp(), UnpivotOp(), JoinOp(), ComputedColumnOp()):
         reg.register(spec)
     return reg
