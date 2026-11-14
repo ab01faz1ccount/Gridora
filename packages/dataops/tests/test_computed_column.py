@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 from fakes import FakeExecContext, num, txt
 from gridora_contracts.models import Operation, SheetRangeTarget
+
 from gridora_dataops import DataOpsExecutor
 from gridora_dataops.errors import DataOpsError
 from gridora_dataops.ops.computed_column import MAX_DEPTH, ComputedColumnOp, ComputedParams
