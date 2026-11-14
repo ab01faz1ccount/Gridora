@@ -1,4 +1,5 @@
 """Success envelope: { "data": T, "meta": { "request_id", "next_cursor"? } }."""
+
 from __future__ import annotations
 
 from typing import Generic, TypeVar
