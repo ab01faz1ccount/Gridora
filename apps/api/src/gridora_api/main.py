@@ -20,6 +20,7 @@ from .core.readiness import ReadinessRegistry, storage_writable_check
 from .db.session import make_engine, make_sessionmaker
 from .services import auth as auth_service
 from .services.passwords import Hasher
+from .storage.layout import StorageLayout
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -29,6 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = make_engine(settings)
     sessionmaker = make_sessionmaker(engine)
     hasher = Hasher(settings)
+    layout = StorageLayout(settings.data_root)
 
     async def db_check() -> bool:
         async with engine.connect() as conn:
@@ -39,7 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        settings.data_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        layout.ensure_dirs()
         try:
             async with sessionmaker() as db:
                 if await auth_service.bootstrap_admin(db, settings, hasher):
@@ -65,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.readiness = readiness
     app.state.sessionmaker = sessionmaker
     app.state.hasher = hasher
+    app.state.layout = layout
     app.state.limiter = LoginLimiter(
         settings.login_window_seconds,
         settings.login_max_failures_per_user,

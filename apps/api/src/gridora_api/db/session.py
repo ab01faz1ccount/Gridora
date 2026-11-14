@@ -9,11 +9,16 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from ..config import Settings
 
 
 def make_engine(settings: Settings) -> AsyncEngine:
+    if settings.env == "test":
+        # Tests drive one app from several TestClient event loops; pooled asyncpg connections
+        # cannot cross loops. Production has a single loop and a real pool.
+        return create_async_engine(settings.database_url, poolclass=NullPool)
     return create_async_engine(settings.database_url, pool_pre_ping=True)
 
 

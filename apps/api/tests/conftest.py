@@ -60,7 +60,7 @@ def migrated_db() -> None:
     command.upgrade(alembic_config(), "head")
 
 
-TABLES = "audit_log, login_attempts, sessions, users"
+TABLES = "audit_log, login_attempts, files, workspaces, sessions, users"
 
 
 @pytest.fixture(autouse=True)
@@ -95,12 +95,50 @@ def app(settings: Settings) -> FastAPI:
     return create_app(settings)
 
 
+class ScanningClient(TestClient):
+    """TestClient that fails the test if ANY response leaks a server path (SECURITY_MODEL).
+
+    Scans every response header, and every JSON body. Binary downloads are user content and are
+    only checked through their headers.
+    """
+
+    forbidden: list[str] = []
+
+    def request(self, *args: Any, **kwargs: Any) -> Any:
+        resp = super().request(*args, **kwargs)
+        hay = [f"{k}: {v}" for k, v in resp.headers.items()]
+        if "json" in resp.headers.get("content-type", ""):
+            hay.append(resp.text)
+        for text_ in hay:
+            for bad in self.forbidden:
+                assert bad not in text_, f"server path/storage detail leaked in a response: {bad!r}"
+        return resp
+
+
+def forbidden_fragments(settings: Settings) -> list[str]:
+    root = settings.data_root
+    return [str(root), str(root.resolve()), "/users/", "quarantine", "storage_key", ".xlsx.tmp"]
+
+
 @pytest.fixture
-def client(app: FastAPI) -> Iterator[TestClient]:
-    # https base URL so Secure cookies round-trip. raise_server_exceptions=False: we want the
-    # 500 response a real client would get.
-    with TestClient(app, base_url="https://testserver", raise_server_exceptions=False) as c:
-        yield c
+def make_client(app: FastAPI, settings: Settings) -> Iterator[Callable[[], ScanningClient]]:
+    opened: list[ScanningClient] = []
+
+    def _make() -> ScanningClient:
+        c = ScanningClient(app, base_url="https://testserver", raise_server_exceptions=False)
+        c.forbidden = forbidden_fragments(settings)
+        c.__enter__()
+        opened.append(c)
+        return c
+
+    yield _make
+    for c in opened:
+        c.__exit__(None, None, None)
+
+
+@pytest.fixture
+def client(make_client: Callable[[], ScanningClient]) -> ScanningClient:
+    return make_client()
 
 
 @pytest.fixture
@@ -115,3 +153,38 @@ def make_user(settings: Settings) -> Callable[..., str]:
         return run_db(go)
 
     return _make
+
+
+class Session:
+    """A logged-in client that sends its CSRF token automatically."""
+
+    def __init__(self, client: ScanningClient, user_id: str, csrf: str) -> None:
+        self.client, self.user_id = client, user_id
+        client.headers["X-CSRF-Token"] = csrf
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.client, name)
+
+
+@pytest.fixture
+def login_as(
+    make_client: Callable[[], ScanningClient], make_user: Callable[..., str]
+) -> Callable[[str], Session]:
+    def _login(username: str) -> Session:
+        uid = make_user(username)
+        c = make_client()
+        r = c.post("/api/v1/auth/login", json={"username": username, "password": PASSWORD})
+        assert r.status_code == 200, r.text
+        return Session(c, uid, r.json()["data"]["csrf_token"])
+
+    return _login
+
+
+@pytest.fixture
+def alice(login_as: Callable[[str], Session]) -> Session:
+    return login_as("alice")
+
+
+@pytest.fixture
+def bob(login_as: Callable[[str], Session]) -> Session:
+    return login_as("bob")
