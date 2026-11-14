@@ -127,6 +127,26 @@ class ParquetTableStore:
         self._write_index(owner, table_id, idx)
         return dt
 
+    def discard_version(self, owner: str, table_id: str, version: int) -> None:
+        """Rollback of a version written by a failed pipeline run: the file goes, the number stays retired."""
+        idx = self._read_index(owner, table_id)
+        if str(version) in idx["versions"]:
+            idx["versions"][str(version)]["compacted"] = True
+            self._write_index(owner, table_id, idx)
+        self._file(owner, table_id, version).unlink(missing_ok=True)
+
+    def discard_table(self, owner: str, table_id: str) -> None:
+        """Rollback of a table created by a failed pipeline run (all its files and its index)."""
+        idx = self._read_index(owner, table_id)
+        for v in idx["versions"]:
+            self._file(owner, table_id, int(v)).unlink(missing_ok=True)
+        index_path = self._index_path(owner, table_id)
+        index_path.unlink(missing_ok=True)
+        try:
+            index_path.parent.rmdir()
+        except OSError:
+            pass  # not empty (or already gone): leave it
+
     # ------------------------------------------------------------------ reading
     def read_frame(self, owner: str, table_id: str, version: int | None = None) -> tuple[pl.DataFrame, int]:
         idx = self._read_index(owner, table_id)

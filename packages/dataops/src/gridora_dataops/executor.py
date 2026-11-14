@@ -27,7 +27,7 @@ from gridora_contracts.protocols import ExecContext
 from pydantic import ValidationError as PydanticValidationError
 
 from .catalog import catalog
-from .errors import DataOpsError, NotImplementedYet, pointer, verr
+from .errors import DataOpsError, pointer, verr
 from .registry import OperationRegistry, default_registry
 from .schema import column_refs
 from .spec import OperationSpec, ParamsModel, PlanEnv
@@ -138,12 +138,8 @@ class DataOpsExecutor:
         allow = (not spec.rewrites_cells) or getattr(params, "formulas", None) == "convert_to_values"
         return self._load_target(op.target, ctx, has_header=spec.has_header(params), allow_formulas=allow)
 
-    def _plan(self, op: Operation, ctx: ExecContext) -> tuple[OperationSpec, _Source, pl.DataFrame, list[Warning_]]:
-        spec, params, errs = self._resolve(op)
-        if errs or spec is None or params is None:
-            raise DataOpsError("validation_failed", "operation parameters are invalid", errors=errs)
-        src = self._load(spec, params, op, ctx)
-        extras = self._load_extras(spec, op, ctx)
+    def _plan_from(self, spec: OperationSpec, params: ParamsModel, src: _Source,
+                   extras: list[_Source]) -> tuple[pl.DataFrame, list[Warning_]]:
         errs = self._check_columns(spec, params, src.names, [e.names for e in extras])
         if errs:
             raise DataOpsError("validation_failed", "operation parameters are invalid", errors=errs)
@@ -153,7 +149,16 @@ class DataOpsExecutor:
         if src.table is not None and src.table.assumed and len(src.table.store.versions(src.table.owner, src.table.table_id)) > 1:
             warnings.append(Warning_(code="table_version_assumed", severity="warn", location=src.table.table_id,
                                      message=f"the target named no version; the highest ({src.table.version}) was used"))
-        return spec, src, out.frame, warnings
+        return out.frame, warnings
+
+    def _plan(self, op: Operation, ctx: ExecContext) -> tuple[OperationSpec, _Source, pl.DataFrame, list[Warning_]]:
+        spec, params, errs = self._resolve(op)
+        if errs or spec is None or params is None:
+            raise DataOpsError("validation_failed", "operation parameters are invalid", errors=errs)
+        src = self._load(spec, params, op, ctx)
+        extras = self._load_extras(spec, op, ctx)
+        frame, warnings = self._plan_from(spec, params, src, extras)
+        return spec, src, frame, warnings
 
     # ------------------------------------------------------------ contract
     def validate(self, op: Operation, ctx: ExecContext | None = None) -> list[ValidationError]:
@@ -203,7 +208,9 @@ class DataOpsExecutor:
                                warnings=warnings)
 
     def run_pipeline(self, p: Pipeline, target: Target, ctx: ExecContext) -> list[OperationResult]:
-        raise NotImplementedYet("run_pipeline (M5)")
+        from .pipeline import run_pipeline
+
+        return run_pipeline(self, p, target, ctx)
 
     def chart_data(self, spec: ChartSpec, ctx: ExecContext) -> ChartData:
         """Plain values for the web app (no ECharts types). A sheet source is read with its first row as header."""
@@ -213,10 +220,14 @@ class DataOpsExecutor:
         return build_chart_data(spec, src.frame)
 
     def validate_tool(self, tool: Tool, target: Target, ctx: ExecContext | None = None) -> list[ValidationError]:
-        raise NotImplementedYet("validate_tool (M5)")
+        from .tools import validate_tool
+
+        return validate_tool(self, tool, target, ctx)
 
     def bind_tool(self, tool: Tool, inputs: dict[str, Any]) -> Pipeline:
-        raise NotImplementedYet("bind_tool (M5)")
+        from .tools import bind_tool
+
+        return bind_tool(tool, inputs)
 
 
 def create_executor(config: Mapping[str, Any]) -> DataOpsExecutor:

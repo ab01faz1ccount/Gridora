@@ -174,8 +174,8 @@ def test_data_table_target_without_a_store_is_a_typed_error(ex: DataOpsExecutor)
     assert res.status == "error" and res.errors[0].code == "not_implemented"
 
 
-def test_future_features_raise_typed_not_implemented(ex: DataOpsExecutor) -> None:
+def test_empty_pipeline_is_a_no_op(ex: DataOpsExecutor) -> None:
     from gridora_contracts.models import Pipeline
-    with pytest.raises(DataOpsError) as e:
-        ex.run_pipeline(Pipeline(name="p", input_kind="sheet_range", steps=[]), None, make_ctx())  # type: ignore[arg-type]
-    assert e.value.code == "not_implemented"
+    ctx = make_ctx()
+    assert ex.run_pipeline(Pipeline(name="p", input_kind="sheet_range", steps=[]),
+                           SheetRangeTarget(range=ctx.rng(0, 0, 1, 1)), ctx) == []
