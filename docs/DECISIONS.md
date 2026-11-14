@@ -11,7 +11,7 @@ Format: Context · Decision · Consequences. Status: Proposed → Accepted (afte
 **Decision:** `WorkbookEngine`, `OperationExecutor`, `TableStore` Protocols in `contracts/`; modules never import each other; `ExecContext` bridges data access.
 **Consequences:** Parallel development; stub implementations enable early UI work. Status: Proposed.
 
-## ADR-003 — Spreadsheet engine: own package layer, evaluated formula backend
+## ADR-003 — Spreadsheet engine: own package layer, evaluated formula backend (part 1 Accepted; part 2 Pending)
 **Context:** Need OOXML fidelity and formula evaluation. Candidates are young projects; README claims are unverified.
 **Decision (provisional):** Build the OOXML package/preservation layer ourselves behind `WorkbookEngine`. Run a time-boxed Phase 2 spike on IronCalc (and GridCraft/Gridline for ideas) to decide whether to bind a Rust formula/XLSX core via PyO3/maturin or a JSON-RPC subprocess. No Rust until the spike shows a measurable benefit.
 **Consequences:** No dependency on a single external project. Decision is revisited with data. Status: Proposed, pending spike.
@@ -48,4 +48,17 @@ Format: Context · Decision · Consequences. Status: Proposed → Accepted (afte
 **Context:** Agent 3 planned imports in a ProcessPool with resource limits, but an in-memory `WorkbookHandle` cannot be returned from another process.
 **Decision:** v1 imports in a worker thread under the engine's own budgeted limits plus a timeout. Phase 4 adds process isolation using an engine-defined snapshot format (Agent 1 proposes it in the engine plan revision).
 **Consequences:** Hostile-file safety in v1 relies on the engine's limits; this is stated in the README and SECURITY_MODEL. Status: Accepted.
+
+## ADR-003 update (after the engine spike, Agent 1 report E2)
+**Part 1 — Accepted:** Gridora owns the OOXML package layer (unknown parts preserved byte-for-byte). Neither IronCalc nor openpyxl preserves unknown parts, so option D (wrap one library) is rejected.
+**Part 2 — Pending:** formula core (A: bind IronCalc, B: subprocess, C: own pure-Python). Not decided because the evidence is incomplete: no source build of IronCalc, no change-diff test for dependents, spill untested, no real Excel files. The decision is needed at E7; nothing in E3–E6 depends on it. Gate: Agent 1 completes the four open items in SPIKE_REPORT section 1.4 and the owner supplies real Excel files.
+
+## ADR-012 — Polars only for v1; DuckDB not adopted
+**Context:** Agent 2's M0 spike measured 100k-row join/group/pivot/decimal in both engines (1-core sandbox, small scale).
+**Decision:** Polars only. No `duckdb` dependency. Revisit only if a measured case (for example a join larger than memory) fails with Polars.
+**Consequences:** One set of null/type/order semantics. The spike did not test out-of-core data or multi-core machines. Status: Accepted.
+
+## ADR-013 — Contract v0.3.0
+**Decision:** `export_csv` returns a `CompatibilityReport` (CC-9) so neutralized or unencodable cells are never silent. Snapshot protocol (CC-10) deferred to Phase 4. The 200,000-cell per-patch cap (CC-11) is enforced by both the engine when building deltas and `apps/api`.
+**Consequences:** Agent 1 and Agent 3 update implementations and stubs. Status: Accepted.
 

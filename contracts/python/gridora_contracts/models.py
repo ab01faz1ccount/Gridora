@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
 MAX_WINDOW_COLS = 100
 

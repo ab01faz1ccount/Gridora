@@ -1,0 +1,19 @@
+# Reviewed and committed by Agent 0 (source: agent proposal under ci/).
+name: dataops
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths: ["packages/dataops/**", "contracts/**"]
+  push:
+    branches: [main]
+    paths: ["packages/dataops/**", "contracts/**"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e contracts/python -e 'packages/dataops[dev]'
+      - run: cd packages/dataops && ruff check . && mypy src && pytest -q
