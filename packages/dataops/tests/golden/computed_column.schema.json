@@ -1,0 +1,416 @@
+{
+  "$defs": {
+    "Call": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "lit",
+                    "default": "lit",
+                    "type": "string",
+                    "x-gridora-hidden": true
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "title": "ops.computed_column.defs.Lit.value.title",
+                        "type": "boolean"
+                      },
+                      {
+                        "title": "ops.computed_column.defs.Lit.value.title",
+                        "type": "number"
+                      },
+                      {
+                        "title": "ops.computed_column.defs.Lit.value.title",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "ops.computed_column.defs.Lit.value.title"
+                  }
+                },
+                "title": "ops.computed_column.defs.Lit.title",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "col",
+                    "default": "col",
+                    "type": "string",
+                    "x-gridora-hidden": true
+                  },
+                  "name": {
+                    "title": "ops.computed_column.defs.Col.name.title",
+                    "type": "string",
+                    "x-gridora-column": true
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "title": "ops.computed_column.defs.Col.title",
+                "type": "object"
+              },
+              {
+                "$ref": "#/$defs/Call"
+              }
+            ],
+            "title": "ops.computed_column.defs.Call.args.items.title"
+          },
+          "maxItems": 10,
+          "title": "ops.computed_column.defs.Call.args.title",
+          "type": "array"
+        },
+        "fn": {
+          "enum": [
+            "add",
+            "sub",
+            "mul",
+            "div",
+            "mod",
+            "neg",
+            "abs",
+            "floor",
+            "ceil",
+            "round",
+            "min2",
+            "max2",
+            "concat",
+            "upper",
+            "lower",
+            "trim",
+            "len",
+            "left",
+            "right",
+            "substring",
+            "replace",
+            "eq",
+            "ne",
+            "lt",
+            "le",
+            "gt",
+            "ge",
+            "and",
+            "or",
+            "not",
+            "if",
+            "is_null",
+            "coalesce",
+            "year",
+            "month",
+            "day"
+          ],
+          "title": "ops.computed_column.defs.Call.fn.title",
+          "type": "string",
+          "x-gridora-enum-labels": {
+            "abs": "ops.computed_column.defs.Call.fn.options.abs",
+            "add": "ops.computed_column.defs.Call.fn.options.add",
+            "and": "ops.computed_column.defs.Call.fn.options.and",
+            "ceil": "ops.computed_column.defs.Call.fn.options.ceil",
+            "coalesce": "ops.computed_column.defs.Call.fn.options.coalesce",
+            "concat": "ops.computed_column.defs.Call.fn.options.concat",
+            "day": "ops.computed_column.defs.Call.fn.options.day",
+            "div": "ops.computed_column.defs.Call.fn.options.div",
+            "eq": "ops.computed_column.defs.Call.fn.options.eq",
+            "floor": "ops.computed_column.defs.Call.fn.options.floor",
+            "ge": "ops.computed_column.defs.Call.fn.options.ge",
+            "gt": "ops.computed_column.defs.Call.fn.options.gt",
+            "if": "ops.computed_column.defs.Call.fn.options.if",
+            "is_null": "ops.computed_column.defs.Call.fn.options.is_null",
+            "le": "ops.computed_column.defs.Call.fn.options.le",
+            "left": "ops.computed_column.defs.Call.fn.options.left",
+            "len": "ops.computed_column.defs.Call.fn.options.len",
+            "lower": "ops.computed_column.defs.Call.fn.options.lower",
+            "lt": "ops.computed_column.defs.Call.fn.options.lt",
+            "max2": "ops.computed_column.defs.Call.fn.options.max2",
+            "min2": "ops.computed_column.defs.Call.fn.options.min2",
+            "mod": "ops.computed_column.defs.Call.fn.options.mod",
+            "month": "ops.computed_column.defs.Call.fn.options.month",
+            "mul": "ops.computed_column.defs.Call.fn.options.mul",
+            "ne": "ops.computed_column.defs.Call.fn.options.ne",
+            "neg": "ops.computed_column.defs.Call.fn.options.neg",
+            "not": "ops.computed_column.defs.Call.fn.options.not",
+            "or": "ops.computed_column.defs.Call.fn.options.or",
+            "replace": "ops.computed_column.defs.Call.fn.options.replace",
+            "right": "ops.computed_column.defs.Call.fn.options.right",
+            "round": "ops.computed_column.defs.Call.fn.options.round",
+            "sub": "ops.computed_column.defs.Call.fn.options.sub",
+            "substring": "ops.computed_column.defs.Call.fn.options.substring",
+            "trim": "ops.computed_column.defs.Call.fn.options.trim",
+            "upper": "ops.computed_column.defs.Call.fn.options.upper",
+            "year": "ops.computed_column.defs.Call.fn.options.year"
+          }
+        },
+        "kind": {
+          "const": "call",
+          "default": "call",
+          "type": "string",
+          "x-gridora-hidden": true
+        }
+      },
+      "required": [
+        "fn"
+      ],
+      "title": "ops.computed_column.defs.Call.title",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "expr": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "lit",
+              "default": "lit",
+              "type": "string",
+              "x-gridora-hidden": true
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "title": "ops.computed_column.defs.Lit.value.title",
+                  "type": "boolean"
+                },
+                {
+                  "title": "ops.computed_column.defs.Lit.value.title",
+                  "type": "number"
+                },
+                {
+                  "title": "ops.computed_column.defs.Lit.value.title",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "ops.computed_column.defs.Lit.value.title"
+            }
+          },
+          "title": "ops.computed_column.defs.Lit.title",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "col",
+              "default": "col",
+              "type": "string",
+              "x-gridora-hidden": true
+            },
+            "name": {
+              "title": "ops.computed_column.defs.Col.name.title",
+              "type": "string",
+              "x-gridora-column": true
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "ops.computed_column.defs.Col.title",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "args": {
+              "items": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "lit",
+                        "default": "lit",
+                        "type": "string",
+                        "x-gridora-hidden": true
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "title": "ops.computed_column.defs.Lit.value.title",
+                            "type": "boolean"
+                          },
+                          {
+                            "title": "ops.computed_column.defs.Lit.value.title",
+                            "type": "number"
+                          },
+                          {
+                            "title": "ops.computed_column.defs.Lit.value.title",
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "ops.computed_column.defs.Lit.value.title"
+                      }
+                    },
+                    "title": "ops.computed_column.defs.Lit.title",
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "col",
+                        "default": "col",
+                        "type": "string",
+                        "x-gridora-hidden": true
+                      },
+                      "name": {
+                        "title": "ops.computed_column.defs.Col.name.title",
+                        "type": "string",
+                        "x-gridora-column": true
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "title": "ops.computed_column.defs.Col.title",
+                    "type": "object"
+                  },
+                  {
+                    "$ref": "#/$defs/Call"
+                  }
+                ],
+                "title": "ops.computed_column.defs.Call.args.items.title"
+              },
+              "maxItems": 10,
+              "title": "ops.computed_column.defs.Call.args.title",
+              "type": "array"
+            },
+            "fn": {
+              "enum": [
+                "add",
+                "sub",
+                "mul",
+                "div",
+                "mod",
+                "neg",
+                "abs",
+                "floor",
+                "ceil",
+                "round",
+                "min2",
+                "max2",
+                "concat",
+                "upper",
+                "lower",
+                "trim",
+                "len",
+                "left",
+                "right",
+                "substring",
+                "replace",
+                "eq",
+                "ne",
+                "lt",
+                "le",
+                "gt",
+                "ge",
+                "and",
+                "or",
+                "not",
+                "if",
+                "is_null",
+                "coalesce",
+                "year",
+                "month",
+                "day"
+              ],
+              "title": "ops.computed_column.defs.Call.fn.title",
+              "type": "string",
+              "x-gridora-enum-labels": {
+                "abs": "ops.computed_column.defs.Call.fn.options.abs",
+                "add": "ops.computed_column.defs.Call.fn.options.add",
+                "and": "ops.computed_column.defs.Call.fn.options.and",
+                "ceil": "ops.computed_column.defs.Call.fn.options.ceil",
+                "coalesce": "ops.computed_column.defs.Call.fn.options.coalesce",
+                "concat": "ops.computed_column.defs.Call.fn.options.concat",
+                "day": "ops.computed_column.defs.Call.fn.options.day",
+                "div": "ops.computed_column.defs.Call.fn.options.div",
+                "eq": "ops.computed_column.defs.Call.fn.options.eq",
+                "floor": "ops.computed_column.defs.Call.fn.options.floor",
+                "ge": "ops.computed_column.defs.Call.fn.options.ge",
+                "gt": "ops.computed_column.defs.Call.fn.options.gt",
+                "if": "ops.computed_column.defs.Call.fn.options.if",
+                "is_null": "ops.computed_column.defs.Call.fn.options.is_null",
+                "le": "ops.computed_column.defs.Call.fn.options.le",
+                "left": "ops.computed_column.defs.Call.fn.options.left",
+                "len": "ops.computed_column.defs.Call.fn.options.len",
+                "lower": "ops.computed_column.defs.Call.fn.options.lower",
+                "lt": "ops.computed_column.defs.Call.fn.options.lt",
+                "max2": "ops.computed_column.defs.Call.fn.options.max2",
+                "min2": "ops.computed_column.defs.Call.fn.options.min2",
+                "mod": "ops.computed_column.defs.Call.fn.options.mod",
+                "month": "ops.computed_column.defs.Call.fn.options.month",
+                "mul": "ops.computed_column.defs.Call.fn.options.mul",
+                "ne": "ops.computed_column.defs.Call.fn.options.ne",
+                "neg": "ops.computed_column.defs.Call.fn.options.neg",
+                "not": "ops.computed_column.defs.Call.fn.options.not",
+                "or": "ops.computed_column.defs.Call.fn.options.or",
+                "replace": "ops.computed_column.defs.Call.fn.options.replace",
+                "right": "ops.computed_column.defs.Call.fn.options.right",
+                "round": "ops.computed_column.defs.Call.fn.options.round",
+                "sub": "ops.computed_column.defs.Call.fn.options.sub",
+                "substring": "ops.computed_column.defs.Call.fn.options.substring",
+                "trim": "ops.computed_column.defs.Call.fn.options.trim",
+                "upper": "ops.computed_column.defs.Call.fn.options.upper",
+                "year": "ops.computed_column.defs.Call.fn.options.year"
+              }
+            },
+            "kind": {
+              "const": "call",
+              "default": "call",
+              "type": "string",
+              "x-gridora-hidden": true
+            }
+          },
+          "required": [
+            "fn"
+          ],
+          "title": "ops.computed_column.defs.Call.title",
+          "type": "object"
+        }
+      ],
+      "title": "ops.computed_column.params.expr.title",
+      "x-gridora-order": 2,
+      "x-gridora-widget": "expression-builder"
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.computed_column.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "ops.computed_column.params.name.title",
+      "type": "string",
+      "x-gridora-order": 1
+    }
+  },
+  "required": [
+    "name",
+    "expr"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

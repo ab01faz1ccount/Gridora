@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M0 (skeleton) — in progress. No user-facing operation exists yet.**
+**Status: M5 (calendar, pipelines/tools done; benchmarks in progress).**
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -11,14 +11,35 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - `catalog(locale)`: Persian text for categories and every error code; English falls back to Persian per key.
 - Boundary test: no import of `gridora_engine`/`apps`, no network/process modules, no unreviewed third-party packages.
 - Polars-vs-DuckDB spike with measured numbers: `spikes/SPIKE_REPORT.md`.
+- **`sort`**: multi-key, stable (ties keep original order), nulls first/last, Persian alphabetical collation (`persian/chars.py`: آ ا ب پ ... ی; ي/ك folded; digits of all scripts equal; Latin before Persian) or binary; undo via the engine delta.
+- **`remove_duplicates`**: chosen columns or all, keep first/last, case-insensitive by default, optional Persian/Arabic variant folding; idempotent (property-tested).
+- **`filter`**: condition tree (and/or groups, nested), text/number/date/bool/empty tests, `between`, variant-insensitive matching; type errors point at the exact node (`/params/where/items/1/value`). Preview works on sheets; **applying a filter on a sheet range is not implemented yet** (it creates a new table, needs the TableStore, M2).
+- **`find_replace`** (literal, never a user regex; partial/whole cell; case option; `ignore_variants` matches ي/ی, ك/ک, digits of all scripts and tolerates tatweel/ZWNJ/diacritics *without* touching the rest of the cell), **`fill`** (down/up/constant; blank text counts as empty; never changes a non-empty cell), **`clean_text`** (whitespace, case, Persian/Arabic letters, digit scripts, tatweel, ZWNJ, diacritics; every Persian option off by default; idempotent), **`split_column`** (delimiter or fixed width, `max_parts`, merge repeated delimiters, unique names), **`merge_columns`** (skips empties, formats numbers/dates as text, unique output name).
+- **`group_aggregate`** (sum/avg/count/count_distinct/min/max, groups in first-appearance order or Persian-sorted, grand total with no `by`), **`pivot`** (max 200 new columns), **`unpivot`** (mixed types become text with a warning), **`join`** (inner/left/right/full on one or more keys, second table from `Operation.extra_targets[0]` — a data table or a sheet range, optional variant-insensitive keys, deterministic order, guard at 5,000,000 matching rows). All four **always create a new table** and never touch the source (`TableVersionDelta(from_version=0, to_version=1)`).
+- **`computed_column`**: structured expression tree (literal / column / call of ~35 allow-listed functions), type-checked before running, errors point at the node (`/params/expr/args/1`), division by zero gives empty cells + a warning, limits of depth 20 and 200 nodes, no scripting.
+- **`chart_data(spec, ctx)`**: bar/line/pie/scatter/area -> plain categories and series (aggregate sum/avg/count/min/max per category in first-appearance order, nulls kept, `(خالی)` for empty categories, caps at 5,000 categories).
+- **`convert_calendar`** (Gregorian ⇄ Jalali, explicit only): date -> text `YYYY/MM/DD` with Persian or Latin digits, or three integer columns; Jalali text (any digit script, `/ - .` separators) -> date; replaces the column or writes a new one; unconvertible values fail with a count and examples, or become empty with a warning. Own implementation of the 33-year arithmetic cycle, **supported Jalali years 1300-1500**, checked against jdatetime and persiantools on every one of the 73,413 days of that range (all three libraries incl. convertdate agree on year starts from 1277); outside the range values are reported, never guessed.
+- **Pipelines** (`run_pipeline`): all-or-nothing, one result with its own delta per step. A dry run first plans every step on in-memory frames, chained exactly as they will run (including the growing/shrinking sheet range and steps that create a new table); only if everything passes are the steps applied one by one. A failure while applying rolls back earlier steps (table versions/tables created by the run are discarded, sheet cells are restored value by value) and says so if the rollback itself was incomplete (`rollback_incomplete`).
+- **Tools**: `bind_tool` replaces `{"$input": name}` placeholders (an unbound *optional* input drops the parameter so the default applies; wrong kinds, unknown/missing inputs and undeclared placeholders are reported with paths); `validate_tool` checks, without running anything, that column inputs sit at column parameters, value inputs at plain-value parameters, every input is used, operations exist and the static parameters are valid; with a context it also checks the first step's literal columns.
+- **`change_type`**: text/number/bool/date/datetime conversions; Persian/Arabic-Indic digits, `٬ ، ,` thousands separators and `٫` decimal separator understood; comma is only a decimal separator when asked (`decimal_separator=comma`); failures stop the operation with a count and examples (or become empty with `on_error=null` and a warning).
+- **`ParquetTableStore`** (`create_table_store(path_for)`): immutable zstd Parquet versions written atomically (temp + fsync + hard link, never overwrites), `read_page` with Persian-aware stable sort, `restore_version` as a pointer swap (`version_unavailable` if compacted), per-owner isolation, all contract dtypes round-trip (decimal stored as Decimal(38,10)).
+- **Bridge**: `sheet_range_to_table` (explicit `header_row`, whole-number floats become int64, mixed columns become text and error cells empty *with warnings*, dtype overrides, `preview=True` stores nothing) and `table_to_cells` (never overwrites, 200,000-cell cap).
+- **Operations on `data_table` targets**: each in-place operation writes a new version and returns `TableVersionDelta`; `filter` on a sheet range creates a new table (`from_version=0`) and leaves the sheet untouched.
+- Golden JSON-Schema files per operation (`tests/golden/`), Persian text for every schema key.
 
 ## What does not work yet (honest list)
-- The production registry is **empty**: sort, filter, remove_duplicates and all other operations start in M1.
-- `data_table` targets, `ParquetTableStore`/`create_table_store`, the sheet<->table bridge: M2 (typed `not_implemented` errors until then).
+- Not built yet: benchmarks (`BENCHMARKS.md`).
+- Pipelines: operations that need extra targets (`join`) cannot be steps (`PipelineStep` has no `extra_targets`); `range` Tool inputs are not accepted by any v1 parameter; each step re-reads its input (no in-memory hand-off between applied steps); on sheets, a rollback restores values only (formulas converted by a confirmed step cannot come back); `validate_tool` cannot know columns created by earlier steps.
+- `computed_column`: `round` rounds to a whole number only; text comparisons are plain code-point comparisons (no Persian collation); no Jalali date functions (`year/month/day` are Gregorian).
+- Analysis operations take sheet ranges by snapshotting them (the catalog lists tables); floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums are not guaranteed identical across machines with different thread counts.
+- `chart_data` reads a sheet source with its first row as header (the spec has no header flag).
+- Header-row *detection*: the contract passes `header_row` explicitly, so none is guessed.
+- `TableSource` (link back to the workbook) is not set by the store: `ExecContext` has no `workbook_id`; apps/api attaches it.
 - `run_pipeline`, `bind_tool`, `validate_tool` (M5) and `chart_data` (M4): typed `not_implemented` errors.
 - Persian modules (collation, digits, clean_text, Jalali): M3/M5.
+- Collation limits: no natural-number ordering; Latin case ties keep original order (no lowercase-first); hamza is placed just after alef (simplified).
 - Sheet frames: columns that mix types (e.g. numbers and text) are refused; error values (`#N/A`) are refused; dates arrive only as `DateValue`. Number columns are always `Float64` on sheets.
-- Nothing has been benchmarked at 100k rows through the executor yet (`BENCHMARKS.md` does not exist until the first operations land).
+- Nothing has been benchmarked at 100k rows through the executor yet (`BENCHMARKS.md` is written at M5).
 
 ## Develop
 ```

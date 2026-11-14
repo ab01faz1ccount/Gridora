@@ -1,0 +1,85 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "column": {
+      "title": "ops.change_type.params.column.title",
+      "type": "string",
+      "x-gridora-column": true
+    },
+    "date_format": {
+      "anyOf": [
+        {
+          "title": "ops.change_type.params.date_format.title",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "ops.change_type.params.date_format.title",
+      "x-gridora-group": "ops.groups.advanced"
+    },
+    "decimal_separator": {
+      "default": "dot",
+      "enum": [
+        "dot",
+        "comma"
+      ],
+      "title": "ops.change_type.params.decimal_separator.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "comma": "ops.change_type.params.decimal_separator.options.comma",
+        "dot": "ops.change_type.params.decimal_separator.options.dot"
+      },
+      "x-gridora-group": "ops.groups.advanced"
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.change_type.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "on_error": {
+      "default": "fail",
+      "enum": [
+        "fail",
+        "null"
+      ],
+      "title": "ops.change_type.params.on_error.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "fail": "ops.change_type.params.on_error.options.fail",
+        "null": "ops.change_type.params.on_error.options.null"
+      }
+    },
+    "to": {
+      "enum": [
+        "int64",
+        "float64",
+        "bool",
+        "string",
+        "date",
+        "datetime",
+        "decimal"
+      ],
+      "title": "ops.change_type.params.to.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "bool": "ops.change_type.params.to.options.bool",
+        "date": "ops.change_type.params.to.options.date",
+        "datetime": "ops.change_type.params.to.options.datetime",
+        "decimal": "ops.change_type.params.to.options.decimal",
+        "float64": "ops.change_type.params.to.options.float64",
+        "int64": "ops.change_type.params.to.options.int64",
+        "string": "ops.change_type.params.to.options.string"
+      }
+    }
+  },
+  "required": [
+    "column",
+    "to"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

@@ -1,0 +1,82 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "collation": {
+      "default": "persian",
+      "enum": [
+        "persian",
+        "binary"
+      ],
+      "title": "ops.sort.params.collation.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "binary": "ops.sort.params.collation.options.binary",
+        "persian": "ops.sort.params.collation.options.persian"
+      },
+      "x-gridora-group": "ops.groups.advanced",
+      "x-gridora-persian-option": true
+    },
+    "has_header": {
+      "default": true,
+      "description": "ops.sort.params.has_header.description",
+      "title": "ops.sort.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "keys": {
+      "description": "ops.sort.params.keys.description",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "title": "ops.sort.defs.SortKey.column.title",
+            "type": "string",
+            "x-gridora-column": true
+          },
+          "direction": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "ops.sort.defs.SortKey.direction.title",
+            "type": "string",
+            "x-gridora-enum-labels": {
+              "asc": "ops.sort.defs.SortKey.direction.options.asc",
+              "desc": "ops.sort.defs.SortKey.direction.options.desc"
+            }
+          },
+          "nulls": {
+            "default": "last",
+            "enum": [
+              "first",
+              "last"
+            ],
+            "title": "ops.sort.defs.SortKey.nulls.title",
+            "type": "string",
+            "x-gridora-enum-labels": {
+              "first": "ops.sort.defs.SortKey.nulls.options.first",
+              "last": "ops.sort.defs.SortKey.nulls.options.last"
+            }
+          }
+        },
+        "required": [
+          "column"
+        ],
+        "title": "ops.sort.defs.SortKey.title",
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "ops.sort.params.keys.title",
+      "type": "array",
+      "x-gridora-order": 1,
+      "x-gridora-widget": "sort-keys"
+    }
+  },
+  "required": [
+    "keys"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

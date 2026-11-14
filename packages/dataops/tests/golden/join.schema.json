@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "has_header": {
+      "default": true,
+      "title": "ops.join.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "how": {
+      "default": "inner",
+      "enum": [
+        "inner",
+        "left",
+        "right",
+        "full"
+      ],
+      "title": "ops.join.params.how.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "full": "ops.join.params.how.options.full",
+        "inner": "ops.join.params.how.options.inner",
+        "left": "ops.join.params.how.options.left",
+        "right": "ops.join.params.how.options.right"
+      }
+    },
+    "ignore_variants": {
+      "default": false,
+      "title": "ops.join.params.ignore_variants.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
+    "left_on": {
+      "items": {
+        "title": "ops.join.params.left_on.items.title",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "ops.join.params.left_on.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "right_on": {
+      "items": {
+        "title": "ops.join.params.right_on.items.title",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "ops.join.params.right_on.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-column-of": "extra_targets/0",
+      "x-gridora-order": 2,
+      "x-gridora-widget": "column-list"
+    },
+    "suffix": {
+      "default": "_right",
+      "maxLength": 50,
+      "minLength": 1,
+      "title": "ops.join.params.suffix.title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "left_on",
+    "right_on"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}
