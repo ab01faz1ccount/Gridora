@@ -49,6 +49,7 @@ CATALOG = {
     "split_column": ("reshape", True), "merge_columns": ("reshape", False), "change_type": ("reshape", True),
     "group_aggregate": ("analyze", False), "pivot": ("analyze", False), "unpivot": ("analyze", False),
     "join": ("combine", False), "computed_column": ("calculate", False),
+    "convert_calendar": ("dates", True),
 }
 
 
