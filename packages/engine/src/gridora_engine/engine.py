@@ -4,13 +4,13 @@ Handles are NOT thread-safe; apps/api serializes access per document.
 """
 from __future__ import annotations
 
-import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from gridora_contracts.models import (
+    Cell,
     CellEdit,
     CellWindow,
     CompatibilityReport,
@@ -20,14 +20,19 @@ from gridora_contracts.models import (
 )
 from gridora_contracts.protocols import CsvOptions, WorkbookHandle
 
-from .errors import EngineNotImplementedError, bad_request
+from .compat.report import build_report
+from .csvio.importer import import_csv_file
+from .csvio.writer import write_csv
+from .errors import EngineNotImplementedError, GridoraEngineError, bad_request
 from .limits import ResourceLimits
+from .model.values import to_contract_value
+from .model.workbook import WorkbookState
 
 _KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding"}
 _EXPORT_ENCODINGS = {"utf-8-sig", "utf-8", "windows-1256"}
 
 
-@dataclass(frozen=True)
+@dataclass
 class Handle:
     """Opaque working-copy handle (satisfies contracts WorkbookHandle)."""
 
@@ -45,15 +50,15 @@ class GridoraEngine:
         if enc not in _EXPORT_ENCODINGS:
             raise bad_request("config.bad_encoding", "Unsupported CSV export encoding.")
         self.csv_export_encoding = enc
-        self._open: dict[str, Any] = {}
+        self._open: dict[str, WorkbookState] = {}
 
     # -- registry ---------------------------------------------------------------------------
-    def _new_handle(self, state: Any) -> Handle:
-        h = Handle(id=str(uuid.uuid4()))
+    def _new_handle(self, state: WorkbookState) -> Handle:
+        h = Handle(id=state.id)
         self._open[h.id] = state
         return h
 
-    def _state(self, wb: WorkbookHandle) -> Any:
+    def _state(self, wb: WorkbookHandle) -> WorkbookState:
         try:
             return self._open[wb.id]
         except KeyError:
@@ -74,10 +79,26 @@ class GridoraEngine:
     def import_csv(
         self, path: Path, options: CsvOptions, *, file_id: str | None = None
     ) -> tuple[WorkbookHandle, Workbook]:
-        raise EngineNotImplementedError("import_csv")
+        state = import_csv_file(path, options, self.limits, file_id)
+        return self._new_handle(state), state.to_model()
 
     def get_cells(self, wb: WorkbookHandle, sheet_id: str, window: Window) -> CellWindow:
-        raise EngineNotImplementedError("get_cells")
+        state = self._state(wb)
+        sheet = state.sheet(sheet_id)
+        if sheet is None:
+            raise GridoraEngineError("not_found", "sheet.unknown", "The sheet does not exist.")
+        cells = [
+            Cell.model_construct(
+                r=r, c=c, v=to_contract_value(tag, val, state.strings), f=None, s=None, t=None
+            )
+            for r, c, tag, val in sheet.store.window(
+                window.row0, window.col0, window.rows, window.cols
+            )
+        ]
+        return CellWindow(
+            sheet_id=sheet_id, row0=window.row0, col0=window.col0,
+            rows=window.rows, cols=window.cols, cells=cells,
+        )
 
     def apply_cell_edits(self, wb: WorkbookHandle, sheet_id: str, edits: list[CellEdit]) -> Delta:
         raise EngineNotImplementedError("apply_cell_edits")
@@ -92,4 +113,18 @@ class GridoraEngine:
         raise EngineNotImplementedError("export_xlsx")
 
     def export_csv(self, wb: WorkbookHandle, sheet_id: str, path: Path) -> None:
-        raise EngineNotImplementedError("export_csv")
+        state = self._state(wb)
+        sheet = state.sheet(sheet_id)
+        if sheet is None:
+            raise GridoraEngineError("not_found", "sheet.unknown", "The sheet does not exist.")
+        n = write_csv(
+            path, sheet.store, state.strings, self.csv_export_encoding,
+            self.csv_neutralize_formulas,
+        )
+        state.last_export_report = build_report("export", {"csv.formula_text_neutralized": n})
+
+    def last_export_report(self, wb: WorkbookHandle) -> CompatibilityReport | None:
+        """Report of the most recent export of this workbook (not part of the contract: the
+        contract's export_csv returns None, so notes such as neutralized cells need this
+        side channel; see CONTRACT_CHANGE CC-9)."""
+        return self._state(wb).last_export_report
