@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M2 (Data Tables, bridge, change_type) — in progress.**
+**Status: M3 (cleaning and reshaping operations) — in progress.**
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -14,6 +14,7 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - **`sort`**: multi-key, stable (ties keep original order), nulls first/last, Persian alphabetical collation (`persian/chars.py`: آ ا ب پ ... ی; ي/ك folded; digits of all scripts equal; Latin before Persian) or binary; undo via the engine delta.
 - **`remove_duplicates`**: chosen columns or all, keep first/last, case-insensitive by default, optional Persian/Arabic variant folding; idempotent (property-tested).
 - **`filter`**: condition tree (and/or groups, nested), text/number/date/bool/empty tests, `between`, variant-insensitive matching; type errors point at the exact node (`/params/where/items/1/value`). Preview works on sheets; **applying a filter on a sheet range is not implemented yet** (it creates a new table, needs the TableStore, M2).
+- **`find_replace`** (literal, never a user regex; partial/whole cell; case option; `ignore_variants` matches ي/ی, ك/ک, digits of all scripts and tolerates tatweel/ZWNJ/diacritics *without* touching the rest of the cell), **`fill`** (down/up/constant; blank text counts as empty; never changes a non-empty cell), **`clean_text`** (whitespace, case, Persian/Arabic letters, digit scripts, tatweel, ZWNJ, diacritics; every Persian option off by default; idempotent), **`split_column`** (delimiter or fixed width, `max_parts`, merge repeated delimiters, unique names), **`merge_columns`** (skips empties, formats numbers/dates as text, unique output name).
 - **`change_type`**: text/number/bool/date/datetime conversions; Persian/Arabic-Indic digits, `٬ ، ,` thousands separators and `٫` decimal separator understood; comma is only a decimal separator when asked (`decimal_separator=comma`); failures stop the operation with a count and examples (or become empty with `on_error=null` and a warning).
 - **`ParquetTableStore`** (`create_table_store(path_for)`): immutable zstd Parquet versions written atomically (temp + fsync + hard link, never overwrites), `read_page` with Persian-aware stable sort, `restore_version` as a pointer swap (`version_unavailable` if compacted), per-owner isolation, all contract dtypes round-trip (decimal stored as Decimal(38,10)).
 - **Bridge**: `sheet_range_to_table` (explicit `header_row`, whole-number floats become int64, mixed columns become text and error cells empty *with warnings*, dtype overrides, `preview=True` stores nothing) and `table_to_cells` (never overwrites, 200,000-cell cap).
@@ -21,7 +22,7 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - Golden JSON-Schema files per operation (`tests/golden/`), Persian text for every schema key.
 
 ## What does not work yet (honest list)
-- Operations other than sort/filter/remove_duplicates/change_type (find_replace, fill, clean_text, split/merge, change_type, computed_column, group/pivot/join/unpivot, convert_calendar) are not built yet.
+- Not built yet: computed_column, group_aggregate, pivot, join, unpivot (M4), convert_calendar and pipelines/tools (M5), chart data (M4).
 - Header-row *detection*: the contract passes `header_row` explicitly, so none is guessed.
 - `TableSource` (link back to the workbook) is not set by the store: `ExecContext` has no `workbook_id`; apps/api attaches it.
 - `run_pipeline`, `bind_tool`, `validate_tool` (M5) and `chart_data` (M4): typed `not_implemented` errors.

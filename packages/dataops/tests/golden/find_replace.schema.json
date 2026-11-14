@@ -1,0 +1,67 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "case_sensitive": {
+      "default": false,
+      "title": "ops.find_replace.params.case_sensitive.title",
+      "type": "boolean"
+    },
+    "columns": {
+      "description": "ops.find_replace.params.columns.description",
+      "items": {
+        "title": "ops.find_replace.params.columns.items.title",
+        "type": "string"
+      },
+      "title": "ops.find_replace.params.columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-column-types": [
+        "text"
+      ],
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "find": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "ops.find_replace.params.find.title",
+      "type": "string"
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.find_replace.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "ignore_variants": {
+      "default": false,
+      "title": "ops.find_replace.params.ignore_variants.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
+    "match": {
+      "default": "partial",
+      "enum": [
+        "partial",
+        "whole"
+      ],
+      "title": "ops.find_replace.params.match.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "partial": "ops.find_replace.params.match.options.partial",
+        "whole": "ops.find_replace.params.match.options.whole"
+      }
+    },
+    "replace": {
+      "default": "",
+      "maxLength": 1000,
+      "title": "ops.find_replace.params.replace.title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "find"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

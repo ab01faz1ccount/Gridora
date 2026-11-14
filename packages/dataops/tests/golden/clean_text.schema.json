@@ -1,0 +1,112 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "arabic_letters_to_persian": {
+      "default": false,
+      "title": "ops.clean_text.params.arabic_letters_to_persian.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
+    "case": {
+      "default": "none",
+      "enum": [
+        "none",
+        "upper",
+        "lower",
+        "title"
+      ],
+      "title": "ops.clean_text.params.case.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "lower": "ops.clean_text.params.case.options.lower",
+        "none": "ops.clean_text.params.case.options.none",
+        "title": "ops.clean_text.params.case.options.title",
+        "upper": "ops.clean_text.params.case.options.upper"
+      }
+    },
+    "collapse_spaces": {
+      "default": true,
+      "title": "ops.clean_text.params.collapse_spaces.title",
+      "type": "boolean"
+    },
+    "columns": {
+      "description": "ops.clean_text.params.columns.description",
+      "items": {
+        "title": "ops.clean_text.params.columns.items.title",
+        "type": "string"
+      },
+      "title": "ops.clean_text.params.columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-column-types": [
+        "text"
+      ],
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "digits": {
+      "default": "none",
+      "enum": [
+        "none",
+        "to_latin",
+        "to_persian",
+        "to_arabic_indic"
+      ],
+      "title": "ops.clean_text.params.digits.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "none": "ops.clean_text.params.digits.options.none",
+        "to_arabic_indic": "ops.clean_text.params.digits.options.to_arabic_indic",
+        "to_latin": "ops.clean_text.params.digits.options.to_latin",
+        "to_persian": "ops.clean_text.params.digits.options.to_persian"
+      },
+      "x-gridora-persian-option": true
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.clean_text.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "nbsp_to_space": {
+      "default": true,
+      "title": "ops.clean_text.params.nbsp_to_space.title",
+      "type": "boolean"
+    },
+    "remove_diacritics": {
+      "default": false,
+      "title": "ops.clean_text.params.remove_diacritics.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
+    "remove_tatweel": {
+      "default": false,
+      "title": "ops.clean_text.params.remove_tatweel.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
+    "trim": {
+      "default": true,
+      "title": "ops.clean_text.params.trim.title",
+      "type": "boolean"
+    },
+    "zwnj": {
+      "default": "keep",
+      "enum": [
+        "keep",
+        "remove",
+        "to_space"
+      ],
+      "title": "ops.clean_text.params.zwnj.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "keep": "ops.clean_text.params.zwnj.options.keep",
+        "remove": "ops.clean_text.params.zwnj.options.remove",
+        "to_space": "ops.clean_text.params.zwnj.options.to_space"
+      },
+      "x-gridora-persian-option": true
+    }
+  },
+  "type": "object",
+  "x-gridora-vocab": 1
+}

@@ -26,11 +26,16 @@
   "ops.categories.reshape": "Reshape",
   "ops.categories.select": "Select",
   "ops.change_type.label": "Change type",
+  "ops.clean_text.label": "Clean text",
+  "ops.fill.label": "Fill empty cells",
   "ops.filter.description": "Keeps only rows that match the conditions. On a sheet the result is created as a new table.",
   "ops.filter.label": "Filter",
+  "ops.find_replace.label": "Find and replace",
   "ops.groups.advanced": "Advanced options",
+  "ops.merge_columns.label": "Merge columns",
   "ops.remove_duplicates.label": "Remove duplicates",
   "ops.sort.description": "Sorts rows by one or more columns, respecting Persian alphabetical order.",
   "ops.sort.label": "Sort",
+  "ops.split_column.label": "Split column",
   "warnings.values_set_to_null": "Some values could not be converted and were left empty."
 }

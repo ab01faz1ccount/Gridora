@@ -42,14 +42,22 @@ def cond(column: str, op: str, value=None, **kw) -> dict:  # type: ignore[no-unt
 
 
 # ------------------------------------------------------------ registry / golden schemas
+# docs/OPERATIONS_CATALOG.md, transcribed: type -> (category, destructive). Pinned so drift fails a test.
+CATALOG = {
+    "sort": ("order", False), "filter": ("select", False), "remove_duplicates": ("clean", True),
+    "find_replace": ("clean", True), "fill": ("clean", False), "clean_text": ("clean", True),
+    "split_column": ("reshape", True), "merge_columns": ("reshape", False), "change_type": ("reshape", True),
+}
+
+
 def test_production_registry_ships_the_current_operations() -> None:
-    assert [s.type for s in default_registry().all()] == ["change_type", "filter", "remove_duplicates", "sort"]
+    assert [s.type for s in default_registry().all()] == sorted(CATALOG)
 
 
 @pytest.mark.parametrize("spec", default_registry().all(), ids=lambda s: s.type)
 def test_flags_match_the_operations_catalog(spec) -> None:  # type: ignore[no-untyped-def]
-    catalog = {"sort": (False, True), "filter": (False, True), "remove_duplicates": (True, True), "change_type": (True, True)}
-    assert (spec.destructive, spec.supports_preview) == catalog[spec.type]
+    assert (spec.category, spec.destructive) == CATALOG[spec.type]
+    assert spec.supports_preview is True and set(spec.targets) == {"sheet_range", "data_table"}
 
 
 @pytest.mark.parametrize("desc", DataOpsExecutor().describe_all(), ids=lambda d: d.type)

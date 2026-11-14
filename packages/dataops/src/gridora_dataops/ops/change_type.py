@@ -21,7 +21,7 @@ class ChangeTypeParams(ParamsModel):
 
 class ChangeTypeOp(OperationSpec):
     type = "change_type"
-    category = "clean"
+    category = "reshape"
     destructive = True
     Params = ChangeTypeParams
 

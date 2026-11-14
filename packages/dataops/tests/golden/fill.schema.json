@@ -1,0 +1,65 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "columns": {
+      "description": "ops.fill.params.columns.description",
+      "items": {
+        "title": "ops.fill.params.columns.items.title",
+        "type": "string"
+      },
+      "title": "ops.fill.params.columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.fill.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "mode": {
+      "default": "down",
+      "enum": [
+        "down",
+        "up",
+        "constant"
+      ],
+      "title": "ops.fill.params.mode.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "constant": "ops.fill.params.mode.options.constant",
+        "down": "ops.fill.params.mode.options.down",
+        "up": "ops.fill.params.mode.options.up"
+      }
+    },
+    "value": {
+      "anyOf": [
+        {
+          "title": "ops.fill.params.value.title",
+          "type": "boolean"
+        },
+        {
+          "title": "ops.fill.params.value.title",
+          "type": "number"
+        },
+        {
+          "title": "ops.fill.params.value.title",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "ops.fill.params.value.title",
+      "x-gridora-visible-if": {
+        "equals": "constant",
+        "property": "mode"
+      }
+    }
+  },
+  "type": "object",
+  "x-gridora-vocab": 1
+}
