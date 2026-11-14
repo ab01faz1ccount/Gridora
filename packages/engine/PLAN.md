@@ -22,7 +22,7 @@ Contracts are **v0.2.0**; I work against `contracts/` only. Window cap is now **
 | CC-6 CSV report / `infer_types` | Accepted | report in `Workbook.compat`; `CsvImportOptions` dataclass (done, E1) |
 | CC-7 error values | Accepted: `#SPILL!`, `#CALC!`, `#GETTING_DATA` | anything else maps to `#VALUE!` plus a report item, original XML preserved |
 | CC-8 `reason` in `ErrorDetail.code` | Accepted | `GridoraEngineError.to_detail()` (done, E0) |
-| **CC-9 (new)** `export_csv` returns `None`, so export notes (neutralized cells) have no channel | **Proposed** | interim non-contract `last_export_report(wb)`; proposal: `export_csv` returns a `CompatibilityReport` |
+| **CC-9 (new)** `export_csv` returned `None`, so export notes (neutralized cells) had no channel | **Accepted, contract v0.3.0 (ADR-013)** | `export_csv` returns a `CompatibilityReport`; the interim `last_export_report` was removed |
 | **CC-10 (new)** snapshot (section 0.4) | **Proposed, Phase 4** | optional `SnapshotEngine` protocol; no work before E6 |
 | **CC-11 (new)** per-patch cap | Review decided: 200,000 cells per `cell_patch`, larger fails with typed `too_large_for_history` | engine enforces the cap when building deltas (E5); I will co-propose the "write into a new sheet" delta with Agents 2 and 3 before M2 closes |
 
