@@ -1,4 +1,5 @@
 """All runtime configuration lives here (environment variables, prefix GRIDORA_)."""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -6,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from gridora_contracts.models import MAX_UPLOAD_BYTES, MAX_WINDOW_COLS, MAX_WINDOW_ROWS
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +24,25 @@ class Settings(BaseSettings):
     # Which implementation composition/ wires in. "stub" is the in-memory CSV-only stand-in.
     engine: Literal["stub", "real"] = "stub"
     dataops: Literal["stub", "real"] = "stub"
+
+    # Sessions (server-side). Idle timeout slides; the absolute lifetime does not.
+    session_idle_seconds: int = Field(default=8 * 3600, ge=60)
+    session_absolute_seconds: int = Field(default=7 * 24 * 3600, ge=60)
+    trust_proxy_headers: bool = False  # true only behind our nginx (uses X-Real-IP)
+
+    # Login rate limiting (Postgres-backed).
+    login_window_seconds: int = Field(default=900, ge=1)
+    login_max_failures_per_user: int = Field(default=5, ge=1)
+    login_max_failures_per_ip: int = Field(default=30, ge=1)
+
+    # argon2id parameters (argon2-cffi defaults follow RFC 9106 low-memory profile).
+    argon2_time_cost: int = Field(default=3, ge=1)
+    argon2_memory_cost_kib: int = Field(default=65536, ge=8)
+    argon2_parallelism: int = Field(default=4, ge=1)
+
+    # First-start bootstrap (only used when there are no users). Remove after first start.
+    bootstrap_admin_username: str | None = None
+    bootstrap_admin_password: SecretStr | None = None
 
     # The contract caps are upper bounds; they can only be lowered here.
     max_upload_bytes: int = Field(default=MAX_UPLOAD_BYTES, ge=1, le=MAX_UPLOAD_BYTES)

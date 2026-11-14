@@ -3,6 +3,7 @@
 /healthz  liveness: the process is up.
 /readyz   readiness: dependencies are usable. Reports only check names and ok/fail, never reasons.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request

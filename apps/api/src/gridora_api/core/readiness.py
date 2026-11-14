@@ -1,4 +1,5 @@
 """Readiness registry. Later PRs register their own checks (database, engine adapter)."""
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
