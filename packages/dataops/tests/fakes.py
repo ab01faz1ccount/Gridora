@@ -18,8 +18,9 @@ class FakeExecContext:
     user_id = "u1"
     workspace_id = "w1"
 
-    def __init__(self, sheet_id: str = "s1") -> None:
+    def __init__(self, sheet_id: str = "s1", store: Any = None) -> None:
         self.sheet_id = sheet_id
+        self.store = store
         self.grid: dict[tuple[int, int], Cell] = {}
         self.reads = 0
         self.writes = 0
@@ -68,7 +69,9 @@ class FakeExecContext:
         return CellPatchDelta(sheet_id=self.sheet_id, before=before, after=after)
 
     def table_store(self) -> Any:
-        raise NotImplementedError
+        if self.store is None:
+            raise NotImplementedError
+        return self.store
 
     # -- what the engine's apply_delta does
     def apply_delta(self, delta: Delta, *, inverse: bool) -> None:

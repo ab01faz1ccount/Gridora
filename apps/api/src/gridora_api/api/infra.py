@@ -3,6 +3,7 @@
 /healthz  liveness: the process is up.
 /readyz   readiness: dependencies are usable. Reports only check names and ok/fail, never reasons.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
@@ -23,5 +24,6 @@ async def readyz(request: Request) -> JSONResponse:
     body = {
         "status": "ok" if ok else "unavailable",
         "checks": {k: ("ok" if v else "fail") for k, v in results.items()},
+        "implementations": request.app.state.implementations,
     }
     return JSONResponse(body, status_code=200 if ok else 503, headers={"Cache-Control": "no-store"})

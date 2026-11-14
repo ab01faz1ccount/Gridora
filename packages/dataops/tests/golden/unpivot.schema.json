@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "has_header": {
+      "default": true,
+      "title": "ops.unpivot.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "id_columns": {
+      "items": {
+        "title": "ops.unpivot.params.id_columns.items.title",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "ops.unpivot.params.id_columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "value_columns": {
+      "description": "ops.unpivot.params.value_columns.description",
+      "items": {
+        "title": "ops.unpivot.params.value_columns.items.title",
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "ops.unpivot.params.value_columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 2,
+      "x-gridora-widget": "column-list"
+    },
+    "value_name": {
+      "default": "value",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "ops.unpivot.params.value_name.title",
+      "type": "string"
+    },
+    "variable_name": {
+      "default": "variable",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "ops.unpivot.params.variable_name.title",
+      "type": "string"
+    }
+  },
+  "type": "object",
+  "x-gridora-vocab": 1
+}

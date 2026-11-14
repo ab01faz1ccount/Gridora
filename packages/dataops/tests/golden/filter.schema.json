@@ -1,0 +1,438 @@
+{
+  "$defs": {
+    "Group": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "case_sensitive": {
+                    "default": false,
+                    "title": "ops.filter.defs.Condition.case_sensitive.title",
+                    "type": "boolean"
+                  },
+                  "column": {
+                    "title": "ops.filter.defs.Condition.column.title",
+                    "type": "string",
+                    "x-gridora-column": true
+                  },
+                  "ignore_variants": {
+                    "default": false,
+                    "title": "ops.filter.defs.Condition.ignore_variants.title",
+                    "type": "boolean",
+                    "x-gridora-persian-option": true
+                  },
+                  "kind": {
+                    "const": "condition",
+                    "default": "condition",
+                    "type": "string",
+                    "x-gridora-hidden": true
+                  },
+                  "op": {
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "gt",
+                      "ge",
+                      "lt",
+                      "le",
+                      "between",
+                      "contains",
+                      "not_contains",
+                      "starts_with",
+                      "ends_with",
+                      "is_empty",
+                      "is_not_empty"
+                    ],
+                    "title": "ops.filter.defs.Condition.op.title",
+                    "type": "string",
+                    "x-gridora-enum-labels": {
+                      "between": "ops.filter.defs.Condition.op.options.between",
+                      "contains": "ops.filter.defs.Condition.op.options.contains",
+                      "ends_with": "ops.filter.defs.Condition.op.options.ends_with",
+                      "eq": "ops.filter.defs.Condition.op.options.eq",
+                      "ge": "ops.filter.defs.Condition.op.options.ge",
+                      "gt": "ops.filter.defs.Condition.op.options.gt",
+                      "is_empty": "ops.filter.defs.Condition.op.options.is_empty",
+                      "is_not_empty": "ops.filter.defs.Condition.op.options.is_not_empty",
+                      "le": "ops.filter.defs.Condition.op.options.le",
+                      "lt": "ops.filter.defs.Condition.op.options.lt",
+                      "ne": "ops.filter.defs.Condition.op.options.ne",
+                      "not_contains": "ops.filter.defs.Condition.op.options.not_contains",
+                      "starts_with": "ops.filter.defs.Condition.op.options.starts_with"
+                    }
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "title": "ops.filter.defs.Condition.value.title",
+                        "type": "boolean"
+                      },
+                      {
+                        "title": "ops.filter.defs.Condition.value.title",
+                        "type": "number"
+                      },
+                      {
+                        "title": "ops.filter.defs.Condition.value.title",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "ops.filter.defs.Condition.value.title"
+                  },
+                  "value2": {
+                    "anyOf": [
+                      {
+                        "title": "ops.filter.defs.Condition.value2.title",
+                        "type": "boolean"
+                      },
+                      {
+                        "title": "ops.filter.defs.Condition.value2.title",
+                        "type": "number"
+                      },
+                      {
+                        "title": "ops.filter.defs.Condition.value2.title",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "ops.filter.defs.Condition.value2.title"
+                  }
+                },
+                "required": [
+                  "column",
+                  "op"
+                ],
+                "title": "ops.filter.defs.Condition.title",
+                "type": "object"
+              },
+              {
+                "$ref": "#/$defs/Group"
+              }
+            ],
+            "title": "ops.filter.defs.Group.items.items.title"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "ops.filter.defs.Group.items.title",
+          "type": "array"
+        },
+        "kind": {
+          "const": "group",
+          "default": "group",
+          "type": "string",
+          "x-gridora-hidden": true
+        },
+        "logic": {
+          "default": "and",
+          "enum": [
+            "and",
+            "or"
+          ],
+          "title": "ops.filter.defs.Group.logic.title",
+          "type": "string",
+          "x-gridora-enum-labels": {
+            "and": "ops.filter.defs.Group.logic.options.and",
+            "or": "ops.filter.defs.Group.logic.options.or"
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ops.filter.defs.Group.title",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "has_header": {
+      "default": true,
+      "title": "ops.filter.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "where": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case_sensitive": {
+              "default": false,
+              "title": "ops.filter.defs.Condition.case_sensitive.title",
+              "type": "boolean"
+            },
+            "column": {
+              "title": "ops.filter.defs.Condition.column.title",
+              "type": "string",
+              "x-gridora-column": true
+            },
+            "ignore_variants": {
+              "default": false,
+              "title": "ops.filter.defs.Condition.ignore_variants.title",
+              "type": "boolean",
+              "x-gridora-persian-option": true
+            },
+            "kind": {
+              "const": "condition",
+              "default": "condition",
+              "type": "string",
+              "x-gridora-hidden": true
+            },
+            "op": {
+              "enum": [
+                "eq",
+                "ne",
+                "gt",
+                "ge",
+                "lt",
+                "le",
+                "between",
+                "contains",
+                "not_contains",
+                "starts_with",
+                "ends_with",
+                "is_empty",
+                "is_not_empty"
+              ],
+              "title": "ops.filter.defs.Condition.op.title",
+              "type": "string",
+              "x-gridora-enum-labels": {
+                "between": "ops.filter.defs.Condition.op.options.between",
+                "contains": "ops.filter.defs.Condition.op.options.contains",
+                "ends_with": "ops.filter.defs.Condition.op.options.ends_with",
+                "eq": "ops.filter.defs.Condition.op.options.eq",
+                "ge": "ops.filter.defs.Condition.op.options.ge",
+                "gt": "ops.filter.defs.Condition.op.options.gt",
+                "is_empty": "ops.filter.defs.Condition.op.options.is_empty",
+                "is_not_empty": "ops.filter.defs.Condition.op.options.is_not_empty",
+                "le": "ops.filter.defs.Condition.op.options.le",
+                "lt": "ops.filter.defs.Condition.op.options.lt",
+                "ne": "ops.filter.defs.Condition.op.options.ne",
+                "not_contains": "ops.filter.defs.Condition.op.options.not_contains",
+                "starts_with": "ops.filter.defs.Condition.op.options.starts_with"
+              }
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "title": "ops.filter.defs.Condition.value.title",
+                  "type": "boolean"
+                },
+                {
+                  "title": "ops.filter.defs.Condition.value.title",
+                  "type": "number"
+                },
+                {
+                  "title": "ops.filter.defs.Condition.value.title",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "ops.filter.defs.Condition.value.title"
+            },
+            "value2": {
+              "anyOf": [
+                {
+                  "title": "ops.filter.defs.Condition.value2.title",
+                  "type": "boolean"
+                },
+                {
+                  "title": "ops.filter.defs.Condition.value2.title",
+                  "type": "number"
+                },
+                {
+                  "title": "ops.filter.defs.Condition.value2.title",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "ops.filter.defs.Condition.value2.title"
+            }
+          },
+          "required": [
+            "column",
+            "op"
+          ],
+          "title": "ops.filter.defs.Condition.title",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "case_sensitive": {
+                        "default": false,
+                        "title": "ops.filter.defs.Condition.case_sensitive.title",
+                        "type": "boolean"
+                      },
+                      "column": {
+                        "title": "ops.filter.defs.Condition.column.title",
+                        "type": "string",
+                        "x-gridora-column": true
+                      },
+                      "ignore_variants": {
+                        "default": false,
+                        "title": "ops.filter.defs.Condition.ignore_variants.title",
+                        "type": "boolean",
+                        "x-gridora-persian-option": true
+                      },
+                      "kind": {
+                        "const": "condition",
+                        "default": "condition",
+                        "type": "string",
+                        "x-gridora-hidden": true
+                      },
+                      "op": {
+                        "enum": [
+                          "eq",
+                          "ne",
+                          "gt",
+                          "ge",
+                          "lt",
+                          "le",
+                          "between",
+                          "contains",
+                          "not_contains",
+                          "starts_with",
+                          "ends_with",
+                          "is_empty",
+                          "is_not_empty"
+                        ],
+                        "title": "ops.filter.defs.Condition.op.title",
+                        "type": "string",
+                        "x-gridora-enum-labels": {
+                          "between": "ops.filter.defs.Condition.op.options.between",
+                          "contains": "ops.filter.defs.Condition.op.options.contains",
+                          "ends_with": "ops.filter.defs.Condition.op.options.ends_with",
+                          "eq": "ops.filter.defs.Condition.op.options.eq",
+                          "ge": "ops.filter.defs.Condition.op.options.ge",
+                          "gt": "ops.filter.defs.Condition.op.options.gt",
+                          "is_empty": "ops.filter.defs.Condition.op.options.is_empty",
+                          "is_not_empty": "ops.filter.defs.Condition.op.options.is_not_empty",
+                          "le": "ops.filter.defs.Condition.op.options.le",
+                          "lt": "ops.filter.defs.Condition.op.options.lt",
+                          "ne": "ops.filter.defs.Condition.op.options.ne",
+                          "not_contains": "ops.filter.defs.Condition.op.options.not_contains",
+                          "starts_with": "ops.filter.defs.Condition.op.options.starts_with"
+                        }
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "title": "ops.filter.defs.Condition.value.title",
+                            "type": "boolean"
+                          },
+                          {
+                            "title": "ops.filter.defs.Condition.value.title",
+                            "type": "number"
+                          },
+                          {
+                            "title": "ops.filter.defs.Condition.value.title",
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "ops.filter.defs.Condition.value.title"
+                      },
+                      "value2": {
+                        "anyOf": [
+                          {
+                            "title": "ops.filter.defs.Condition.value2.title",
+                            "type": "boolean"
+                          },
+                          {
+                            "title": "ops.filter.defs.Condition.value2.title",
+                            "type": "number"
+                          },
+                          {
+                            "title": "ops.filter.defs.Condition.value2.title",
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "ops.filter.defs.Condition.value2.title"
+                      }
+                    },
+                    "required": [
+                      "column",
+                      "op"
+                    ],
+                    "title": "ops.filter.defs.Condition.title",
+                    "type": "object"
+                  },
+                  {
+                    "$ref": "#/$defs/Group"
+                  }
+                ],
+                "title": "ops.filter.defs.Group.items.items.title"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "title": "ops.filter.defs.Group.items.title",
+              "type": "array"
+            },
+            "kind": {
+              "const": "group",
+              "default": "group",
+              "type": "string",
+              "x-gridora-hidden": true
+            },
+            "logic": {
+              "default": "and",
+              "enum": [
+                "and",
+                "or"
+              ],
+              "title": "ops.filter.defs.Group.logic.title",
+              "type": "string",
+              "x-gridora-enum-labels": {
+                "and": "ops.filter.defs.Group.logic.options.and",
+                "or": "ops.filter.defs.Group.logic.options.or"
+              }
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "title": "ops.filter.defs.Group.title",
+          "type": "object"
+        }
+      ],
+      "title": "ops.filter.params.where.title",
+      "x-gridora-order": 1,
+      "x-gridora-widget": "condition-builder"
+    }
+  },
+  "required": [
+    "where"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

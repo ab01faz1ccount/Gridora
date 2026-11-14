@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import polars as pl
@@ -20,6 +20,7 @@ from gridora_contracts.models import (
     NumValue,
     Range,
     StrValue,
+    Warning_,
 )
 from gridora_contracts.protocols import ExecContext
 
@@ -34,6 +35,7 @@ class SheetFrame:
     names: list[str]
     formula_cells: int
     error_cells: int
+    warnings: list[Warning_] = field(default_factory=list)
 
 
 def _header_name(cell: Cell | None, index: int) -> str:
@@ -78,7 +80,21 @@ _DTYPES: dict[str, Any] = {
 }
 
 
-def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_formulas: bool) -> SheetFrame:
+def _as_text(kind: str, val: Any) -> str | None:
+    if val is None:
+        return None
+    if kind == "num":
+        return str(int(val)) if float(val).is_integer() else repr(float(val))
+    if kind == "bool":
+        return "true" if val else "false"
+    if kind in ("date", "datetime"):
+        return str(val.isoformat())
+    return str(val)
+
+
+def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_formulas: bool,
+                     lenient: bool = False) -> SheetFrame:
+    """`lenient` (bridge imports only): mixed-type columns become text and error values become empty, with warnings."""
     grid = ctx.read_range(rng)
     nrows, ncols = rng.r1 - rng.r0 + 1, rng.c1 - rng.c0 + 1
     grid = [(list(r) + [None] * ncols)[:ncols] for r in grid][:nrows]
@@ -93,6 +109,7 @@ def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_fo
         [f"column_{i + 1}" for i in range(ncols)]
 
     errors = 0
+    warnings: list[Warning_] = []
     data: dict[str, pl.Series] = {}
     for j, name in enumerate(names):
         kinds = set()
@@ -104,15 +121,26 @@ def load_sheet_frame(ctx: ExecContext, rng: Range, has_header: bool, *, allow_fo
             elif kind != "null":
                 kinds.add(kind)
             values.append(val)
+        if len(kinds) > 1 and lenient:
+            values = [_as_text(k, v) for k, v in zip((_native(r[j])[0] for r in body), values)]
+            warnings.append(Warning_(code="mixed_column_types", severity="warn", location=name,
+                                     message=f"column '{name}' mixes {sorted(kinds)}; imported as text"))
+            kinds = {"str"}
         if len(kinds) > 1:
             raise DataOpsError("mixed_column_types", f"column '{name}' mixes {sorted(kinds)}",
                                path=pointer("target"), hint="v1 limitation: convert the column to one type first")
         dtype = _DTYPES[next(iter(kinds))] if kinds else pl.String
         data[name] = pl.Series(name, values, dtype=dtype)
-    if errors:
+    if errors and lenient:
+        warnings.append(Warning_(code="error_values_dropped", severity="warn",
+                                 message=f"{errors} error value(s) (#N/A, ...) were imported as empty cells"))
+    elif errors:
         raise DataOpsError("range_has_error_values", "the range contains error values (#N/A, ...)", path=pointer("target"))
+    if formulas and lenient:
+        warnings.append(Warning_(code="range_has_formulas", severity="info",
+                                 message=f"{formulas} formula cell(s): their current values were imported"))
     frame = pl.DataFrame(data) if data else pl.DataFrame()
-    return SheetFrame(frame, rng, has_header, names, formulas, errors)
+    return SheetFrame(frame, rng, has_header, names, formulas, errors, warnings)
 
 
 def _to_cell_value(x: Any) -> CellValue | None:
@@ -138,24 +166,28 @@ def to_cell_rows(frame: pl.DataFrame, header: list[str] | None) -> list[list[Cel
     return rows
 
 
-def commit_sheet_frame(ctx: ExecContext, sf: SheetFrame, result: pl.DataFrame, *, max_cells: int) -> tuple[Delta, int]:
-    """Write `result` over the source range with ONE write_range call (one delta). Returns (delta, cells)."""
-    rows = to_cell_rows(result, list(result.columns) if sf.has_header else None)
-    width = result.width
-    out_rows = len(rows)
-    r = sf.rng
-    full = Range(sheet_id=r.sheet_id, r0=r.r0, c0=r.c0, r1=max(r.r1, r.r0 + out_rows - 1),
-                 c1=max(r.c1, r.c0 + width - 1))
+def check_write(ctx: ExecContext, rng: Range, out_rows: int, width: int, *, max_cells: int) -> Range:
+    """Where a result of `out_rows` x `width` cells would be written (starting at the range's top-left), after
+    checking the cell cap and that any space beyond the original range is empty. Reads only; never writes."""
+    full = Range(sheet_id=rng.sheet_id, r0=rng.r0, c0=rng.c0, r1=max(rng.r1, rng.r0 + out_rows - 1),
+                 c1=max(rng.c1, rng.c0 + width - 1))
     if (full.r1 - full.r0 + 1) * (full.c1 - full.c0 + 1) > max_cells:
         raise DataOpsError("too_large_for_history",
                            f"the change covers more than {max_cells} cells", path=pointer("target"))
-    if full != r:  # extra space needed: it must be empty (no silent overwrite, no row/col insertion in v1)
+    if full != rng:  # extra space needed: it must be empty (no silent overwrite, no row/col insertion in v1)
         existing = ctx.read_range(full)
         for i, row in enumerate(existing):
             for j, cell in enumerate(row):
-                outside = not (r.r0 <= full.r0 + i <= r.r1 and r.c0 <= full.c0 + j <= r.c1)
+                outside = not (rng.r0 <= full.r0 + i <= rng.r1 and rng.c0 <= full.c0 + j <= rng.c1)
                 if outside and cell is not None and (cell.v is not None or cell.f is not None):
                     raise DataOpsError("would_overwrite", "the result needs space that contains data",
                                        path=pointer("target"))
+    return full
+
+
+def commit_sheet_frame(ctx: ExecContext, sf: SheetFrame, result: pl.DataFrame, *, max_cells: int) -> tuple[Delta, int]:
+    """Write `result` over the source range with ONE write_range call (one delta). Returns (delta, cells)."""
+    rows = to_cell_rows(result, list(result.columns) if sf.has_header else None)
+    full = check_write(ctx, sf.rng, len(rows), result.width, max_cells=max_cells)
     delta = ctx.write_range(full, rows)
     return delta, sum(len(x) for x in rows)

@@ -1,0 +1,97 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "column": {
+      "title": "ops.convert_calendar.params.column.title",
+      "type": "string",
+      "x-gridora-column": true
+    },
+    "digits": {
+      "default": "persian",
+      "enum": [
+        "persian",
+        "latin"
+      ],
+      "title": "ops.convert_calendar.params.digits.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "latin": "ops.convert_calendar.params.digits.options.latin",
+        "persian": "ops.convert_calendar.params.digits.options.persian"
+      },
+      "x-gridora-persian-option": true,
+      "x-gridora-visible-if": {
+        "equals": "to_jalali",
+        "property": "direction"
+      }
+    },
+    "direction": {
+      "default": "to_jalali",
+      "enum": [
+        "to_jalali",
+        "from_jalali"
+      ],
+      "title": "ops.convert_calendar.params.direction.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "from_jalali": "ops.convert_calendar.params.direction.options.from_jalali",
+        "to_jalali": "ops.convert_calendar.params.direction.options.to_jalali"
+      }
+    },
+    "format": {
+      "default": "text",
+      "enum": [
+        "text",
+        "parts"
+      ],
+      "title": "ops.convert_calendar.params.format.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "parts": "ops.convert_calendar.params.format.options.parts",
+        "text": "ops.convert_calendar.params.format.options.text"
+      },
+      "x-gridora-visible-if": {
+        "equals": "to_jalali",
+        "property": "direction"
+      }
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.convert_calendar.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "on_error": {
+      "default": "fail",
+      "enum": [
+        "fail",
+        "null"
+      ],
+      "title": "ops.convert_calendar.params.on_error.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "fail": "ops.convert_calendar.params.on_error.options.fail",
+        "null": "ops.convert_calendar.params.on_error.options.null"
+      }
+    },
+    "output_column": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "title": "ops.convert_calendar.params.output_column.title",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "ops.convert_calendar.params.output_column.title",
+      "x-gridora-group": "ops.groups.advanced"
+    }
+  },
+  "required": [
+    "column"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

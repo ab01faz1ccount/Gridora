@@ -1,0 +1,18 @@
+# PROPOSED by Agent 3 (WORKFLOW.md: agents propose CI, Agent 0 commits it under .github/workflows/).
+name: apps-web
+on:
+  pull_request:
+    paths: ["apps/web/**", "contracts/typescript/**"]
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npx vite build

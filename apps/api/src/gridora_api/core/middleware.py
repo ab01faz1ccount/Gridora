@@ -1,4 +1,5 @@
 """Pure-ASGI middleware: request id, security headers, access log (no query strings)."""
+
 from __future__ import annotations
 
 import logging
@@ -26,8 +27,9 @@ SECURITY_HEADERS: dict[str, str] = {
 
 
 class RequestContextMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, extra_headers: dict[str, str] | None = None) -> None:
         self.app = app
+        self.extra = extra_headers or {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -52,7 +54,7 @@ class RequestContextMiddleware:
                 status = message["status"]
                 headers = MutableHeaders(scope=message)
                 headers["X-Request-ID"] = rid
-                for k, v in SECURITY_HEADERS.items():
+                for k, v in {**SECURITY_HEADERS, **self.extra}.items():
                     headers.setdefault(k, v)
             await send(message)
 
@@ -61,7 +63,10 @@ class RequestContextMiddleware:
         finally:
             log.info(
                 "request_id=%s method=%s path=%s status=%s ms=%.1f",
-                rid, scope.get("method"), scope.get("path"), status,
+                rid,
+                scope.get("method"),
+                scope.get("path"),
+                status,
                 (time.perf_counter() - started) * 1000,
             )
             request_id_var.reset(token)

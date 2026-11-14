@@ -1,0 +1,98 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "column": {
+      "title": "ops.split_column.params.column.title",
+      "type": "string",
+      "x-gridora-column": true,
+      "x-gridora-column-types": [
+        "text"
+      ]
+    },
+    "delimiter": {
+      "default": ",",
+      "maxLength": 20,
+      "title": "ops.split_column.params.delimiter.title",
+      "type": "string",
+      "x-gridora-visible-if": {
+        "equals": "delimiter",
+        "property": "mode"
+      }
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.split_column.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "keep_source": {
+      "default": false,
+      "title": "ops.split_column.params.keep_source.title",
+      "type": "boolean"
+    },
+    "max_parts": {
+      "anyOf": [
+        {
+          "maximum": 50,
+          "minimum": 2,
+          "title": "ops.split_column.params.max_parts.title",
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "ops.split_column.params.max_parts.title",
+      "x-gridora-visible-if": {
+        "equals": "delimiter",
+        "property": "mode"
+      }
+    },
+    "merge_delimiters": {
+      "default": false,
+      "title": "ops.split_column.params.merge_delimiters.title",
+      "type": "boolean",
+      "x-gridora-visible-if": {
+        "equals": "delimiter",
+        "property": "mode"
+      }
+    },
+    "mode": {
+      "default": "delimiter",
+      "enum": [
+        "delimiter",
+        "fixed_width"
+      ],
+      "title": "ops.split_column.params.mode.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "delimiter": "ops.split_column.params.mode.options.delimiter",
+        "fixed_width": "ops.split_column.params.mode.options.fixed_width"
+      }
+    },
+    "trim_parts": {
+      "default": true,
+      "title": "ops.split_column.params.trim_parts.title",
+      "type": "boolean"
+    },
+    "widths": {
+      "items": {
+        "title": "ops.split_column.params.widths.items.title",
+        "type": "integer"
+      },
+      "maxItems": 50,
+      "title": "ops.split_column.params.widths.title",
+      "type": "array",
+      "x-gridora-visible-if": {
+        "equals": "fixed_width",
+        "property": "mode"
+      }
+    }
+  },
+  "required": [
+    "column"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}

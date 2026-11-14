@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "columns": {
+      "items": {
+        "title": "ops.merge_columns.params.columns.items.title",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 2,
+      "title": "ops.merge_columns.params.columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "has_header": {
+      "default": true,
+      "title": "ops.merge_columns.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "keep_sources": {
+      "default": true,
+      "title": "ops.merge_columns.params.keep_sources.title",
+      "type": "boolean"
+    },
+    "output_name": {
+      "default": "merged",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "ops.merge_columns.params.output_name.title",
+      "type": "string"
+    },
+    "separator": {
+      "default": " ",
+      "maxLength": 20,
+      "title": "ops.merge_columns.params.separator.title",
+      "type": "string"
+    },
+    "skip_empty": {
+      "default": true,
+      "title": "ops.merge_columns.params.skip_empty.title",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "columns"
+  ],
+  "type": "object",
+  "x-gridora-vocab": 1
+}
