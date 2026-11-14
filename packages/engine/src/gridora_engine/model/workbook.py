@@ -38,7 +38,6 @@ class WorkbookState:
     sheets: list[SheetState] = field(default_factory=list)
     date_system: DateSystem = "1900"
     compat: CompatibilityReport | None = None
-    last_export_report: CompatibilityReport | None = None
 
     def sheet(self, sheet_id: str) -> SheetState | None:
         for s in self.sheets:

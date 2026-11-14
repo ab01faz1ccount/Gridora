@@ -112,7 +112,7 @@ class GridoraEngine:
     def export_xlsx(self, wb: WorkbookHandle, path: Path) -> CompatibilityReport:
         raise EngineNotImplementedError("export_xlsx")
 
-    def export_csv(self, wb: WorkbookHandle, sheet_id: str, path: Path) -> None:
+    def export_csv(self, wb: WorkbookHandle, sheet_id: str, path: Path) -> CompatibilityReport:
         state = self._state(wb)
         sheet = state.sheet(sheet_id)
         if sheet is None:
@@ -121,10 +121,4 @@ class GridoraEngine:
             path, sheet.store, state.strings, self.csv_export_encoding,
             self.csv_neutralize_formulas,
         )
-        state.last_export_report = build_report("export", {"csv.formula_text_neutralized": n})
-
-    def last_export_report(self, wb: WorkbookHandle) -> CompatibilityReport | None:
-        """Report of the most recent export of this workbook (not part of the contract: the
-        contract's export_csv returns None, so notes such as neutralized cells need this
-        side channel; see CONTRACT_CHANGE CC-9)."""
-        return self._state(wb).last_export_report
+        return build_report("export", {"csv.formula_text_neutralized": n})
