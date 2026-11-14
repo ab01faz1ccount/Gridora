@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M5 (calendar, pipelines/tools done; benchmarks in progress).**
+**Status: M0-M5 implemented, awaiting review (PRs stacked #4 -> #5 -> #6 -> #12 -> #18 -> #19 -> #21 -> benchmarks).**
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -28,7 +28,7 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - Golden JSON-Schema files per operation (`tests/golden/`), Persian text for every schema key.
 
 ## What does not work yet (honest list)
-- Not built yet: benchmarks (`BENCHMARKS.md`).
+- Performance: `BENCHMARKS.md` (100k x 20 on data tables: 0.04 to 1.0 s per operation on a 1-core VM; **sheet ranges are slow in the adapter, ~7 µs per cell, not demonstrated at 100k rows**).
 - Pipelines: operations that need extra targets (`join`) cannot be steps (`PipelineStep` has no `extra_targets`); `range` Tool inputs are not accepted by any v1 parameter; each step re-reads its input (no in-memory hand-off between applied steps); on sheets, a rollback restores values only (formulas converted by a confirmed step cannot come back); `validate_tool` cannot know columns created by earlier steps.
 - `computed_column`: `round` rounds to a whole number only; text comparisons are plain code-point comparisons (no Persian collation); no Jalali date functions (`year/month/day` are Gregorian).
 - Analysis operations take sheet ranges by snapshotting them (the catalog lists tables); floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums are not guaranteed identical across machines with different thread counts.
@@ -39,7 +39,6 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - Persian modules (collation, digits, clean_text, Jalali): M3/M5.
 - Collation limits: no natural-number ordering; Latin case ties keep original order (no lowercase-first); hamza is placed just after alef (simplified).
 - Sheet frames: columns that mix types (e.g. numbers and text) are refused; error values (`#N/A`) are refused; dates arrive only as `DateValue`. Number columns are always `Float64` on sheets.
-- Nothing has been benchmarked at 100k rows through the executor yet (`BENCHMARKS.md` is written at M5).
 
 ## Develop
 ```
