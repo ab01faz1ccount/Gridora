@@ -14,6 +14,7 @@ ERROR_CODES = (
     "invalid_param",
     "unknown_param",
     "unknown_column",
+    "type_mismatch",
     "range_has_formulas",
     "range_has_error_values",
     "mixed_column_types",

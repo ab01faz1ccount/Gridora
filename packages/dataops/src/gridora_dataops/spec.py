@@ -54,6 +54,8 @@ class OperationSpec:
     schema_version: ClassVar[int] = 1
     # True when the operation rewrites existing cells (so formulas in the range would be lost).
     rewrites_cells: ClassVar[bool] = True
+    # Where the result of a sheet-range run goes: back into the range, or into a NEW table (e.g. filter).
+    sheet_output: ClassVar[str] = "in_place"
     Params: ClassVar[builtins.type[ParamsModel]]
 
     def validate_static(self, params: ParamsModel) -> list[ValidationError]:

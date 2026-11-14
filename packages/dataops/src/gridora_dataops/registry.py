@@ -26,5 +26,12 @@ class OperationRegistry:
 
 
 def default_registry() -> OperationRegistry:
-    """The production registry. Operations are added in M1+ (sort, filter, ...); empty in M0."""
-    return OperationRegistry()
+    """The production registry: every operation the package ships."""
+    from .ops.filter import FilterOp
+    from .ops.remove_duplicates import RemoveDuplicatesOp
+    from .ops.sort import SortOp
+
+    reg = OperationRegistry()
+    for spec in (SortOp(), FilterOp(), RemoveDuplicatesOp()):
+        reg.register(spec)
+    return reg

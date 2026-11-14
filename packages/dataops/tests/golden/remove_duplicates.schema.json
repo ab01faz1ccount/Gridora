@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "case_sensitive": {
+      "default": false,
+      "title": "ops.remove_duplicates.params.case_sensitive.title",
+      "type": "boolean"
+    },
+    "columns": {
+      "description": "ops.remove_duplicates.params.columns.description",
+      "items": {
+        "title": "ops.remove_duplicates.params.columns.items.title",
+        "type": "string"
+      },
+      "title": "ops.remove_duplicates.params.columns.title",
+      "type": "array",
+      "x-gridora-column": true,
+      "x-gridora-order": 1,
+      "x-gridora-widget": "column-list"
+    },
+    "has_header": {
+      "default": true,
+      "description": "ops.remove_duplicates.params.has_header.description",
+      "title": "ops.remove_duplicates.params.has_header.title",
+      "type": "boolean",
+      "x-gridora-order": 0
+    },
+    "ignore_variants": {
+      "default": false,
+      "title": "ops.remove_duplicates.params.ignore_variants.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
+    "keep": {
+      "default": "first",
+      "enum": [
+        "first",
+        "last"
+      ],
+      "title": "ops.remove_duplicates.params.keep.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "first": "ops.remove_duplicates.params.keep.options.first",
+        "last": "ops.remove_duplicates.params.keep.options.last"
+      }
+    }
+  },
+  "type": "object",
+  "x-gridora-vocab": 1
+}

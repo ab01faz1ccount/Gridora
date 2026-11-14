@@ -116,7 +116,9 @@ class DataOpsExecutor:
 
     def apply(self, op: Operation, ctx: ExecContext) -> OperationResult:
         try:
-            _spec, sf, frame, warnings = self._plan(op, ctx)
+            spec, sf, frame, warnings = self._plan(op, ctx)
+            if spec.sheet_output == "new_table":
+                raise NotImplementedYet(f"'{op.type}' on a sheet range (writes a new table; arrives with the TableStore, M2)")
             delta, cells = commit_sheet_frame(ctx, sf, frame, max_cells=self.max_patch_cells)
         except DataOpsError as e:
             return OperationResult(status="error", errors=e.errors)
