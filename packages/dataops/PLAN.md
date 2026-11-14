@@ -1,6 +1,8 @@
 # packages/dataops — Implementation Plan (Step 0)
 
-Owner: Agent 2 · Branch: `agent2/plan` · Status: **proposal, awaiting Agent 0 review. No implementation code exists.**
+Owner: Agent 2 · Revision 2 (after `docs/reviews/PHASE2_REVIEW.md`) · Status: **approved with conditions C2.1 to C2.3; M0 in progress.** Working against `contracts/` v0.2.0 (ADR-010).
+
+Revision 2 changes: contract decisions applied (section 12), open questions answered (section 13), pipelines on sheets now write once **per step**, `join` uses `Operation.extra_targets`, the 200,000-cell history cap is adopted, Polars-only is the v1 engine (spike result in `spikes/SPIKE_REPORT.md`), and the `x-gridora-*` vocabulary is documented in `docs/PARAMS_SCHEMA.md` before M1 (C2.3).
 
 Scope reminder: I work only in `packages/dataops/`. I never import `packages/engine` or `apps/*`; sheet data is reached only through `ExecContext`. Anything I need from `contracts/` that is missing or wrong is listed under **CONTRACT_CHANGE** (section 12). Nothing in this plan is claimed as working; every capability becomes "Implemented/Tested" only when a test proves it.
 
@@ -85,7 +87,7 @@ class OperationSpec(Protocol):
 - **Target adapters** (`targets.py`):
   - `data_table` -> `TableStore` read (Parquet scan, lazy). Commit = write new immutable version.
   - `sheet_range` -> `ctx.read_range(range)` -> Polars frame (header handling via a `has_header` param on the op, default from the bridge heuristic). Commit = `ctx.write_range(...)`, which returns the engine-built `Delta`. Dataops never builds `cell_patch` deltas by hand for sheets; the engine computes before/after, so undo is the engine's `apply_delta(inverse=True)`.
-- **Validation layers:** (a) pydantic schema -> `ValidationError` with JSON-pointer `path` (e.g. `/params/keys/0/column`); (b) `validate_static`; (c) data-dependent checks (column exists, type compatible, target not overwritten) at preview/apply time, returned in `OperationResult.errors` with `status="error"` and **no mutation**. (Reason: the contract's `validate(op)` has no context, see CONTRACT_CHANGE #1.)
+- **Validation layers:** (a) pydantic schema -> `ValidationError` with JSON-pointer `path` (e.g. `/params/keys/0/column`); (b) `validate_static`; (c) data-dependent checks (column exists, type compatible, target not overwritten): returned by `validate(op, ctx)` when a context is given (contract v0.2), and always re-checked at preview/apply, where failures come back in `OperationResult.errors` with `status="error"` and **no mutation**. `ValidationError.path` is relative to the Operation root (`/params/column`).
 - **Preview:** `preview(op, ctx, limit)` builds the same lazy plan on the **full** data and takes `head(limit)`; it never calls `write_range`, never writes Parquet. `total_rows` is filled when cheap (filter, dedupe, join count), else `None`. A test asserts "no store writes, no `write_range` calls" for every op.
 - **Errors:** stable codes in `errors.py` (`unknown_operation`, `invalid_param`, `unknown_column`, `type_mismatch`, `would_overwrite`, `too_many_rows`, ...), all surfaced as contract `ValidationError`. Contract `ERROR_CODES` mapping stays Agent 3's job; I raise typed exceptions with stable `code` strings (architecture section 9).
 - **Resource guards:** row/column/expression-node/depth limits and a cell cap per call (configurable), so hostile or accidental huge input fails with a typed error instead of exhausting memory.
@@ -100,18 +102,18 @@ All operations are undoable. "Destructive" only means explicit user confirmation
 - Retention: the API decides when old versions are compacted. If a needed version is gone, `restore_version` raises `version_unavailable` (typed), never silently returns something else.
 
 **B. In-place on a sheet range** (same op list)
-- Read range -> frame -> `plan()` -> write the result back with `ctx.write_range`, returning the engine's `cell_patch` delta. If the result has **fewer rows** (filter, dedupe) the freed trailing rows inside the original range are written as empty cells in the same call, so the whole effect stays one `cell_patch` and one undo. If the result needs **more** space (e.g. `split_column` adds columns) and the cells to the right are not empty, the op fails with `would_overwrite` before any write; it never shifts or overwrites silently. (Inserting columns is a structure change owned by the engine; see Q3.)
-- Ranges containing formulas: ops that move or rewrite cells (sort, dedupe, filter, find_replace, ...) must not silently turn formulas into values. Plan: refuse with `range_has_formulas` unless the params carry `formulas: "convert_to_values"` and the user confirmed. This needs `ExecContext.read_range` to tell me which cells are formulas (see CONTRACT_CHANGE #5).
+- Read range -> frame -> `plan()` -> write the result back with `ctx.write_range`, returning the engine's `cell_patch` delta. If the result has **fewer rows** (filter, dedupe) the freed trailing rows inside the original range are written as empty cells in the same call, so the whole effect stays one `cell_patch` and one undo. If the result needs **more** space (e.g. `split_column` adds columns) and the cells to the right are not empty, the op fails with `would_overwrite` before any write; it never shifts or overwrites silently. (Inserting columns is a structure change owned by the engine's optional `StructureEngine`; v1 decision: `would_overwrite` is correct.)
+- Ranges containing formulas: ops that move or rewrite cells (sort, dedupe, filter, find_replace, ...) must not silently turn formulas into values. Plan: refuse with `range_has_formulas` unless the params carry `formulas: "convert_to_values"` and the user confirmed. The typed `read_range` (contract v0.2: `Cell | None`, formulas visible in `Cell.f`) provides this. Condition C2.1 of the Phase 2 review confirms the refusal stands. `write_range` writes values only and clears uncovered cells of the range, so shrinking results are one call and one delta.
 
 **C. Operations that create output** (`group_aggregate`, `pivot`, `unpivot`, `join`)
 - Source is never touched. Result is stored as a new data table (version 1); `OperationResult.output = DataTableTarget(new_id)`. If the source is a sheet range, the executor first snapshots it into an implicit table via the bridge, then runs the op. Materializing the result into a sheet is a separate step (`table_to_cells` into a new sheet, orchestrated by the API, since creating a sheet is engine territory).
-- Delta/undo for "table created": proposed convention `TableVersionDelta(from_version=0, to_version=1)`, meaning "table appeared"; undo hides/removes it (API/Postgres side), redo restores it. Needs Agent 0 confirmation (CONTRACT_CHANGE #3).
+- Delta/undo for "table created": proposed convention `TableVersionDelta(from_version=0, to_version=1)`, meaning "table appeared"; undo hides/removes it (API/Postgres side), redo restores it. Confirmed by Agent 0 and documented in contract v0.2 (`from_version == 0` means the table did not exist).
 
 **D. Pipelines** (`run_pipeline`)
 - Steps run in order, with the frame handed from step to step in memory (no re-reading Parquet). All-or-nothing: temp version files are promoted only if every step succeeds; on failure nothing is committed and the failing step index + errors are returned.
 - Table targets: one version per step, so each `OperationResult` carries its own `TableVersionDelta` and ordinary per-step undo works ("Tools produce ordinary history entries", DATA_MODEL section 7).
-- Sheet targets: the range is read once and written once; I propose a single combined `cell_patch` delta on the **last** result, earlier results carrying `delta=None` plus `affected`. This deviates from "one delta per result", so it is flagged as Q4 for Agent 0; fallback is a write per step (simpler, slower).
-- **Tool bindings:** a step param value of the form `{"$input": "<name>"}` is replaced at run time. Validation (`validate_tool`): every `$input` is declared in `Tool.inputs`; every declared required input is bound; kind compatibility (`column` only where the param schema has `x-gridora-column`; `range` only for range-typed params; `value` must satisfy the param's JSON type); bound columns exist in the target. No expressions or scripting in bindings.
+- Sheet targets: **one read-modify-write and one `cell_patch` delta per step** (Phase 2 decision A2-Q4). Per-step undo is required by DATA_MODEL section 7; speed is secondary. All-or-nothing is kept by checking every step in memory first and only then writing; if a later write fails, the already-written steps are reverted by applying their inverse deltas through the context.
+- **Tool bindings:** a step param value of the form `{"$input": "<name>"}` is replaced at run time (`bind_tool`, documented in the contract). Validation (`validate_tool(tool, target, ctx?)`): every `$input` is declared in `Tool.inputs`; every declared required input is bound; kind compatibility (`column` only where the param schema has `x-gridora-column`; `range` only for range-typed params; `value` must satisfy the param's JSON type); bound columns exist in the target. No expressions or scripting in bindings.
 
 ## 5. Polars vs DuckDB split
 
@@ -121,13 +123,13 @@ Principle (ADR-006): **Polars is the default; DuckDB only where SQL over Parquet
 |---|---|---|
 | sort, filter, dedupe, fill, find_replace, clean_text, split/merge, change_type, computed_column, convert_calendar | Polars (lazy) | columnar, expression-based, one frame in/out |
 | group_aggregate, pivot, unpivot | Polars first | `group_by`, `pivot`, `unpivot` are native; DuckDB only if M0 spike shows a clear win |
-| join | DuckDB over Parquet **if** the spike shows a win at 100k x 100k; otherwise Polars `join` | outer joins on large inputs, no need to load both fully |
+| join | Polars `join` (spike result) | revisit DuckDB only if a measured case exceeds memory |
 | table read/write, paging | Polars scan/write_parquet (zstd, ~64k-row groups for page reads) | immutable versions |
 | chart aggregation | Polars (shared kernel with `group_aggregate`) | |
 
-**M0 spike (timeboxed to one small PR):** same 100k-row join/group/pivot in both engines, compare wall time, peak memory and null/type/ordering semantics; result goes in `packages/dataops/spikes/` and becomes a DECISIONS.md note. Default if inconclusive: Polars only, DuckDB deferred.
+**M0 spike (done, `spikes/SPIKE_REPORT.md`):** at 100k rows Polars was faster than DuckDB on every join/group/pivot workload (e.g. inner join 0.012 s vs 0.068 s), memory was equal or lower, results were identical, and Polars' decimal type round-tripped through Parquet. The spike did not cover larger-than-memory data or multi-core machines. **Decision proposed for DECISIONS.md: Polars-only in v1; `duckdb` is not added as a dependency** (and DuckDB's Arrow hand-off would also need `pyarrow`). The table above is amended accordingly: `join`, `group_aggregate`, `pivot` and `unpivot` run in Polars.
 
-Dependencies to be justified by PR notes to Agent 0 (name, version, license, why, alternatives): `polars`, `duckdb` (only if the spike keeps it), `pytest`, `hypothesis` (dev), `jsonschema` (dev, schema self-check). No `pandas`, no `pyarrow` unless Polars Parquet I/O proves insufficient. Licenses to be verified at PR time, not assumed here.
+Dependencies to be justified by PR notes to Agent 0 (name, version, license, why, alternatives): `polars`, `pytest`, `hypothesis` (dev), `jsonschema` (dev, schema self-check). No `pandas`, no `pyarrow` unless Polars Parquet I/O proves insufficient. Licenses to be verified at PR time, not assumed here.
 
 ## 6. Persian-specific operations
 
@@ -153,17 +155,17 @@ Allowlist (v1): math (`round, abs, floor, ceil, min2, max2`), text (`upper, lowe
 
 ## 8. Data Table store and bridge
 
-- **Layout:** `TableStore` is constructed by `apps/api` with a path-resolver callback (`path_for(user_id, table_id, version)`), because the API owns the storage layout (ARCHITECTURE section 8); I never invent paths and never return paths.
+- **Layout:** `create_table_store(path_for: PathResolver)` receives `PathResolver(owner_id, table_id, version)` from `apps/api`, because the API owns the storage layout (ARCHITECTURE section 8); I never invent paths and never return paths.
 - **Versions:** immutable Parquet, written via temp + fsync + rename; a content hash and `schema/row_count` are returned in `DataTable` for the API to persist in Postgres (Postgres is the owner of "which version is current"; the store keeps no authoritative pointer).
-- **dtype mapping:** contract dtypes -> Polars (`int64`, `float64`, `bool`, `string`, `date`, `datetime`, `decimal`). `decimal` uses a fixed-precision Polars decimal; risk noted in section 10.
-- **`read_page(table_id, offset, limit, sort)`:** Parquet scan with slice; sort via the collation key for strings. Needs a `version` argument (CONTRACT_CHANGE #2).
+- **dtype mapping:** contract dtypes -> Polars (`int64`, `float64`, `bool`, `string`, `date`, `datetime`, `decimal`). `decimal` uses a fixed-precision Polars decimal (verified for the pinned version in the spike); decision A2-Q1: if it proves immature in M2 tests, store as `string` with a report warning.
+- **`read_page(table_id, offset, limit, sort)`:** Parquet scan with slice; sort via the collation key for strings. Takes the contract's optional `version` argument; the current-version pointer is owned by Postgres/API. `restore_version` is a pointer swap and raises `version_unavailable` if compacted.
 - **`sheet_range_to_table`:** header-row detection heuristic (first row all non-empty, unique strings and later rows contain non-strings or differing types -> header; always overridable via `header_row`); dtype inference over the full column (not a sample) with ordered fallbacks int -> float -> date -> bool -> string; user `dtype_overrides`; mixed-type columns, duplicate/empty headers, formula cells and error cells (`#N/A`, ...) produce warnings; **`preview=True` returns inferred schema + first rows + warnings and stores nothing.** Number cells arrive as floats from the engine; a column becomes `int64` only if every value is integral and within 2^53.
-- **`table_to_cells`:** writes header + rows through `ctx.write_range` in chunks (a 100k x 20 table is ~2M cells; one giant `cell_patch` would blow the history budget) — chunking policy and the interaction with the 200 MB history cap to be agreed with Agent 3 (Q5). Refuses to overwrite non-empty cells without confirmation (`would_overwrite`).
+- **`table_to_cells`:** v1 cap of **200,000 cells per `cell_patch`** (Phase 2 decision A2-Q5): a larger write returns the typed error `too_large_for_history` (a 100k x 20 table is ~2M cells). Before M2 closes, Agents 1, 2 and 3 propose a "write into a new sheet" delta; I will contribute the dataops side of that proposal. Refuses to overwrite non-empty cells (`would_overwrite`).
 - **Refreshable links** re-run the import on demand and never overwrite user edits without confirmation (DATA_MODEL section 4); implemented as a normal bridge call with a diff warning, no background behavior.
 
 ## 9. Chart data aggregation
 
-`chart_data(spec: ChartSpec, ctx) -> ChartData` (see CONTRACT_CHANGE #4 for where it lives in the interface).
+`chart_data(spec: ChartSpec, ctx) -> ChartData` (contract v0.2: `OperationExecutor.chart_data`).
 - Source table/range -> Polars frame; each series: group by `category_col` (if any) with `aggregate` (`sum|avg|count|min|max`; default no aggregation = plain values), via the same kernel as `group_aggregate`.
 - Deterministic category order: first appearance in the source (user controls order by sorting the source). Nulls stay `None` in series values; null categories get a stable placeholder key. `scatter` returns x values as `categories` and y as the series. `pie` is a single series.
 - Guards: too many distinct categories -> typed error `chart_too_many_categories` (default cap configurable), since `ChartData` has no warnings field.
@@ -202,36 +204,43 @@ Tooling: pytest, hypothesis, ruff, mypy (strict on `src/`), a jsonschema self-ch
 - Output: `BENCHMARKS.md` with the exact command, date, commit hash, library versions and hardware description (CPU model, cores, RAM, disk type). Numbers are reported as measured; budgets (TESTING_STRATEGY: "seconds, with progress for slower ops") are stated as targets, never as claims. Any op that misses a budget is listed under known limitations.
 - CI runs only a 10k-row smoke benchmark with generous thresholds to catch accidental quadratic behavior; the full 100k run is a documented manual/nightly command.
 
-## 12. CONTRACT_CHANGE proposals (for Agent 0; I keep working against the current contracts meanwhile)
+## 12. Contract decisions (from `docs/reviews/PHASE2_REVIEW.md`, contracts v0.2.0)
 
-1. **`OperationExecutor.validate(op)` has no context**, so column existence and type checks cannot happen there. Proposal: add optional `ctx: ExecContext | None = None` (data-dependent validation when given). Until then: static validation in `validate`, data-dependent errors in `OperationResult.errors`.
-2. **`TableStore.read_page` / `restore_version` semantics:** `read_page` has no `version`; after an undo the current version is not the highest one. Proposal: add `version: int | None` to `read_page` (and to `table_to_cells`), with the current-version pointer owned by Postgres/API. Also clarify that `restore_version` is a pointer swap (returns the existing `DataTable` at that version) and does not create a new version.
-3. **"Table created" delta:** `TableVersionDelta` has no representation for a newly created table. Proposal: `from_version=0` means "did not exist" (undo = remove from view). Alternatively add an explicit `created: bool`.
-4. **No interface for chart data or Tool binding:** `ChartSpec -> ChartData` (`GET /charts/{id}/data`) and `bind/validate Tool` (`POST /tools/{id}/run`, `POST /tools`) have no method in `OperationExecutor`/`TableStore`. Proposal: add `chart_data(spec, ctx) -> ChartData`, `validate_tool(tool, target, ctx) -> list[ValidationError]` and `bind_tool(tool, inputs) -> Pipeline`.
-5. **`ExecContext.read_range` returns `list[list[Any]]`:** untyped. I need to know whether cells are contract `CellValue` objects, plain Python values, or serial numbers + number-format hints (dates), and which cells are formulas or errors. Proposal: return `list[list[Cell]]` (or a small typed struct) so formulas, errors and date formats are visible. `ExecContext` also lacks `workspace_id` (needed by `create_from_rows`) and `write_range` has no way to clear trailing cells explicitly (assumed: `None` cell = clear).
-6. **`PipelineStep` mismatch:** `docs/DATA_MODEL.md` says `PipelineStep.operation: Omit<Operation,"id"|"target">`, while `models.py` has flat `type/schema_version/params/label`. I work against `models.py`; please confirm it is normative. Also: the `{"$input": name}` binding convention (section 4D) should be documented in the contract.
-7. **`Operation.target` is single:** `join` needs a second table. Plan: `params.right_table_id` (+ ownership check by the API against the same `owner_id`). Please confirm, or add `extra_targets`.
-8. **i18n catalog ownership:** descriptors carry keys. I ship `src/gridora_dataops/i18n/{fa,en}.json` and a `catalog(locale)` function; Agent 3 would merge it into `apps/web/src/i18n` or serve it with `GET /operations`. Please confirm that this is the intended split (I cannot edit `apps/`).
+| # | My request | Decision | How the plan applies it |
+|---|---|---|---|
+| 1 | `validate(op, ctx?)` | Accepted | section 3 |
+| 2 | `version` on `read_page`/`table_to_cells`; `restore_version` = pointer swap | Accepted | section 8 |
+| 3 | "table created" delta | Accepted: `from_version=0` | section 4C |
+| 4 | `chart_data`, `validate_tool`, `bind_tool` | Accepted on `OperationExecutor` | sections 4D, 9 |
+| 5 | typed `read_range`, `workspace_id`, clearing cells | Accepted: `Cell \| None`; `write_range` writes values, uncovered cells cleared | sections 4B, 8 |
+| 6 | `PipelineStep` shape | Flat `models.py` is normative; `$input` documented | section 4D |
+| 7 | second table for `join` | **Changed:** `Operation.extra_targets`, not `params` | `join` reads `op.extra_targets[0]`; ownership is verified by the API |
+| 8 | i18n catalog split | Accepted: `fa.json`/`en.json` + `catalog(locale)`; API serves `GET /operations/i18n` | section 1 |
 
-## 13. Open questions for Agent 0 (non-contract)
+Module entry points fixed by the contract (nothing else is imported by `apps/api`): `gridora_dataops.create_executor(config)`, `create_table_store(path_for)`, `catalog(locale)`.
 
-- **Q1 Decimal:** is Polars' decimal type acceptable for `decimal`, or should v1 map it to `float64`/`string` with a warning? (Decimal support is less mature; I will verify in M0.)
-- **Q2 `filter` on a sheet range:** "show rows matching" in a spreadsheet implies hiding rows (an engine structure change, `SheetStructureDelta`, defined by Agent 1) or rewriting the range with only matching rows (destructive in effect), or writing matches to a new range/table. Proposal for v1: on sheets, `filter` produces an output table (non-destructive, undoable); true row hiding waits for an engine delta type. Please decide.
-- **Q3 Inserting columns/rows:** ops that need extra space cannot insert via `ExecContext`. v1 behavior is `would_overwrite` error; OK?
-- **Q4 Pipeline deltas on sheets:** single combined delta on the last result vs one write per step (section 4D).
-- **Q5 Large `table_to_cells`:** chunking and the history size cap; who enforces it (API) and how the delta is represented.
-- **Q6 Jalali library:** own implementation vs library; I will bring fixtures and license facts in a DECISIONS note before choosing.
+## 13. Decisions on my open questions
+
+| Q | Decision | Consequence for the plan |
+|---|---|---|
+| Q1 Decimal | Verify in M0; if immature, store as string with a warning | Verified for polars 2.1.0 in the spike; re-checked in M2 |
+| Q2 `filter` on sheets | v1: output goes to a **new table** (non-destructive); row hiding waits for `StructureEngine` | `filter` on a sheet range returns `output=DataTableTarget` with a `TableVersionDelta(from_version=0, ...)`; on a data table it stays in place |
+| Q3 extra space | `would_overwrite` is right for v1 | section 4B |
+| Q4 pipeline deltas on sheets | One write and one delta per step | section 4D |
+| Q5 large `table_to_cells` | 200,000 cells per patch; `too_large_for_history` above | section 8 |
+| Q6 Jalali | Own implementation acceptable if it passes independently sourced fixtures incl. leap years; any library needs a license check first | section 6; fixtures sourced independently before M5 |
+
+Conditions: **C2.1** formula refusal stands (section 4B); **C2.2** spike timeboxed, Polars-only default (done, section 5); **C2.3** `docs/PARAMS_SCHEMA.md` written before M1 (this revision), `extra_targets` for join.
 
 ## 14. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Sheet ops on formulas silently destroy formulas | refuse by default (`range_has_formulas`), needs typed cells from `ExecContext` (CONTRACT_CHANGE #5) |
-| Polars API/semantics shift between versions | pin exact version in lockfile; golden tests on null/ordering semantics |
-| Two engines (Polars + DuckDB) disagree on nulls/types/order | Polars default; DuckDB only for measured wins; explicit `ORDER BY`; cross-engine equivalence tests if both are kept |
+| Sheet ops on formulas silently destroy formulas | refuse by default (`range_has_formulas`) using the typed `read_range` |
+| Polars API/semantics differences at the pinned version | single engine (spike result); exact pin; golden tests on null/ordering semantics |
 | Persian collation incorrect for edge cases (hamza, ZWNJ, mixed Latin) | explicit fixture set; documented rules; limitation listed in README rather than claimed |
 | Jalali leap-year divergence between arithmetic algorithm and official calendar in far dates | test against independent known dates; document supported year range |
-| Large sheet writes (2M cells) exceed history budget | chunking + API-side cap (Q5) |
+| Large sheet writes (2M cells) exceed history budget | 200,000-cell cap with `too_large_for_history`; new-sheet delta proposal before M2 closes |
 | Number columns from Excel are floats: integer-looking IDs lose leading zeros or exceed 2^53 | int inference rule (section 8); bridge warns; string override available |
 | Preview of sort/dedupe/join needs full-data work | lazy plan + top-k where possible; `total_rows=None` when expensive; measured in benchmarks |
 | Time lost on spikes | M0 spike timeboxed to one small PR; default to Polars-only if inconclusive |
@@ -242,4 +251,4 @@ Modify `contracts/`, `apps/`, `packages/engine/`, or `docs/`; import `engine`; a
 
 ## 16. Known limitations (current)
 
-Nothing is implemented. Everything in this document is a plan; the module status in `docs/INTEGRATION_PLAN.md` stays **Planned** until M0 lands.
+Nothing beyond M0 is implemented. Everything in this document is a plan unless a test proves otherwise; the module status in `docs/INTEGRATION_PLAN.md` stays **Planned** until M0 is merged.
