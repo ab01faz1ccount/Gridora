@@ -28,11 +28,17 @@ class OperationRegistry:
 def default_registry() -> OperationRegistry:
     """The production registry: every operation the package ships."""
     from .ops.change_type import ChangeTypeOp
+    from .ops.clean_text import CleanTextOp
+    from .ops.fill import FillOp
     from .ops.filter import FilterOp
+    from .ops.find_replace import FindReplaceOp
+    from .ops.merge_columns import MergeColumnsOp
     from .ops.remove_duplicates import RemoveDuplicatesOp
     from .ops.sort import SortOp
+    from .ops.split_column import SplitColumnOp
 
     reg = OperationRegistry()
-    for spec in (SortOp(), FilterOp(), RemoveDuplicatesOp(), ChangeTypeOp()):
+    for spec in (SortOp(), FilterOp(), RemoveDuplicatesOp(), ChangeTypeOp(), FindReplaceOp(), FillOp(), CleanTextOp(),
+                 SplitColumnOp(), MergeColumnsOp()):
         reg.register(spec)
     return reg
