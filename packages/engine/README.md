@@ -2,7 +2,7 @@
 
 Owner: Agent 1. Brief: [agents/AGENT_1_ENGINE.md](../../agents/AGENT_1_ENGINE.md). Plan: [PLAN.md](PLAN.md).
 
-**Status (E1): CSV path + cell store.** Entry point: `gridora_engine.create_engine(config)`.
+**Status (E3): CSV path + cell store + hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
 
 What works (tested in `tests/`):
 - `import_csv`: encoding detection (BOM, strict UTF-8, Windows-1256 guess, Windows-1252 fallback;
@@ -15,6 +15,20 @@ What works (tested in `tests/`):
 - Excel serial date helpers (1900/1904, serial-60 quirk) and date-format classification
   (not yet wired to cells: styles arrive with XLSX import).
 - Typed errors, resource limits, compatibility registry with a CI honesty gate.
+
+Package layer (internal, `gridora_engine.package`; not yet reachable through `import_xlsx`):
+- `SafeZip`: validates entry count (from the EOCD record, before any table is built), names
+  (traversal, absolute, backslash, drive letters, NUL, control characters, duplicates, case-fold
+  duplicates), encryption flags, compression methods (stored/deflate only), declared sizes and
+  ratios, local-header consistency and **overlapping entries**; reads are budgeted by bytes actually
+  produced. Nothing is ever extracted to disk.
+- `xmlsafe.parse`: expat wrapper that rejects DOCTYPE/entities/external references, non-UTF-8
+  encodings and excessive depth; all failures are typed errors with fixed messages.
+- `PackageModel`: content types, relationships (external targets recorded, never followed),
+  main-document check (xlsx/xlsm/xltx/xltm), and `write_package`: clean parts are streamed from
+  the source archive, so unknown parts are byte-for-byte preserved (decompressed content); dirty parts
+  are replaced, dropped parts removed. Zip container metadata (timestamps, compression) is not preserved.
+- Tested with hostile fixtures generated in the tests; LibreOffice opens round-trip output (secondary oracle only).
 
 What does not work yet (raises `EngineNotImplementedError`): `import_xlsx`, `apply_cell_edits`,
 `apply_delta`, `recalculate`, `export_xlsx`. `FormattingEngine`/`StructureEngine` not implemented.

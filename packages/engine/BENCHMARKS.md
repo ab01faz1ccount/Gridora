@@ -53,3 +53,19 @@ What this means, and what it does not:
   on mismatch (a crafted file can contain `<row ` inside a comment or CDATA section).
 - Not measured: shared-string parsing, formulas, `<dimension>`/used-range correctness, memory of
   the string table, real Excel-produced files (the XML here is synthetic).
+
+## E3 — package open and no-op round trip, 100k x 20 XLSX
+
+Command: `python benchmarks/bench_package_roundtrip.py` (generates a deterministic 15.9 MB file with
+`benchmarks/xlsx_fixture.py`; raw-XML fixture, not Excel-produced). Same 1-CPU container, Python 3.12.3.
+
+| Operation | Result |
+|---|---|
+| `PackageModel.open` (zip validation + content types + relationships) | 0.001 s warm cache; one earlier run with a cold file cache measured 0.34 s |
+| No-op write (stream every part from the source archive to the output) | 2.19 s |
+| Max RSS of the whole process | 45 MB (parts are streamed, never held whole) |
+| All parts byte-equal after the round trip | yes (decompressed content compared per part) |
+
+Reading it honestly: this is container work only. No sheet XML is parsed yet (that is E4), the
+file has no unknown parts (those are covered by the unit tests, not by this benchmark), and the output
+zip is recompressed with Python's deflate (container metadata is not preserved; part content is).
