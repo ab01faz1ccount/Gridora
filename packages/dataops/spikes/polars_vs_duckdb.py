@@ -133,7 +133,9 @@ def main() -> None:
     if a.child:
         child(a.child[0], a.child[1], Path(a.root), a.runs)
         return
-    import duckdb, polars  # noqa: E401
+    import duckdb
+    import polars
+
     print(f"polars {polars.__version__}  duckdb {duckdb.__version__}  rows={a.rows} runs={a.runs}")
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
@@ -142,7 +144,7 @@ def main() -> None:
         for w in WORKLOADS:
             for e in ("polars", "duckdb"):
                 p = subprocess.run([sys.executable, __file__, "--child", e, w, "--root", d, "--runs", str(a.runs)],
-                                   capture_output=True, text=True)
+                                   check=False, capture_output=True, text=True)
                 if p.returncode != 0:
                     print(f"{w:18} {e:7} FAILED: {p.stderr.strip().splitlines()[-1] if p.stderr else '?'}")
                     continue
