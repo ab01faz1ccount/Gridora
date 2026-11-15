@@ -192,10 +192,9 @@ def test_export_roundtrip_and_bom(engine, load, tmp_path):
 def test_export_neutralizes_formula_text(engine, load, tmp_path):
     h, wb = load(b'a\n"=1+1"\n"@x"\n"-abc"\n-5\n')
     out = tmp_path / "o.csv"
-    engine.export_csv(h, wb.sheets[0].id, out)
+    rep = engine.export_csv(h, wb.sheets[0].id, out)
     lines = out.read_text(encoding="utf-8-sig").splitlines()
     assert lines[1:] == ["'=1+1", "'@x", "'-abc", "-5"]  # numeric -5 is never touched
-    rep = engine.last_export_report(h)
     assert rep.source == "export" and "3" in rep.items[0].message
 
 
@@ -209,9 +208,9 @@ def test_export_neutralization_can_be_disabled_and_encoding_chosen(load, tmp_pat
     p.write_text("a\n=1+1\nسلام\n", encoding="utf-8")
     h, wb = eng.import_csv(p, CsvImportOptions())
     out = tmp_path / "o.csv"
-    eng.export_csv(h, wb.sheets[0].id, out)
+    rep = eng.export_csv(h, wb.sheets[0].id, out)
     assert out.read_bytes().decode("cp1256").splitlines()[1:] == ["=1+1", "سلام"]
-    assert eng.last_export_report(h).items == []
+    assert rep.items == []
 
 
 def test_export_unencodable_character_fails_cleanly(tmp_path):

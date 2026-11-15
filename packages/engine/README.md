@@ -11,7 +11,7 @@ What works (tested in `tests/`):
   with more than 15 digits stay text, all reported in `Workbook.compat`).
 - `get_cells` (column-chunked typed store), `close`, `export_csv` (UTF-8 with BOM by default;
   Windows-1256 optional; text cells starting with `= + - @ TAB CR` are prefixed with `'` unless
-  `csv_neutralize_formulas=False`; reported via the non-contract `last_export_report`, CC-9).
+  `csv_neutralize_formulas=False`; the `CompatibilityReport` is the return value of `export_csv`, contract v0.3.0 / CC-9).
 - Excel serial date helpers (1900/1904, serial-60 quirk) and date-format classification
   (not yet wired to cells: styles arrive with XLSX import).
 - Typed errors, resource limits, compatibility registry with a CI honesty gate.
