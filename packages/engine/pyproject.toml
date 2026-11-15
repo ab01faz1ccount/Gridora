@@ -11,7 +11,9 @@ requires-python = ">=3.11"
 dependencies = ["gridora-contracts", "pydantic>=2.6,<3"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff", "mypy>=1.10"]
+# Tool versions are pinned on purpose: an unpinned ruff/mypy update must not turn CI red
+# by itself. Bump them deliberately, together with any fixes.
+dev = ["pytest>=8,<10", "ruff==0.17.5", "mypy==2.4.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
