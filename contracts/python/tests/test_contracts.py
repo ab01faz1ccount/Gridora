@@ -104,3 +104,33 @@ def test_new_error_values_and_result_models():
 def test_optional_protocols_exist():
     for proto in (FormattingEngine, StructureEngine, TableStore, ExecContext):
         assert proto is not None
+
+
+# ---- contract v0.4.0 additions ----
+from gridora_contracts import (  # noqa: E402
+    BlobStore, ColumnarColumn, ColumnarExecContext, ColumnarRange, RangeSnapshotDelta,
+)
+
+
+def test_table_target_version_pointer_optional():
+    assert DataTableTarget(table_id="t").version is None
+    assert DataTableTarget(table_id="t", version=3).version == 3
+    with pytest.raises(PydanticValidationError):
+        DataTableTarget(table_id="t", version=0)
+
+
+def test_columnar_range_roundtrip_and_snapshot_delta():
+    rng = Range(sheet_id="s", r0=0, c0=0, r1=1, c1=1)
+    data = ColumnarRange(range=rng, columns=[
+        ColumnarColumn(kind="num", values=[1.0, None]),
+        ColumnarColumn(kind="mixed", values=[{"k": "err", "e": "#N/A"}, None])])
+    assert ColumnarRange.model_validate_json(data.model_dump_json()) == data
+    d = RangeSnapshotDelta(sheet_id="s", range=rng, before_ref="b1", after_ref="a1", cell_count=4)
+    ent = HistoryEntry(id="h", document_id="d", seq=1,
+                       operation=Operation(type="sort", target=DataTableTarget(table_id="t")),
+                       delta=d, label="x", created_at=datetime.now(timezone.utc))
+    assert HistoryEntry.model_validate_json(ent.model_dump_json()).delta.kind == "range_snapshot"
+
+
+def test_optional_columnar_protocols_exist():
+    assert ColumnarExecContext is not None and BlobStore is not None

@@ -14,3 +14,4 @@ Install for local development: `pip install -e contracts/python`. Run tests: `py
 ## Changelog
 - **0.3.0** — `WorkbookEngine.export_csv` returns a `CompatibilityReport` (CC-9). Agents 1 and 3 update their implementations and stubs; the engine's non-contract `last_export_report` becomes unnecessary.
 - **0.2.0** — Phase 2 review changes (see `docs/reviews/PHASE2_REVIEW.md`, ADR-010).
+- **0.4.0** — ADR-014: `DataTableTarget.version`; optional `ColumnarExecContext` (columnar range read/write); reserved `RangeSnapshotDelta` and `BlobStore`; `sheet_range_to_table(name=...)`. All additions are optional or defaulted; nothing existing changes meaning.

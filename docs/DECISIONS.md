@@ -62,3 +62,11 @@ Format: Context · Decision · Consequences. Status: Proposed → Accepted (afte
 **Decision:** `export_csv` returns a `CompatibilityReport` (CC-9) so neutralized or unencodable cells are never silent. Snapshot protocol (CC-10) deferred to Phase 4. The 200,000-cell per-patch cap (CC-11) is enforced by both the engine when building deltas and `apps/api`.
 **Consequences:** Agent 1 and Agent 3 update implementations and stubs. Status: Accepted.
 
+## ADR-014 — Columnar sheet access and large-range history (contract v0.4.0)
+**Context:** Agent 2's benchmarks (`packages/dataops/BENCHMARKS.md`) show the cell-by-cell adapter costs about 7 microseconds per cell, and CC-11 caps a `cell_patch` at 200,000 cells. A 100k x 20 sheet is 2,000,000 cells, so no in-place operation (sort, dedupe) could run on a sheet at the product's own size target. Data Tables are not affected (0.04 to 1.0 s at 100k rows).
+**Decision (two steps, both additive and optional):**
+1. **Columnar path (now).** Optional `ColumnarExecContext`: `read_range_columnar` / `write_range_columnar` exchange `ColumnarRange` (plain Python column lists, typed fast paths, exact `mixed` fallback; `has_formulas` forces the row-major path). dataops feature-detects it and keeps the row-major path as fallback. Removes the pydantic-per-cell cost.
+2. **Range snapshot delta (after engine E5).** Reserved `RangeSnapshotDelta` plus `BlobStore`: before/after contents of a large range are stored as compressed, engine-versioned blobs; undo restores the blob. The 200,000-cell cap stays until an engine produces this delta; then it is lifted (new decision).
+Also: `DataTableTarget.version` (apps/api passes the current pointer, fixing the "highest version" ambiguity after undo) and `sheet_range_to_table(name=...)`.
+**Consequences:** Nothing existing changes. A fake context in dataops can implement the columnar protocol immediately. The real engine implements both after E5 (value edits and deltas) and E4 (reading). Status: Accepted. Not measured on the real engine yet; the gain is expected, not demonstrated.
+
