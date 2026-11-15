@@ -14,6 +14,7 @@ from gridora_contracts.models import (
     CellEdit,
     CellWindow,
     CompatibilityReport,
+    DateValue,
     Delta,
     Window,
     Workbook,
@@ -25,8 +26,10 @@ from .csvio.importer import import_csv_file
 from .csvio.writer import write_csv
 from .errors import EngineNotImplementedError, GridoraEngineError, bad_request
 from .limits import ResourceLimits
-from .model.values import to_contract_value
+from .model.dates import serial_to_iso
+from .model.values import NUM, to_contract_value
 from .model.workbook import WorkbookState
+from .xlsx.importer import import_xlsx_file
 
 _KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding"}
 _EXPORT_ENCODINGS = {"utf-8-sig", "utf-8", "windows-1256"}
@@ -68,13 +71,17 @@ class GridoraEngine:
 
     def close(self, wb: WorkbookHandle) -> None:
         """Release the working copy. Closing an unknown or closed handle is a no-op."""
-        self._open.pop(wb.id, None)
+        state = self._open.pop(wb.id, None)
+        if state is not None:
+            state.close()
 
     # -- contract methods not implemented yet (PLAN.md §15) -----------------------------------
     def import_xlsx(
         self, path: Path, *, file_id: str | None = None
     ) -> tuple[WorkbookHandle, Workbook, CompatibilityReport]:
-        raise EngineNotImplementedError("import_xlsx")
+        state = import_xlsx_file(path, self.limits, file_id)
+        assert state.compat is not None
+        return self._new_handle(state), state.to_model(), state.compat
 
     def import_csv(
         self, path: Path, options: CsvOptions, *, file_id: str | None = None
@@ -87,14 +94,31 @@ class GridoraEngine:
         sheet = state.sheet(sheet_id)
         if sheet is None:
             raise GridoraEngineError("not_found", "sheet.unknown", "The sheet does not exist.")
-        cells = [
-            Cell.model_construct(
-                r=r, c=c, v=to_contract_value(tag, val, state.strings), f=None, s=None, t=None
+        sheet.ensure(window.row0, window.row0 + window.rows)
+        styles = state.styles
+        xf_date = styles.xf_is_date if styles else []
+        xf_fmt = styles.xf_numfmt if styles else []
+        formulas = sheet.formulas
+        cells = []
+        for r, c, tag, val, style in sheet.store.window(
+            window.row0, window.col0, window.rows, window.cols
+        ):
+            v = to_contract_value(tag, val, state.strings)
+            fmt = None
+            if style:
+                if tag == NUM and style < len(xf_date) and xf_date[style]:
+                    iso = serial_to_iso(val, state.date_system)
+                    if iso is not None:
+                        v = DateValue.model_construct(k="date", iso=iso)
+                if style < len(xf_fmt) and xf_fmt[style]:
+                    fmt = str(xf_fmt[style])
+            text = formulas.get((r << 14) | c) if formulas else None
+            cells.append(
+                Cell.model_construct(
+                    r=r, c=c, v=v, f=None if text is None else "=" + text,
+                    s=style or None, t=fmt,
+                )
             )
-            for r, c, tag, val in sheet.store.window(
-                window.row0, window.col0, window.rows, window.cols
-            )
-        ]
         return CellWindow(
             sheet_id=sheet_id, row0=window.row0, col0=window.col0,
             rows=window.rows, cols=window.cols, cells=cells,

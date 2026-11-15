@@ -111,3 +111,25 @@ def patch(raw: bytes, offset: int, fmt: str, value: int) -> bytes:
     b = bytearray(raw)
     struct.pack_into(fmt, b, offset, value)
     return bytes(b)
+
+
+def sheet_doc(rows: str, children_after: str = "", head: str = "", ns: str = NS) -> str:
+    return HDR + f"<worksheet {ns}>{head}<sheetData>{rows}</sheetData>{children_after}</worksheet>"
+
+
+def make_xlsx(path: Path, sheet1: str | None = None, extras: bool = False, **overrides: Data) -> Path:
+    """Workbook from raw XML; `sheet1` replaces sheet 1, other keyword args replace parts
+    (use names with '__' for '/': e.g. xl__sharedStrings_xml)."""
+    parts = xlsx_parts(extras)
+    if sheet1 is not None:
+        parts["xl/worksheets/sheet1.xml"] = sheet1
+    for k, v in overrides.items():
+        parts[k.replace("__", "/").replace("_xml", ".xml").replace("_rels", ".rels") if "__" in k else k] = v
+    return write_zip(path, parts)
+
+
+def read_window(engine, handle, sheet, rows=1000, cols=100, row0=0):
+    from gridora_contracts.models import Window
+
+    w = engine.get_cells(handle, sheet.id, Window(row0=row0, col0=0, rows=rows, cols=cols))
+    return {(c.r, c.c): c for c in w.cells}

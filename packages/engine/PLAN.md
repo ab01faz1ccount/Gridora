@@ -80,7 +80,8 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 | E1 CSV import/export, store, `get_cells`, dates, registry, benchmark, probe | implemented, branch `agent1/e1-csv-store` (stacked on E0) |
 | E2 spike | **not started** |
 | E3 hostile-safe zip/XML, package model, byte-equal no-op round trip | implemented, branch `agent1/e3-package` (stacked on `agent1/v030-ci`) |
-| E4 onward | see Review 2 orders: E4 XLSX read + lazy row window + report, then E5 edits/undo; **no formulas (E7) yet** |
+| E4 XLSX read, lazy row windows, compat report, 100k benchmark | implemented, branch `agent1/e4-xlsx-read` (stacked on E3) |
+| E5 onward | Review 2 orders: E5 value edits + undo; **no formulas (E7) yet** |
 
 ---
 
