@@ -75,6 +75,21 @@ class FormattingEngine(Protocol):
 
 
 @runtime_checkable
+class ColumnarEngine(Protocol):
+    """Optional engine extension (v0.4.1, ADR-015; proposed by Agent 1 as CC-12).
+    apps/api feature-detects it with isinstance(engine, ColumnarEngine) and builds
+    ColumnarExecContext on top of it. Same value/formula semantics as get_cells and
+    apply_cell_edits; has_formulas must be True if any cell in the range has a formula
+    (shared/array children included)."""
+
+    def read_range_columnar(self, wb: WorkbookHandle, rng: Range) -> ColumnarRange: ...
+    def write_range_columnar(self, wb: WorkbookHandle, rng: Range, data: ColumnarRange) -> Delta:
+        """Values only; uncovered cells of rng are cleared. Delta is a cell_patch (<= 200,000
+        cells) or, once the engine implements it, a range_snapshot (blob via BlobStore)."""
+        ...
+
+
+@runtime_checkable
 class StructureEngine(Protocol):
     """Optional engine extension, scheduled AFTER formula work (row/col insert/delete rewrites
     references: the riskiest feature). `change` shape is defined by Agent 1 in engine docs and

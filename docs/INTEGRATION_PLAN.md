@@ -30,18 +30,17 @@ Each phase ships `docs/phases/PHASE-N.md` describing real, verified functionalit
 - Docs and status table updated.
 - Honest limitations noted.
 
-## Module status
+## Module status (updated 2026-11-15)
 
-Legend: Planned · In progress · Implemented · Tested · Integrated.
-"Verified by Agent 0" means I ran it myself. The review sandbox has no network, so Python packages that need `polars`, `fastapi` or `sqlalchemy`, and the web app, could **not** be run by me; their test results are the agents' claims until CI runs.
+Legend: Planned · In progress · Implemented · Tested · Integrated. "Verified by Agent 0" means I ran it; otherwise the source is GitHub CI or the agent's report.
 
-| Module | Status | Verified by Agent 0 | Integrated | Known limitations |
+| Module | Status | Evidence | Integrated | Known limitations |
 |---|---|---|---|---|
-| Architecture & contract docs | Implemented | Read | n/a | CC decisions recorded in `docs/reviews/` |
-| `contracts/` v0.4.0 | Tested | 16 tests pass; TS strict typecheck passes | No | Self-consistency only; no JSON Schema export |
-| `packages/engine` | In progress (E1: CSV import/export, cell store) | 64 engine tests pass, `mypy --strict` clean | With `apps/api` through the stub-swap factory only | **No XLSX import/export, no edits, no formulas yet.** XLSX open cost unmeasured (probe: ~6 s lower bound for an eager parse) |
-| `packages/dataops` | In progress (M0–M5 implemented per Agent 2) | Not run (no polars offline) | Not yet against the real engine | No 100k benchmark through the executor yet; join cannot be a pipeline step; README has stale lines |
-| `apps/api` | In progress (PR 1–5) | Not run (no fastapi/Postgres offline) | Stub engine/executor only | No history/undo, no operations endpoints, no export; single worker; import in a thread (ADR-011) |
-| `apps/web` | In progress (PR 6: sign-in, workspaces) | Not run (no npm install offline) | No | No grid, import, operations, charts; jsdom tests only |
-| `deploy/` | **Planned** | — | — | Not started; it was due before PR 8 (PHASE2_REVIEW C3.3) |
-| CI | Workflows committed for engine, dataops, apps-api, apps-web | YAML parses | — | **Never run yet**; first run may need fixes |
+| Architecture & contract docs | Implemented | Read | n/a | ADR-001 to ADR-015 |
+| `contracts/` v0.4.1 | Tested | 17 tests pass here; TS strict typecheck passes | No | Self-consistency only |
+| `packages/engine` | In progress: E1 (CSV), E3 (package layer), E4 (XLSX read), E5 (value edits, undo) merged | CI green on main; `mypy` clean here; agent reports 176 tests | Not through the API yet | **No XLSX export (E6), no formulas (E7); formula results are not recalculated after edits.** Full parse of 100k x 20 takes 11 to 13 s; real Excel files untested |
+| `packages/dataops` | In progress: table operations M0 to M5; contract 0.4 fixes merged | CI green on main | Fake context only | Columnar adapter exists only on the agent's disk; sheet ranges capped at 200,000 cells per write |
+| `apps/api` | In progress: auth, workspaces, upload, import, stub engine/executor | CI green on main | Stub only | No history, operations, export endpoints; single worker; import in a thread (ADR-011) |
+| `apps/web` | In progress: sign-in, workspaces, grid benchmark work | **CI red on main** (lint) | No | No import UI, operations, charts, history |
+| `deploy/` | Implemented per Agent 3 (compose, nginx, backup/restore, runbook) | Not verified by me | Stub engine only | Never run with the real engine |
+| CI | Four module workflows plus contracts | Runs on every PR | n/a | web workflow red |
