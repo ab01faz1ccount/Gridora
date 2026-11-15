@@ -53,3 +53,54 @@ What this means, and what it does not:
   on mismatch (a crafted file can contain `<row ` inside a comment or CDATA section).
 - Not measured: shared-string parsing, formulas, `<dimension>`/used-range correctness, memory of
   the string table, real Excel-produced files (the XML here is synthetic).
+
+## E3 — package open and no-op round trip, 100k x 20 XLSX
+
+Command: `python benchmarks/bench_package_roundtrip.py` (generates a deterministic 15.9 MB file with
+`benchmarks/xlsx_fixture.py`; raw-XML fixture, not Excel-produced). Same 1-CPU container, Python 3.12.3.
+
+| Operation | Result |
+|---|---|
+| `PackageModel.open` (zip validation + content types + relationships) | 0.001 s warm cache; one earlier run with a cold file cache measured 0.34 s |
+| No-op write (stream every part from the source archive to the output) | 2.19 s |
+| Max RSS of the whole process | 45 MB (parts are streamed, never held whole) |
+| All parts byte-equal after the round trip | yes (decompressed content compared per part) |
+
+Reading it honestly: this is container work only. No sheet XML is parsed yet (that is E4), the
+file has no unknown parts (those are covered by the unit tests, not by this benchmark), and the output
+zip is recompressed with Python's deflate (container metadata is not preserved; part content is).
+
+## E4 — XLSX open (lazy reader), 100k rows x 20 columns
+
+Command: `python benchmarks/bench_xlsx_open_100k.py`. Same 1-CPU container, Python 3.12.3. Fixture:
+`benchmarks/xlsx_fixture.py` (raw XML, **not Excel-produced**): 15.9 MB zip, 73.8 MB sheet XML, 100k rows,
+~1.94 M cells, 50k unique shared strings, 100k formula cells (column T, with cached values).
+
+| Operation | Result |
+|---|---|
+| `import_xlsx` (zip validation, workbook/styles/shared strings, sheet spool + row index, report) | 0.85 s warm (1.64 s on the first, cold-cache run); RSS +77 MB (includes the mmap-ed 74 MB spool pages, which the OS can evict) |
+| First read of a 100x20 window, cold block (top / middle / bottom) | 38 / 35 / 26 ms |
+| Contract-max window 1000x100 | 0.26 s |
+| Re-read of an already parsed window | 10 ms |
+| Parse of every row, block by block (no Cell objects) | 11.1 s; resulting store 22 MB, 1,942,813 cells |
+| Same through `get_cells` windows (builds contract `Cell` objects) | 26.7 s, RSS +152 MB |
+| Eager full parse (`materialize_all`, also the fallback path) | 12.7 s, RSS +98 MB |
+
+Reading it honestly:
+- **Opening is fast because it is lazy**, not because parsing is fast. Pure-Python parsing runs at about
+  150k cells/s (~6.5 us per cell, dominated by expat callbacks). Anything that needs the whole sheet
+  (recalculation at E7, table conversion for dataops) pays ~11-13 s per 100k x 20 sheet; building
+  contract `Cell` objects costs about as much again, so whole-sheet reads must not go through `get_cells`
+  (a bulk read path will be needed; raised in the PR).
+- The row index and the used-range hints come from a byte scan (0.1 s for 100k rows); `spans` /
+  `<dimension>` give the width. Hints can be wrong in crafted files: parsed rows are cross-checked and a
+  mismatch falls back to the full safe parse (tests cover a decoy `<row` in a comment).
+- Memory: the sheet XML is spooled to a private temp file (not held in RAM); the parsed store costs
+  ~11 bytes per slot plus interned strings. Disk use equals the decompressed sheet size (bounded by
+  `max_part_bytes`).
+- Not measured: Excel-produced files, many sheets, wide sheets, rich text, shared-formula-heavy files,
+  inline-string-heavy files, repeated opens (spool cleanup is tested, not benchmarked).
+- A micro-optimization pass (cached reference parsing and name lookup) did not change the parse time
+  measurably; a fast path that bypasses expat would change the safety model and is not attempted.
+- For comparison, the spike measured IronCalc (Rust) loading the same shape of file in ~1.1 s including
+  formula parsing; that is the only route found so far to fast whole-sheet access.

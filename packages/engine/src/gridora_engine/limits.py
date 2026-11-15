@@ -30,6 +30,8 @@ class ResourceLimits:
     max_compression_ratio: int = 100  # used by the zip reader (E3)
     max_uncompressed_bytes: int = 500 * 1024**2  # used by the zip reader (E3)
     max_zip_entries: int = 10_000  # used by the zip reader (E3)
+    max_part_bytes: int = 400 * 1024**2  # largest single decompressed part
+    max_xml_depth: int = 64
     deadline_seconds: float | None = None  # cooperative wall-clock budget per call
 
     @classmethod

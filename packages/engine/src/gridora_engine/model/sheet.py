@@ -17,7 +17,7 @@ CHUNK_SHIFT = 8
 CHUNK_ROWS = 1 << CHUNK_SHIFT
 CHUNK_MASK = CHUNK_ROWS - 1
 _KEY_ROWS = 1 << 12  # 4096 chunks * 256 rows >= 1,048,576 rows
-CHUNK_BYTES = CHUNK_ROWS * 9
+CHUNK_BYTES = CHUNK_ROWS * 11
 _ZERO_VALS = bytes(8 * CHUNK_ROWS)
 
 
@@ -46,11 +46,12 @@ class StoreBudget:
 
 
 class Chunk:
-    __slots__ = ("tags", "vals")
+    __slots__ = ("styles", "tags", "vals")
 
     def __init__(self) -> None:
         self.tags = bytearray(CHUNK_ROWS)
         self.vals: array[float] = array("d", _ZERO_VALS)
+        self.styles: array[int] = array("H", bytes(2 * CHUNK_ROWS))
 
 
 class SheetStore:
@@ -60,9 +61,10 @@ class SheetStore:
         self._max_row = -1
         self._max_col = -1
         self._bounds_dirty = False
+        self._cells = 0
 
     # -- writes -------------------------------------------------------------------------------
-    def put(self, r: int, c: int, tag: int, val: float) -> None:
+    def put(self, r: int, c: int, tag: int, val: float, style: int = 0) -> None:
         key = c * _KEY_ROWS + (r >> CHUNK_SHIFT)
         ch = self.chunks.get(key)
         if ch is None:
@@ -76,22 +78,34 @@ class SheetStore:
             if tag == EMPTY:
                 return
             self._budget.add_cell()
+            self._cells += 1
         elif tag == EMPTY:
             self._budget.cells -= 1
+            self._cells -= 1
             self._bounds_dirty = True
         ch.tags[i] = tag
         ch.vals[i] = val
+        ch.styles[i] = style
         if tag != EMPTY:
             self._max_row = max(self._max_row, r)
             self._max_col = max(self._max_col, c)
 
     # -- reads --------------------------------------------------------------------------------
-    def get(self, r: int, c: int) -> tuple[int, float]:
+    def get(self, r: int, c: int) -> tuple[int, float, int]:
         ch = self.chunks.get(c * _KEY_ROWS + (r >> CHUNK_SHIFT))
         if ch is None:
-            return EMPTY, 0.0
+            return EMPTY, 0.0, 0
         i = r & CHUNK_MASK
-        return ch.tags[i], ch.vals[i]
+        return ch.tags[i], ch.vals[i], ch.styles[i]
+
+    def reset(self) -> None:
+        """Forget all content and release this store's share of the budgets."""
+        self._budget.bytes_used = max(self._budget.bytes_used - len(self.chunks) * CHUNK_BYTES, 0)
+        self._budget.cells = max(self._budget.cells - self._cells, 0)
+        self.chunks.clear()
+        self._cells = 0
+        self._max_row = self._max_col = -1
+        self._bounds_dirty = False
 
     def used_size(self) -> tuple[int, int]:
         """(row_count, col_count) of the used range; (0, 0) for an empty sheet."""
@@ -113,8 +127,8 @@ class SheetStore:
 
     def window(
         self, row0: int, col0: int, rows: int, cols: int
-    ) -> Iterator[tuple[int, int, int, float]]:
-        """Non-empty cells of the window in row-major order: (r, c, tag, val)."""
+    ) -> Iterator[tuple[int, int, int, float, int]]:
+        """Non-empty cells of the window in row-major order: (r, c, tag, val, style)."""
         row_end = row0 + rows
         by_col: list[tuple[int, list[Chunk | None]]] = []
         ci0, ci1 = row0 >> CHUNK_SHIFT, (row_end - 1) >> CHUNK_SHIFT
@@ -131,7 +145,7 @@ class SheetStore:
                 if ch is not None:
                     tag = ch.tags[i]
                     if tag != EMPTY:
-                        yield r, c, tag, ch.vals[i]
+                        yield r, c, tag, ch.vals[i], ch.styles[i]
 
     def row_blocks(self, ncols: int) -> Iterator[tuple[int, list[Chunk | None]]]:
         """For export: (first_row_of_block, per-column chunk or None) for every 256-row block."""
