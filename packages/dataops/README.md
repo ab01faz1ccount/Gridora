@@ -2,12 +2,12 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M0-M5 implemented, awaiting review (PRs stacked #4 -> #5 -> #6 -> #12 -> #18 -> #19 -> #21 -> benchmarks).**
+**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); 284 tests; benchmarks in `BENCHMARKS.md`. Contract version: 0.3.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
+- Executor on **sheet ranges and data tables** for all 15 operations: schema validation with JSON-pointer paths relative to the Operation root, data-dependent column checks (`validate(op, ctx)`, including `extra_targets` columns), preview with zero side effects, apply with ONE `write_range` call (sheets, one engine delta) or ONE new immutable version (tables, `TableVersionDelta`), exact undo via the delta, refusal to turn formulas into values, `would_overwrite` instead of silent overwrite, configurable per-patch cell cap (`max_patch_cells`, default 200,000, error `too_large_for_history`).
 - Registry + descriptor generation: JSON Schema from pydantic params, i18n keys for titles/descriptions/enum labels, `x-gridora-*` hints.
-- Executor machinery on **sheet-range targets** (proved with test-only operations): schema validation with JSON-pointer paths relative to the Operation root, data-dependent column checks (`validate(op, ctx)`), preview with zero side effects, apply with one `write_range` call and one engine delta, exact undo/redo via the delta, refusal to turn formulas into values, refusal on error values and mixed-type columns, `would_overwrite` instead of silent overwrite, configurable cell cap per patch (`max_patch_cells`, default 200,000).
 - `catalog(locale)`: Persian text for categories and every error code; English falls back to Persian per key.
 - Boundary test: no import of `gridora_engine`/`apps`, no network/process modules, no unreviewed third-party packages.
 - Polars-vs-DuckDB spike with measured numbers: `spikes/SPIKE_REPORT.md`.
@@ -27,18 +27,33 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - **Operations on `data_table` targets**: each in-place operation writes a new version and returns `TableVersionDelta`; `filter` on a sheet range creates a new table (`from_version=0`) and leaves the sheet untouched.
 - Golden JSON-Schema files per operation (`tests/golden/`), Persian text for every schema key.
 
-## What does not work yet (honest list)
-- Performance: `BENCHMARKS.md` (100k x 20 on data tables: 0.04 to 1.0 s per operation on a 1-core VM; **sheet ranges are slow in the adapter, ~7 µs per cell, not demonstrated at 100k rows**).
-- Pipelines: operations that need extra targets (`join`) cannot be steps (`PipelineStep` has no `extra_targets`); `range` Tool inputs are not accepted by any v1 parameter; each step re-reads its input (no in-memory hand-off between applied steps); on sheets, a rollback restores values only (formulas converted by a confirmed step cannot come back); `validate_tool` cannot know columns created by earlier steps.
-- `computed_column`: `round` rounds to a whole number only; text comparisons are plain code-point comparisons (no Persian collation); no Jalali date functions (`year/month/day` are Gregorian).
-- Analysis operations take sheet ranges by snapshotting them (the catalog lists tables); floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums are not guaranteed identical across machines with different thread counts.
-- `chart_data` reads a sheet source with its first row as header (the spec has no header flag).
-- Header-row *detection*: the contract passes `header_row` explicitly, so none is guessed.
-- `TableSource` (link back to the workbook) is not set by the store: `ExecContext` has no `workbook_id`; apps/api attaches it.
-- `run_pipeline`, `bind_tool`, `validate_tool` (M5) and `chart_data` (M4): typed `not_implemented` errors.
-- Persian modules (collation, digits, clean_text, Jalali): M3/M5.
-- Collation limits: no natural-number ordering; Latin case ties keep original order (no lowercase-first); hamza is placed just after alef (simplified).
-- Sheet frames: columns that mix types (e.g. numbers and text) are refused; error values (`#N/A`) are refused; dates arrive only as `DateValue`. Number columns are always `Float64` on sheets.
+## What does not work yet (honest list; re-read against the code at this commit)
+**Contract / integration**
+- `ExecContext.table_store()` must return this package's `ParquetTableStore` (the executor needs read/write methods beyond the protocol); any other store gives a typed `not_implemented`. A store must be bound with `.for_owner(user_id)` before `read_page`/`restore_version` (otherwise `owner_unknown`).
+- `DataTableTarget` has no `version` field in the contract: a table operation uses the highest existing version and adds a `table_version_assumed` warning when several exist. After an undo (pointer swap) the API must not rely on that.
+- `TableSource` (link back to the workbook) is not set by the store (`ExecContext` has no `workbook_id`); apps/api attaches it. `sheet_range_to_table` has no name parameter (default name `Table A1:D4`).
+- All versions of one table must live in one directory (resolver contract); there is no compaction API yet (the index supports `compacted`, nothing writes it except pipeline rollback). Concurrent writers to the same table are detected (`version_conflict`) but not locked.
+
+**Pipelines and Tools**
+- `join` (needs `extra_targets`) cannot be a pipeline step: `PipelineStep` has no such field (decision: stays out of v1).
+- `range` Tool inputs are accepted by no v1 parameter; `validate_tool` cannot know columns created by earlier steps (it checks the first step's literal columns when given a context).
+- Each committed step re-reads its input (no in-memory hand-off, see `BENCHMARKS.md`); all steps of a sheet pipeline must agree on `has_header`.
+- Rolling back a sheet step writes the `before` values back; a formula removed by a *confirmed* `convert_to_values` step cannot be restored that way. If a rollback is incomplete the result says `rollback_incomplete`.
+
+**Sheet ranges**
+- In-place operations refuse ranges with formulas (unless the operation's `formulas` parameter says `convert_to_values`), with error values, and with mixed-type columns; dates arrive only as `DateValue`; number columns are always `Float64`. Results that grow need free cells to the right/below (`would_overwrite`); there is no row/column insertion in v1.
+- The adapter between `list[list[Cell]]` and Polars costs about 7 microseconds per cell; with the 200,000-cell cap the largest in-place range is about 10,000 rows x 20 columns (see `BENCHMARKS.md`).
+- `chart_data` reads a sheet source with its first row as header (the spec has no header flag). Analysis operations accept sheet ranges by reading them as an implicit snapshot (the catalog lists tables). `filter` on a sheet range creates a new table.
+
+**Operations**
+- `find_replace` has no user regex by design. `computed_column`: `round` rounds to whole numbers only; text comparison is by code point (no Persian collation); `year/month/day` are Gregorian.
+- Collation (`sort`, `read_page`, `sort_groups`): no natural-number ordering; Latin case ties keep original order; hamza is placed just after alef (simplified). Not an ICU replacement.
+- `convert_calendar`: Jalali years 1300 to 1500 only; outside that range values are reported, never guessed. Datetimes keep only their date part.
+- `pivot` is capped at 200 new columns; `join` refuses more than 5,000,000 matching pairs; charts cap at 5,000 categories; unpivot of mixed types converts everything to text (warning).
+- Decimal columns are stored as Decimal(38,10) (verified with polars 2.1.0 only). Floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums may differ between machines.
+- Tables are read fully into memory for an operation (not tested larger than memory). No DuckDB (ADR-012).
+
+**Performance**: `BENCHMARKS.md` (data tables at 100,000 x 20: 0.04 to 1.0 s per operation on a 1-core VM; sheet ranges measured at 10,000 rows with a test double, no real engine).
 
 ## Develop
 ```

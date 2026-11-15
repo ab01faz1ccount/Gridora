@@ -4,8 +4,8 @@
 
 Method: data is generated once (seeded) and written as Parquet; every operation runs in a FRESH subprocess
 (so peak RSS is that operation's own), one warm-up call, then `--runs` timed calls; median and worst are reported.
-Table targets use the real ParquetTableStore on local disk. Sheet targets use the in-memory test double
-(tests/fakes.py), so the numbers EXCLUDE the real engine's cost and use a smaller range (`--sheet-rows`):
+Table targets use the real ParquetTableStore on local disk. EVERY operation also runs on a sheet range, using the
+in-memory test double (tests/fakes.py), so the numbers EXCLUDE the real engine's cost and use a smaller range (`--sheet-rows`):
 a 100k x 20 sheet is 2,000,000 cells, which neither the default 200,000-cell patch cap nor a 3 GB machine allows
 with the pydantic-based test double.
 """
@@ -175,6 +175,7 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=5)
     ap.add_argument("--out")
     ap.add_argument("--only", help="substring filter on case names")
+    ap.add_argument("--mode", choices=["table", "sheet"], help="only run table or sheet targets")
     ap.add_argument("--child", nargs=2, metavar=("CASE", "MODE"))
     ap.add_argument("--data")
     a = ap.parse_args()
@@ -193,9 +194,10 @@ def main() -> None:
         results = {}
         cases = [("__io__", "table"), ("__pipeline__", "table"), ("__chart__", "table")]
         cases += [(c, "table") for c in CASES]
-        cases += [(c, "sheet") for c in ("sort (persian text + number)", "remove_duplicates (all columns)", "change_type (persian digits -> int64)",
-                                         "clean_text (all text, persian options)", "computed_column (arithmetic + if)",
-                                         "find_replace (variants, 3 text cols)", "__pipeline__", "__chart__")]
+        cases += [(c, "sheet") for c in CASES]
+        cases += [("__pipeline__", "sheet"), ("__chart__", "sheet")]
+        if a.mode:
+            cases = [(c, m) for c, m in cases if m == a.mode]
         print(f"{'case':44} {'target':6} {'preview':>8} {'median':>8} {'worst':>8} {'rss MB':>7}")
         for case, mode in cases:
             if a.only and a.only not in case:
