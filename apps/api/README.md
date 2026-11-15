@@ -51,7 +51,7 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
   (`operation_conflict` with detail code `too_large_for_history`).
 - **STUBS (clearly marked, not real implementations):**
   - `StubEngine`: in-memory, single sheet, **CSV only** (UTF-8 with/without BOM, Windows-1256,
-    delimiter sniffing). XLSX import/export raise `unsupported_workbook`. Formulas are **not**
+    delimiter sniffing). XLSX import/export raise `unsupported_workbook`. `export_csv` returns a `CompatibilityReport` (contract v0.3.0): text that would run as a formula in a spreadsheet (leading `= + - @`, tab, CR) is prefixed with an apostrophe and each such cell is reported with its location; numbers are never touched. Formulas are **not**
     evaluated or stored (a formula edit is rejected with a JSON-pointer error; text that looks like a
     formula stays text). No styles. Every import reports a `partial` compatibility item.
   - `StubExecutor`: `sort`, `find_replace`, `remove_duplicates` on sheet ranges (real JSON-Schema

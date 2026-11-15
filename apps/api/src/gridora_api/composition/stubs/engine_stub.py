@@ -220,10 +220,16 @@ class StubEngine:
             "unsupported_workbook", "The stub engine cannot write XLSX; only CSV export exists."
         )
 
-    def export_csv(self, wb: WorkbookHandle, sheet_id: str, path: Path) -> None:
+    def export_csv(self, wb: WorkbookHandle, sheet_id: str, path: Path) -> CompatibilityReport:
+        """Contract v0.3.0 (CC-9): returns a report, so nothing is changed silently.
+
+        Text cells that a spreadsheet would run as a formula (leading = + - @, tab or CR) are
+        prefixed with an apostrophe (OWASP CSV-injection guidance); each one is reported with
+        its location. Numbers are never touched, so "-5" stays -5."""
         h = self._h(wb)
         self._sheet(h, sheet_id)
         rows, cols = h.extent()
+        neutralized: list[str] = []
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
             for r in range(rows):
@@ -231,8 +237,41 @@ class StubEngine:
                 for c in range(cols):
                     cell = h.cells.get((r, c))
                     v = cell.v if cell else None
-                    out.append("" if v is None else _text(v))
+                    text = "" if v is None else _text(v)
+                    if isinstance(v, StrValue) and text[:1] in _FORMULA_LEADERS:
+                        text = "'" + text
+                        neutralized.append(f"{_col_letters(c)}{r + 1}")
+                    out.append(text)
                 w.writerow(out)
+        items = [
+            CompatItem(
+                code="export.csv.formula_neutralized",
+                status="partial",
+                preserved=False,
+                editable=True,
+                message="Text that looks like a formula was prefixed with an apostrophe.",
+                location=loc,
+            )
+            for loc in neutralized
+        ]
+        return CompatibilityReport(
+            source="export",
+            generated_at=datetime.now(UTC),
+            items=items,
+            summary=CompatSummary(partial=len(items)),
+        )
+
+
+_FORMULA_LEADERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _col_letters(c: int) -> str:
+    out = ""
+    c += 1
+    while c:
+        c, rem = divmod(c - 1, 26)
+        out = chr(65 + rem) + out
+    return out
 
 
 def _text(v: CellValue) -> str:

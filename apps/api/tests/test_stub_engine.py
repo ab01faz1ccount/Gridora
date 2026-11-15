@@ -148,12 +148,42 @@ def test_closed_or_foreign_handles_and_unknown_sheets(tmp_path: Path) -> None:
 def test_export_csv_roundtrip_with_persian(tmp_path: Path) -> None:
     eng, h, _ = open_csv(tmp_path, "نام,عدد\nعلی,2\n".encode())
     out = tmp_path / "out.csv"
-    eng.export_csv(h, h.sheet_id, out)
+    report = eng.export_csv(h, h.sheet_id, out)
+    assert report.source == "export" and report.items == [] and report.summary.partial == 0
     eng2, h2, _ = open_csv(tmp_path, out.read_bytes())
     assert snapshot(eng2, h2) == snapshot(eng, h)
     with pytest.raises(DomainError) as ei:
         eng.export_xlsx(h, tmp_path / "o.xlsx")
     assert ei.value.code == "unsupported_workbook"
+
+
+def test_export_csv_neutralizes_formula_text_and_reports_each_cell(tmp_path: Path) -> None:
+    """v0.3.0 / CC-9: nothing is changed silently."""
+    eng, h, _ = open_csv(tmp_path, b"a,b,c\n=SUM(1),-5,@cmd\n+1+1,ok,\n")
+    out = tmp_path / "o.csv"
+    report = eng.export_csv(h, h.sheet_id, out)
+    lines = out.read_text(encoding="utf-8-sig").splitlines()
+    assert lines[1] == "'=SUM(1),-5,'@cmd"  # the NUMBER -5 is untouched; text is prefixed
+    assert lines[2] == "'+1+1,ok,"
+    assert [i.location for i in report.items] == ["A2", "C2", "A3"]
+    assert report.summary.partial == 3
+    assert all(
+        i.code == "export.csv.formula_neutralized" and i.status == "partial" for i in report.items
+    )
+
+
+def test_column_letters_beyond_z() -> None:
+    from gridora_api.composition.stubs.engine_stub import _col_letters
+
+    assert [_col_letters(i) for i in (0, 25, 26, 51, 52, 701, 702)] == [
+        "A",
+        "Z",
+        "AA",
+        "AZ",
+        "BA",
+        "ZZ",
+        "AAA",
+    ]
 
 
 def test_oversized_sheet_is_refused(tmp_path: Path) -> None:
