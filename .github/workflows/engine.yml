@@ -4,10 +4,10 @@ permissions:
   contents: read
 on:
   pull_request:
-    paths: ["packages/engine/**", "contracts/**"]
+    paths: ["packages/engine/**", "contracts/**", ".github/workflows/engine.yml"]
   push:
     branches: [main]
-    paths: ["packages/engine/**", "contracts/**"]
+    paths: ["packages/engine/**", "contracts/**", ".github/workflows/engine.yml"]
 jobs:
   engine:
     runs-on: ubuntu-latest
