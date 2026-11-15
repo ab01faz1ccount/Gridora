@@ -198,12 +198,13 @@ class ParquetTableStore:
 
     def sheet_range_to_table(self, ctx: ExecContext, rng: Range, header_row: bool,
                              dtype_overrides: dict[str, str] | None = None,
-                             preview: bool = False) -> DataTable | TableImportPreview:
-        """`preview=True` returns a TableImportPreview (schema, first rows, warnings) and stores nothing."""
+                             preview: bool = False, name: str | None = None) -> DataTable | TableImportPreview:
+        """`preview=True` returns a TableImportPreview (schema, first rows, warnings) and stores nothing.
+        `name` (contract v0.4.0) names the new table; default `Table A1:D4` from the range."""
         frame, warnings = import_range(ctx, rng, header_row, dtype_overrides)
         if preview:
             return preview_of(frame, warnings)
-        return self.create_table(self._owner(ctx), ctx.workspace_id, f"Table {a1(rng)}", frame)
+        return self.create_table(self._owner(ctx), ctx.workspace_id, (name or "").strip() or f"Table {a1(rng)}", frame)
 
     def table_to_cells(self, table_id: str, ctx: ExecContext, anchor: Range, version: int | None = None) -> Delta:
         """Write header + rows starting at the anchor's top-left cell. Never overwrites non-empty cells and
