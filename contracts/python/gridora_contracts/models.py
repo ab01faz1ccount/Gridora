@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
-CONTRACT_VERSION = "0.3.0"
+CONTRACT_VERSION = "0.4.0"
 MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
 MAX_WINDOW_COLS = 100
 
@@ -227,6 +227,9 @@ class SheetRangeTarget(_Base):
 class DataTableTarget(_Base):
     kind: Literal["data_table"] = "data_table"
     table_id: str
+    # v0.4.0: apps/api fills this with the CURRENT version pointer (it changes on undo/redo).
+    # None = "latest existing version" (only safe when no undo has happened).
+    version: Optional[int] = Field(default=None, ge=1)
 
 
 Target = Annotated[Union[SheetRangeTarget, DataTableTarget], Field(discriminator="kind")]
@@ -271,6 +274,20 @@ class TableVersionDelta(_Base):
     to_version: int = Field(ge=1)
 
 
+class RangeSnapshotDelta(_Base):
+    """v0.4.0 (reserved, ADR-014): a large in-place range write whose before/after contents are
+    stored as opaque blobs (engine-defined, versioned, compressed columnar format) instead of
+    inline cells. Lifts the 200,000-cell cell_patch cap. Produced only by engines that implement
+    BlobStore-backed snapshots; consumers must treat unknown refs as opaque."""
+
+    kind: Literal["range_snapshot"] = "range_snapshot"
+    sheet_id: str
+    range: Range
+    before_ref: str
+    after_ref: str
+    cell_count: int = Field(ge=0)
+
+
 class SheetStructureDelta(_Base):
     kind: Literal["sheet_structure"] = "sheet_structure"
     sheet_id: str
@@ -278,7 +295,8 @@ class SheetStructureDelta(_Base):
 
 
 Delta = Annotated[
-    Union[CellPatchDelta, TableVersionDelta, SheetStructureDelta], Field(discriminator="kind")
+    Union[CellPatchDelta, TableVersionDelta, RangeSnapshotDelta, SheetStructureDelta],
+    Field(discriminator="kind")
 ]
 
 
@@ -376,6 +394,28 @@ class ChartData(_Base):
 
     categories: list[Union[str, float]]
     series: list[dict[str, Any]]  # {"name": str, "values": list[number|None]}
+
+
+# ------------------------------------------------- columnar range (v0.4.0) ----
+ColumnKind = Literal["empty", "num", "str", "bool", "date", "mixed"]
+
+
+class ColumnarColumn(_Base):
+    """One column of a range as plain Python values, without a pydantic object per cell.
+    kind "num": float | None; "str": str | None; "bool": bool | None;
+    "date": ISO-8601 date/datetime str | None; "empty": all None;
+    "mixed": list of Optional[CellValue] dicts (exact fallback, includes error values)."""
+
+    kind: ColumnKind
+    values: list[Any]
+
+
+class ColumnarRange(_Base):
+    range: Range
+    columns: list[ColumnarColumn]  # exactly (c1 - c0 + 1) columns, each (r1 - r0 + 1) long
+    # True if ANY cell has a formula. Columnar access carries values only; callers that care
+    # about formulas (all in-place dataops) must then use the row-major read_range instead.
+    has_formulas: bool = False
 
 
 # ------------------------------------------------- styles and layout ----

@@ -38,7 +38,7 @@ Legend: Planned · In progress · Implemented · Tested · Integrated.
 | Module | Status | Verified by Agent 0 | Integrated | Known limitations |
 |---|---|---|---|---|
 | Architecture & contract docs | Implemented | Read | n/a | CC decisions recorded in `docs/reviews/` |
-| `contracts/` v0.3.0 | Tested | 13 tests pass; TS strict typecheck passes | No | Self-consistency only; no JSON Schema export |
+| `contracts/` v0.4.0 | Tested | 16 tests pass; TS strict typecheck passes | No | Self-consistency only; no JSON Schema export |
 | `packages/engine` | In progress (E1: CSV import/export, cell store) | 64 engine tests pass, `mypy --strict` clean | With `apps/api` through the stub-swap factory only | **No XLSX import/export, no edits, no formulas yet.** XLSX open cost unmeasured (probe: ~6 s lower bound for an eager parse) |
 | `packages/dataops` | In progress (M0–M5 implemented per Agent 2) | Not run (no polars offline) | Not yet against the real engine | No 100k benchmark through the executor yet; join cannot be a pipeline step; README has stale lines |
 | `apps/api` | In progress (PR 1–5) | Not run (no fastapi/Postgres offline) | Stub engine/executor only | No history/undo, no operations endpoints, no export; single worker; import in a thread (ADR-011) |

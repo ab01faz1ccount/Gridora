@@ -4,7 +4,7 @@ Rules (docs/MODULE_BOUNDARIES.md): engine and dataops never import each other.
 dataops reaches sheet data only through ExecContext, supplied by apps/api.
 
 Real-module entry points (modules MUST export exactly these; apps/api imports nothing else):
-    gridora_engine.create_engine(config: Mapping[str, Any]) -> WorkbookEngine
+    gridora_engine.create_engine(config: Mapping[str, Any], blobs: Optional[BlobStore] = None) -> WorkbookEngine
     gridora_dataops.create_executor(config: Mapping[str, Any]) -> OperationExecutor
     gridora_dataops.create_table_store(path_for: PathResolver) -> TableStore
     gridora_dataops.catalog(locale: str) -> dict[str, str]     # flat i18n key -> text
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
 from .models import (
-    Cell, CellEdit, CellValue, CellWindow, ChartData, ChartSpec, CompatibilityReport, DataTable,
+    Cell, CellEdit, CellValue, CellWindow, ChartData, ColumnarRange, ChartSpec, CompatibilityReport, DataTable,
     Delta, Operation, OperationDescriptor, OperationResult, Pipeline, PreviewResult, Range,
     SheetLayout, StyleInfo, Target, Tool, ValidationError, Window, Workbook,
 )
@@ -104,6 +104,28 @@ class ExecContext(Protocol):
 
 
 @runtime_checkable
+class ColumnarExecContext(Protocol):
+    """Optional ExecContext extension (v0.4.0, ADR-014). dataops feature-detects it with
+    isinstance(ctx, ColumnarExecContext) and falls back to read_range/write_range otherwise.
+    Purpose: skip building a pydantic Cell per cell (about 7 microseconds per cell measured)."""
+
+    def read_range_columnar(self, rng: Range) -> ColumnarRange: ...
+
+    def write_range_columnar(self, rng: Range, data: ColumnarRange) -> Delta:
+        """Same semantics as write_range: values only, uncovered cells of `rng` are cleared.
+        The delta may be a cell_patch, or a range_snapshot once the engine supports it."""
+        ...
+
+
+class BlobStore(Protocol):
+    """Supplied by apps/api to an engine that produces range_snapshot deltas (ADR-014).
+    Refs are opaque, owner-scoped by apps/api; the engine never sees paths."""
+
+    def put(self, data: bytes) -> str: ...
+    def get(self, ref: str) -> bytes: ...
+
+
+@runtime_checkable
 class OperationExecutor(Protocol):
     """Implemented by packages/dataops (Agent 2)."""
 
@@ -135,7 +157,7 @@ class TableStore(Protocol):
                   version: Optional[int] = None) -> list[list[Any]]: ...
     def sheet_range_to_table(self, ctx: ExecContext, rng: Range, header_row: bool,
                              dtype_overrides: Optional[dict[str, str]] = None,
-                             preview: bool = False) -> Any: ...
+                             preview: bool = False, name: Optional[str] = None) -> Any: ...  # name: v0.4.0
     def table_to_cells(self, table_id: str, ctx: ExecContext, anchor: Range,
                        version: Optional[int] = None) -> Delta: ...
     def restore_version(self, table_id: str, version: int) -> DataTable:
