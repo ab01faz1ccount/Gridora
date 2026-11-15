@@ -19,8 +19,8 @@ def _params(fn: object) -> list[inspect.Parameter]:
     return [p for n, p in inspect.signature(fn).parameters.items() if n != "self"]  # type: ignore[arg-type]
 
 
-def test_written_against_contract_0_3() -> None:
-    assert models.CONTRACT_VERSION.startswith("0.3."), "contracts/ changed: re-read the CHANGELOG and update dataops"
+def test_written_against_contract_0_4() -> None:
+    assert models.CONTRACT_VERSION.startswith("0.4."), "contracts/ changed: re-read the CHANGELOG and update dataops"
 
 
 @pytest.mark.parametrize(("proto", "impl"), [(OperationExecutor, DataOpsExecutor), (TableStore, ParquetTableStore)])

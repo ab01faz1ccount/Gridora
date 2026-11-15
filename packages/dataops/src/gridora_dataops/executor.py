@@ -113,7 +113,7 @@ class DataOpsExecutor:
             return _Source(sf.frame, sf.names, sf.has_header, sheet=sf)
         assert isinstance(target, DataTableTarget)
         store = self._store(ctx)
-        wanted: Optional[int] = getattr(target, "version", None)
+        wanted: Optional[int] = target.version
         frame, version = store.read_frame(ctx.user_id, target.table_id, wanted)
         return _Source(frame, list(frame.columns), True,
                        table=_TableRef(store, ctx.user_id, target.table_id, version, assumed=wanted is None))

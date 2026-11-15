@@ -324,3 +324,56 @@ def test_filter_output_name_and_no_header_option(store: ParquetTableStore) -> No
     assert DataOpsExecutor().apply(op, ctx).status == "ok"
     assert store.for_owner("u1").read_page("t1", 0, 5) == [[2, "y"]]
     assert StrValue(s="x")
+
+
+# ------------------------------------------------------------ contract v0.4.0: version pointer and name
+def test_target_version_is_honoured_and_the_warning_only_appears_when_it_is_absent(store: ParquetTableStore) -> None:
+    ctx = ctx_with(store)
+    make_table(store, ctx)
+    ex = DataOpsExecutor()
+    r2 = ex.apply(top("t1", "remove_duplicates"), ctx)                         # v2 has 3 rows (v1 has 4)
+    assert r2.delta == TableVersionDelta(table_id="t1", from_version=1, to_version=2)
+    op = Operation(type="sort", target=DataTableTarget(table_id="t1", version=1),
+                   params={"keys": [{"column": "n", "direction": "desc"}]})   # the API's pointer is back at v1 (undo)
+    r3 = ex.apply(op, ctx)
+    assert r3.status == "ok" and r3.delta == TableVersionDelta(table_id="t1", from_version=1, to_version=3)
+    assert not any(w.code == "table_version_assumed" for w in r3.warnings)
+    s = store.for_owner("u1")
+    assert [r[1] for r in s.read_page("t1", 0, 10, version=3)] == [3, 2, 1, 1]  # 4 rows: derived from v1, not from v2
+    assert len(s.read_page("t1", 0, 10, version=2)) == 3                      # v2 untouched
+    r4 = ex.apply(top("t1", "sort", keys=[{"column": "n"}]), ctx)             # no version: highest, with the warning
+    assert any(w.code == "table_version_assumed" for w in r4.warnings)
+
+
+def test_an_unavailable_target_version_is_a_typed_error(store: ParquetTableStore) -> None:
+    ctx = ctx_with(store)
+    make_table(store, ctx)
+    op = Operation(type="sort", target=DataTableTarget(table_id="t1", version=9), params={"keys": [{"column": "n"}]})
+    res = DataOpsExecutor().apply(op, ctx)
+    assert res.status == "error" and res.errors[0].code == "version_unavailable"
+    assert DataOpsExecutor().validate(op, ctx)[0].code == "version_unavailable"
+
+
+def test_pipeline_starts_at_the_named_version_and_names_each_next_version(store: ParquetTableStore) -> None:
+    from gridora_contracts.models import Pipeline, PipelineStep
+    ctx = ctx_with(store)
+    make_table(store, ctx)
+    ex = DataOpsExecutor()
+    ex.apply(top("t1", "remove_duplicates"), ctx)                              # v2 has 3 rows
+    p = Pipeline(name="p", input_kind="data_table", steps=[PipelineStep(type="sort", params={"keys": [{"column": "n"}]}),
+                                                           PipelineStep(type="fill", params={"mode": "down"})])
+    res = ex.run_pipeline(p, DataTableTarget(table_id="t1", version=1), ctx)
+    assert [r.delta for r in res] == [TableVersionDelta(table_id="t1", from_version=1, to_version=3),
+                                      TableVersionDelta(table_id="t1", from_version=3, to_version=4)]
+    assert all(w.code != "table_version_assumed" for r in res for w in r.warnings)
+    assert store.for_owner("u1").read_page("t1", 0, 10, version=4)[0][1] == 1 and len(store.for_owner("u1").read_page("t1", 0, 10, version=4)) == 4
+
+
+def test_sheet_range_to_table_takes_an_optional_name(store: ParquetTableStore) -> None:
+    ctx = sheet_ctx(store)
+    named = store.sheet_range_to_table(ctx, ctx.rng(0, 0, 3, 3), True, name="  نتایج فروش ")
+    assert named.name == "نتایج فروش"
+    assert store.sheet_range_to_table(ctx, ctx.rng(0, 0, 3, 3), True, name="   ").name == "Table A1:D4"
+    pv = store.sheet_range_to_table(ctx, ctx.rng(0, 0, 3, 3), True, preview=True, name="ignored")
+    assert isinstance(pv, TableImportPreview)
+    assert store.for_owner("u1").restore_version(named.id, 1).name == "نتایج فروش"

@@ -148,6 +148,9 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
                                  "some earlier steps could not be undone; check the data and use the history"))
             return _fail(n, i, errs)
         results.append(res)
-        if isinstance(res.output, DataTableTarget):
+        if isinstance(res.delta, TableVersionDelta):  # name the exact version for the next step (no 'highest' guess)
+            cur_target = DataTableTarget(table_id=res.delta.table_id, version=res.delta.to_version)
+            kind = "data_table"
+        elif isinstance(res.output, DataTableTarget):
             cur_target, kind = res.output, "data_table"
     return results
