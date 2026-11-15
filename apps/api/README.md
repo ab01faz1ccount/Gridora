@@ -77,6 +77,8 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
 - The API owns identity: `Workbook.id` is the document id, `file_id` the stored original, `name` the
   user's display name.
 
+- Upload memory (measured in `deploy/`): a 100 MiB upload through nginx costs ~+5 MB of API peak RSS (streamed to disk). A regression test pins the fix for `check_magic`, which used to read the whole file to look at 8 KiB. The *import* is a different matter: the stub engine holds the whole sheet in memory (a 100 MiB CSV peaked near 670 MB), the real engine's lazy reader is Agent 1's E4 target.
+
 ### What does not work yet
 - No cell edits, history, undo/redo, save, export, operations, tables or charts (PR 10 onward).
   A rebuilt working copy is the stored file only; **history replay is not implemented yet** (no edits

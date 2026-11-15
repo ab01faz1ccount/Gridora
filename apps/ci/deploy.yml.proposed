@@ -1,0 +1,45 @@
+# PROPOSED by Agent 3. This is the check that finally runs the containers (not possible in my sandbox).
+name: deploy-stack
+on:
+  pull_request:
+    paths: ["deploy/**", "apps/api/**", "apps/web/**", "contracts/**"]
+jobs:
+  stack:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: deploy } }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare .env and a dev certificate
+        run: |
+          sed -e 's/CHANGE_ME_letters_and_digits_only/ci0password0123/' \
+              -e 's/CHANGE_ME_at_least_10_characters/ci admin password 123/' .env.example > .env
+          ./scripts/make-dev-cert.sh
+          chmod 644 certs/tls.key
+      - run: docker compose config -q
+      - run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Smoke test (sign in, upload CSV, grid window, headers, 413)
+        run: |
+          BASE_URL=https://localhost HTTP_BASE_URL=http://localhost SMOKE_USER=admin \
+          SMOKE_PASSWORD='ci admin password 123' CURL_OPTS=-k ./scripts/smoke.sh
+      - name: No outbound network from api, postgres, backup
+        run: |
+          for s in api postgres backup; do
+            if docker compose exec -T "$s" sh -c 'wget -q -T 3 -O /dev/null https://example.com 2>/dev/null || python -c "import urllib.request;urllib.request.urlopen(\"https://example.com\",timeout=3)" 2>/dev/null'; then
+              echo "$s HAS outbound access"; exit 1; fi
+          done
+      - name: Containers run as non-root with read-only roots
+        run: |
+          docker compose exec -T api id -u | grep -qx 10001
+          docker compose exec -T api sh -c 'touch /app/x 2>&1' | grep -qi "read-only"
+      - name: Backup then restore inside the stack
+        run: |
+          docker compose exec -T backup backup.sh
+          DUMP=$(docker compose exec -T backup sh -c 'ls /backups/db/*.dump | tail -n1' | tr -d '\r')
+          SNAP=$(docker compose exec -T backup sh -c 'ls -d /backups/files/2* | tail -n1' | tr -d '\r')
+          docker compose stop nginx api
+          docker compose run --rm --no-deps backup restore.sh --yes "$DUMP" "$SNAP"
+          docker compose up -d --wait
+      - if: failure()
+        run: docker compose logs --no-color | tail -300
+      - if: always()
+        run: docker compose down -v

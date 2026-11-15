@@ -48,7 +48,8 @@ def extension_of(display_name: str) -> str | None:
 
 
 def check_magic(path: Path, ext: str) -> None:
-    head = path.read_bytes()[:8192] if path.stat().st_size else b""
+    with open(path, "rb") as f:  # header only: never read a 100 MiB file into memory for this
+        head = f.read(8192)
     if not head:
         raise DomainError("unsupported_media_type", "The file is empty.")
     if ext in ("xlsx", "xlsm"):

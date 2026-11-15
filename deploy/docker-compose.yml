@@ -1,0 +1,112 @@
+# Gridora production stack: nginx (TLS + static + reverse proxy), api, postgres, backup.
+# Run from this folder:  cp .env.example .env  (edit it)  &&  docker compose up -d --build
+#
+# Networks: only nginx touches the outside. `backend` is `internal: true`, so api, postgres and
+# backup have NO route out (nothing is needed at runtime: no CDN, no telemetry, no update checks).
+name: gridora
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gridora
+      POSTGRES_DB: gridora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gridora -d gridora"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      GRIDORA_ENV: prod
+      GRIDORA_DATABASE_URL: postgresql+asyncpg://gridora:${POSTGRES_PASSWORD}@postgres:5432/gridora
+      GRIDORA_DATA_ROOT: /data
+      GRIDORA_SECURE_COOKIES: "true"
+      GRIDORA_TRUST_PROXY_HEADERS: "true"   # the only client of this container is our nginx
+      GRIDORA_ENGINE: ${GRIDORA_ENGINE:-stub}
+      GRIDORA_DATAOPS: ${GRIDORA_DATAOPS:-stub}
+      GRIDORA_BOOTSTRAP_ADMIN_USERNAME: ${GRIDORA_BOOTSTRAP_ADMIN_USERNAME:-}
+      GRIDORA_BOOTSTRAP_ADMIN_PASSWORD: ${GRIDORA_BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      - dataroot:/data
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+      - "${HTTPS_PORT:-443}:8443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    networks: [edge, backend]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/nginx-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  backup:
+    build:
+      context: ..
+      dockerfile: deploy/backup/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    user: "10001"            # same uid as the api: stored files are 0600 and owned by it
+    environment:
+      PGHOST: postgres
+      PGUSER: gridora
+      PGDATABASE: gridora
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_AT: ${BACKUP_AT:-02:30}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - dataroot:/data:ro
+      - backups:/backups
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+
+volumes:
+  pgdata: {}
+  dataroot: {}
+  backups: {}   # replace with a bind mount to another disk/host for real protection (see RUNBOOK.md)
