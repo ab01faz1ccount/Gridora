@@ -134,3 +134,9 @@ def test_columnar_range_roundtrip_and_snapshot_delta():
 
 def test_optional_columnar_protocols_exist():
     assert ColumnarExecContext is not None and BlobStore is not None
+
+
+def test_columnar_engine_protocol_and_contract_patch_version():
+    from gridora_contracts import ColumnarEngine, models
+    assert ColumnarEngine is not None
+    assert models.CONTRACT_VERSION.startswith("0.4.")

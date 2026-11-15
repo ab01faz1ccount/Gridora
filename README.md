@@ -18,8 +18,8 @@ A self-hosted, browser-based spreadsheet and data platform. The goal: give peopl
 | Phase | Document | State |
 |---|---|---|
 | 1 — Architecture & contracts | [docs/phases/PHASE-1.md](docs/phases/PHASE-1.md) | Done (documents) |
-| 2 — Agent plans & engine spike | [docs/phases/PHASE-2.md](docs/phases/PHASE-2.md) | Ready to start |
-| 3 — Build & integrate | [docs/phases/PHASE-3.md](docs/phases/PHASE-3.md) | Planned |
+| 2 — Agent plans & engine spike | [docs/phases/PHASE-2.md](docs/phases/PHASE-2.md) | Done (plans approved; spike partly open, see ADR-003) |
+| 3 — Build & integrate | [docs/phases/PHASE-3.md](docs/phases/PHASE-3.md) | **In progress** (no end-to-end flow yet) |
 | 4 — Harden & ship | [docs/phases/PHASE-4.md](docs/phases/PHASE-4.md) | Planned |
 
 ## For the agents

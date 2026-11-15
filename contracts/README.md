@@ -15,3 +15,4 @@ Install for local development: `pip install -e contracts/python`. Run tests: `py
 - **0.3.0** — `WorkbookEngine.export_csv` returns a `CompatibilityReport` (CC-9). Agents 1 and 3 update their implementations and stubs; the engine's non-contract `last_export_report` becomes unnecessary.
 - **0.2.0** — Phase 2 review changes (see `docs/reviews/PHASE2_REVIEW.md`, ADR-010).
 - **0.4.0** — ADR-014: `DataTableTarget.version`; optional `ColumnarExecContext` (columnar range read/write); reserved `RangeSnapshotDelta` and `BlobStore`; `sheet_range_to_table(name=...)`. All additions are optional or defaulted; nothing existing changes meaning.
+- **0.4.1** — ADR-015: optional `ColumnarEngine` protocol (engine side of the columnar path). Additive; the 0.4.x guards in module conformance tests keep passing. The history size limit is reported as top-level `operation_conflict` (HTTP 409) with detail code `too_large_for_history` (no new top-level code).

@@ -1,6 +1,6 @@
 # Phase 3 — Build & Integrate
 
-**Status:** Planned. This README is the template that Agent 0 completes with verified facts when the phase finishes; every capability below is **Planned** until the module status table in `docs/INTEGRATION_PLAN.md` says otherwise.
+**Status:** In progress (2026-11-15). Engine: CSV and XLSX read, value edits with undo. Dataops: table operations. API/web: sign-in, workspaces, upload, deploy stack. **No end-to-end flow is running yet**, so every row below stays Planned until it is. This README is the template that Agent 0 completes with verified facts when the phase finishes; every capability below is **Planned** until the module status table in `docs/INTEGRATION_PLAN.md` says otherwise.
 
 ## Goal
 Produce a working vertical slice of the Definition of Success: workspace → import → view/edit → operate → chart → save/reopen → undo/redo → save tool → export → compatibility report.
