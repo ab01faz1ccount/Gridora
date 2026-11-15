@@ -1,0 +1,694 @@
+{
+ "version": 1,
+ "poi_commit": "47dcff769bb395034dddfd59c4609659b6dbc6a4",
+ "files": [
+  {
+   "path": "apache-poi/StructuredRefs-lots-with-lookups.xlsx",
+   "sha256": "09af82b9abae2ffcff04777b69cbb23dfd15df788426153bcfa1e9359c3552be",
+   "bytes": 325446,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/StructuredRefs-lots-with-lookups.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "all-rounder: 5 sheets, tables with structured references, charts, conditional formatting, data validation, external links, 14 defined names, 7,274 formulas",
+   "features": {
+    "charts": true,
+    "tables": true,
+    "drawings": true,
+    "extlinks": true,
+    "sheets": 5,
+    "cells": 38185,
+    "formulas": 7274,
+    "shared": 1744,
+    "cf": 12,
+    "dv": 7,
+    "merges": 426,
+    "names": 14
+   }
+  },
+  {
+   "path": "apache-poi/57181.xlsm",
+   "sha256": "2cf7459faa9d15c1deef4c410fc05142c4f57ebee622668e2526d7b3e34e08fa",
+   "bytes": 334727,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/57181.xlsm",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "macros (VBA, never executed), charts, comments, array formulas, hidden sheet, 213 defined names, 3,087 formulas",
+   "features": {
+    "charts": true,
+    "vba": true,
+    "comments": true,
+    "drawings": true,
+    "media": true,
+    "sheets": 7,
+    "cells": 55245,
+    "formulas": 3087,
+    "array": 16,
+    "merges": 88,
+    "names": 213
+   }
+  },
+  {
+   "path": "apache-poi/47813.xlsx",
+   "sha256": "24ee6b9018780f1159126e1c7ed7e987fbe719b91c0da9a7a23286aea1d391cd",
+   "bytes": 54880,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/47813.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Macintosh Excel",
+   "why": "charts, 1904 date system, Mac Excel, 1,440 formulas",
+   "features": {
+    "charts": true,
+    "drawings": true,
+    "date1904": true,
+    "sheets": 2,
+    "cells": 2164,
+    "formulas": 1440,
+    "shared": 1438
+   }
+  },
+  {
+   "path": "apache-poi/dataValidationTableRange.xlsx",
+   "sha256": "2a41971477de7c0af993a6a8bc3082145230ef04d087170797d167e563da84da",
+   "bytes": 116554,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/dataValidationTableRange.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "data validation over table ranges, charts, tables",
+   "features": {
+    "charts": true,
+    "tables": true,
+    "drawings": true,
+    "sheets": 2,
+    "cells": 6653,
+    "formulas": 87,
+    "cf": 2,
+    "dv": 5,
+    "merges": 6,
+    "names": 23
+   }
+  },
+  {
+   "path": "apache-poi/ExcelPivotTableSample.xlsx",
+   "sha256": "f0ef1d61c9f3d8b27b18a876b8e24676314c6450ed64a725a7bfaa603fdd67e3",
+   "bytes": 19460,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/ExcelPivotTableSample.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "pivot table (small, Excel-made)",
+   "features": {
+    "pivot": true,
+    "tables": true,
+    "sheets": 3,
+    "cells": 52
+   }
+  },
+  {
+   "path": "apache-poi/DataTableCities.xlsx",
+   "sha256": "3b17486d4015b124423d38966a0aa88757b2177087941a905704b634204aed4e",
+   "bytes": 23936,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/DataTableCities.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "pivot table plus table, formulas",
+   "features": {
+    "charts": true,
+    "pivot": true,
+    "tables": true,
+    "drawings": true,
+    "sheets": 3,
+    "cells": 185,
+    "formulas": 14
+   }
+  },
+  {
+   "path": "apache-poi/WithChartSheet.xlsx",
+   "sha256": "792b9f21afdb6b8b1f82345864ee15d55c17a1b54d71c250e82c87304385d362",
+   "bytes": 30333,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/WithChartSheet.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "pivot table plus a chart sheet",
+   "features": {
+    "charts": true,
+    "pivot": true,
+    "drawings": true,
+    "sheets": 6,
+    "cells": 297,
+    "merges": 3
+   }
+  },
+  {
+   "path": "apache-poi/54436.xlsx",
+   "sha256": "658dd3273ddb40f1984c38bd587973546b7adffaab1135c0c8bb47035bba0e52",
+   "bytes": 12180,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/54436.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "pivot table, tiny",
+   "features": {
+    "pivot": true,
+    "sheets": 1,
+    "cells": 28,
+    "formulas": 1
+   }
+  },
+  {
+   "path": "apache-poi/LIBRE_OFFICE-116306-0.xlsx",
+   "sha256": "44d0f41ed21aec02f9a6bbd22cf73f9bd313b16006fe867e6c5fbe5a0a25e5f1",
+   "bytes": 2859963,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/LIBRE_OFFICE-116306-0.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "pivot with a large cache, 664,571 non-empty cells, 2.8 MB: lazy-open and memory test",
+   "features": {
+    "pivot": true,
+    "sheets": 2,
+    "cells": 664571,
+    "names": 1
+   }
+  },
+  {
+   "path": "apache-poi/61495-test.xlsm",
+   "sha256": "08635e6c25de224844bbcc0167015a48f461e5f2ab76e6ff50e0e10843f487b7",
+   "bytes": 20344,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/61495-test.xlsm",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "small macro workbook",
+   "features": {
+    "vba": true,
+    "sheets": 1,
+    "cells": 255,
+    "formulas": 2,
+    "cf": 2
+   }
+  },
+  {
+   "path": "apache-poi/testNames.xlsm",
+   "sha256": "2283c7bbffb916e9764b3dd0338a48f2a8b1685e6acc0e93482c3433578fd85f",
+   "bytes": 13290,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/testNames.xlsm",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "macro workbook with defined names",
+   "features": {
+    "vba": true,
+    "sheets": 1,
+    "cells": 15,
+    "formulas": 7,
+    "errors": 1,
+    "names": 5
+   }
+  },
+  {
+   "path": "apache-poi/ExcelWithAttachments.xlsm",
+   "sha256": "34779a3208c1625d22058ae1f9dbe5afbde9c815785b77b1d883b4ef03ff42ee",
+   "bytes": 62646,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/ExcelWithAttachments.xlsm",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "macro workbook with embedded attachments",
+   "features": {
+    "vba": true,
+    "comments": true,
+    "drawings": true,
+    "media": true,
+    "sheets": 3,
+    "cells": 87,
+    "names": 3
+   }
+  },
+  {
+   "path": "apache-poi/60512.xlsm",
+   "sha256": "bc94f5699255e8c093908e56f909827861b5baeed0b9c13bfc792530e2065268",
+   "bytes": 66151,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/60512.xlsm",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "macros, 219 formulas, error values",
+   "features": {
+    "drawings": true,
+    "media": true,
+    "sheets": 1,
+    "cells": 1239,
+    "formulas": 219,
+    "shared": 63,
+    "merges": 23,
+    "errors": 3
+   }
+  },
+  {
+   "path": "apache-poi/ConditionalFormattingSamples.xlsx",
+   "sha256": "8dfa997a642c00a1da8c0750c371f204553a98c537ca046028b052f9b424a074",
+   "bytes": 654688,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/ConditionalFormattingSamples.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "many conditional-format kinds (extLst), tables, 352 formulas",
+   "features": {
+    "tables": true,
+    "drawings": true,
+    "media": true,
+    "sheets": 18,
+    "cells": 2273,
+    "formulas": 352,
+    "shared": 311,
+    "cf": 38,
+    "dv": 3,
+    "merges": 7
+   }
+  },
+  {
+   "path": "apache-poi/NewStyleConditionalFormattings.xlsx",
+   "sha256": "1e97af3b87636bd0a759c25439a21b928c2ff3b9a3c57ca49ae24cb1ccdb7e2f",
+   "bytes": 13378,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/NewStyleConditionalFormattings.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "new-style conditional formats (data bars, icon sets)",
+   "features": {
+    "sheets": 1,
+    "cells": 340,
+    "formulas": 304,
+    "shared": 303,
+    "cf": 18
+   }
+  },
+  {
+   "path": "apache-poi/conditional_formatting_with_formula_on_second_sheet.xlsx",
+   "sha256": "c69d5988b66917d9e51dfdea04a75358b77061feebd2d7fc625c6ffdda85d816",
+   "bytes": 69367,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/conditional_formatting_with_formula_on_second_sheet.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "conditional format referencing another sheet",
+   "features": {
+    "sheets": 2,
+    "cells": 27,
+    "cf": 6,
+    "names": 2
+   }
+  },
+  {
+   "path": "apache-poi/DataValidationEvaluations.xlsx",
+   "sha256": "ea5706d9afc031a8c2afef880559483bad30ab2c18e2857aca5f3cfaa74decf4",
+   "bytes": 13679,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/DataValidationEvaluations.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "data validation kinds",
+   "features": {
+    "tables": true,
+    "comments": true,
+    "drawings": true,
+    "sheets": 1,
+    "cells": 143,
+    "formulas": 1,
+    "dv": 17,
+    "errors": 1,
+    "names": 1
+   }
+  },
+  {
+   "path": "apache-poi/FormulaEvalTestData_Copy.xlsx",
+   "sha256": "01b21647d53501e8ec10f4eb522945d41ea3c8d1fdd57f8b0142ec34884c33eb",
+   "bytes": 65011,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/FormulaEvalTestData_Copy.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "1,295 formulas, comments, shared formulas, error values (also useful for the later formula core)",
+   "features": {
+    "comments": true,
+    "drawings": true,
+    "sheets": 4,
+    "cells": 4588,
+    "formulas": 1295,
+    "shared": 62,
+    "merges": 6,
+    "errors": 527
+   }
+  },
+  {
+   "path": "apache-poi/45544.xlsx",
+   "sha256": "a6ed1a727f7b741128565512d4b55d9cb74b52efec391109d783ece5dcbe81d8",
+   "bytes": 43042,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/45544.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "comments plus 104 formulas",
+   "features": {
+    "charts": true,
+    "comments": true,
+    "drawings": true,
+    "sheets": 7,
+    "cells": 921,
+    "formulas": 104,
+    "shared": 52
+   }
+  },
+  {
+   "path": "apache-poi/MatrixFormulaEvalTestData.xlsx",
+   "sha256": "12f1dcef889c20fe54a09857790ba9803a7b061cc9fc5b85d0038cd6c86faa79",
+   "bytes": 14875,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/MatrixFormulaEvalTestData.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "array (matrix) formulas, error values",
+   "features": {
+    "sheets": 1,
+    "cells": 783,
+    "formulas": 36,
+    "array": 32,
+    "merges": 32,
+    "errors": 246
+   }
+  },
+  {
+   "path": "apache-poi/xlookup.xlsx",
+   "sha256": "4d8fd3db6469df14f280964b3a447e0be027eda0e2195ca62693e92d8d353910",
+   "bytes": 12031,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/xlookup.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel Online",
+   "why": "XLOOKUP and dynamic arrays (Excel Online)",
+   "features": {
+    "sheets": 3,
+    "cells": 97,
+    "formulas": 4,
+    "array": 1
+   }
+  },
+  {
+   "path": "apache-poi/51710.xlsx",
+   "sha256": "e83661bb4fdc02893f547ba910ab85241957f068da506ec07a9efcb638677700",
+   "bytes": 85202,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/51710.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "13,176 formulas, shared formulas",
+   "features": {
+    "sheets": 1,
+    "cells": 13688,
+    "formulas": 13176,
+    "shared": 13175
+   }
+  },
+  {
+   "path": "apache-poi/Tables.xlsx",
+   "sha256": "3402bd6406a6ef32c3b88c45decb820f0ca797a8d971007f869b5ad3743bcbc8",
+   "bytes": 54387,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/Tables.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "tables with shared formulas",
+   "features": {
+    "sheets": 12,
+    "cells": 3544,
+    "formulas": 21,
+    "shared": 21,
+    "merges": 73,
+    "names": 8
+   }
+  },
+  {
+   "path": "apache-poi/VLookupFullColumn.xlsx",
+   "sha256": "2788b77ec3407056e75a56ae1ee01b0222e353ca29910a12ffc1e9a62569a990",
+   "bytes": 13504,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/VLookupFullColumn.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "lookups over full columns, error values",
+   "features": {
+    "sheets": 3,
+    "cells": 623,
+    "formulas": 308,
+    "shared": 307,
+    "errors": 307
+   }
+  },
+  {
+   "path": "apache-poi/46535.xlsx",
+   "sha256": "3aefff05aa9eab15b18ecfac53d0dd733eae82f7655139422db562a19e412324",
+   "bytes": 313321,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/46535.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "external links plus error values, 342 formulas",
+   "features": {
+    "extlinks": true,
+    "sheets": 5,
+    "cells": 7369,
+    "formulas": 342,
+    "cf": 2,
+    "merges": 10,
+    "errors": 331,
+    "names": 9
+   }
+  },
+  {
+   "path": "apache-poi/NumberFormatTests.xlsx",
+   "sha256": "a11d437ee538abe36d630a4795dd30d5823a68dce02a404a45e085dd49c4435d",
+   "bytes": 21470,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/NumberFormatTests.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Macintosh Excel",
+   "why": "number formats, 1904 date system",
+   "features": {
+    "date1904": true,
+    "sheets": 2,
+    "cells": 1322,
+    "formulas": 325,
+    "shared": 298
+   }
+  },
+  {
+   "path": "apache-poi/GeneralFormatTests.xlsx",
+   "sha256": "607ff06ff0295d0920d81b27e09b91e86301b9f3862d1d22b093f8f8c5a4de28",
+   "bytes": 36134,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/GeneralFormatTests.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Macintosh Excel",
+   "why": "General format cases, 1904 date system",
+   "features": {
+    "date1904": true,
+    "sheets": 2,
+    "cells": 578,
+    "formulas": 72,
+    "shared": 70
+   }
+  },
+  {
+   "path": "apache-poi/right-to-left.xlsx",
+   "sha256": "419ef388b20501009a8c546f20ca0371abac168389b556ba47c52f48f0e7f3b0",
+   "bytes": 14478,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/right-to-left.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel Online",
+   "why": "Arabic-script text (Excel Online); NOTE it has no RTL sheet view, so it is not a substitute for a real Persian RTL workbook",
+   "features": {
+    "comments": true,
+    "drawings": true,
+    "sheets": 2,
+    "cells": 8
+   }
+  },
+  {
+   "path": "apache-poi/bug62181.xlsx",
+   "sha256": "f818f27a244f8527a055a56f7a8f838f517615aa6abca16f586d89bf70183a3a",
+   "bytes": 874738,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/bug62181.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "single sheet, 175,095 cells, no formulas: row-window test",
+   "features": {
+    "media": true,
+    "sheets": 1,
+    "cells": 175095
+   }
+  },
+  {
+   "path": "hostile/58616.xlsx",
+   "sha256": "32613e96db73590cb63c9194e5b1190ba7eb4552f4638afecd584dfd5931988f",
+   "bytes": 125952,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/58616.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIFuzzer-5040805309710336.xlsx",
+   "sha256": "ab7e62cbb8990befd18ac61d9114af4bdeb8d4d8dcc9ed2b219b74244d19652d",
+   "bytes": 5145,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIFuzzer-5040805309710336.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {
+    "comments": true
+   }
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-4828727001088000.xlsx",
+   "sha256": "95d38f6b6ba90f977a30428ae11ea673a1519984165827f7818a8a310964d34d",
+   "bytes": 10226,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-4828727001088000.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-5089447305609216.xlsx",
+   "sha256": "81b40a100a7521f5b560bc3d1d7128c54bf1a0711e3da8e72dad8b70ace2e255",
+   "bytes": 7958,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-5089447305609216.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-5185049589579776.xlsx",
+   "sha256": "fe393e289221e5d0fc1611ec9a416a826bfa8cf4d4d3cc061a45b93ef447e378",
+   "bytes": 9053,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-5185049589579776.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-5937385319563264.xlsx",
+   "sha256": "150097f203a5d18f29c4799a477e403565c95d16a7f03d9503cba73429f4266a",
+   "bytes": 54387,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-5937385319563264.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": "Microsoft Excel",
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {
+    "sheets": 12,
+    "names": 8
+   }
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-6123461607817216.xlsx",
+   "sha256": "759df2993da5c960644be3f51e01073502a8a80b2d63c52253f4ec853bf32f5d",
+   "bytes": 5327,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-6123461607817216.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-6419366255919104.xlsx",
+   "sha256": "0a98e11497a7596b6b0d8e4dee5a537b7a02d3cc558d06ee05a6563399d14ffd",
+   "bytes": 8420,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-6419366255919104.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-POIXSSFFuzzer-6448258963341312.xlsx",
+   "sha256": "002b86de5d3bc0764bbba7f52ca7416c7d813640a205a23b55529dd50669c3d9",
+   "bytes": 6874,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-POIXSSFFuzzer-6448258963341312.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5025401116950528.xlsx",
+   "sha256": "2471661d4400985eaaa1d3f41de214da43b84c8ace42b0a9e9cfb386d910509a",
+   "bytes": 5615,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5025401116950528.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5542865479270400.xlsx",
+   "sha256": "11d74c8026c6635b4175d6250cae75d4cace74e1d92e71124a3863bc7bcb3274",
+   "bytes": 9344,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5542865479270400.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
+   "sha256": "57c472b9fbb1a5ca1337189465c010cfab59516d532e446b172f2a4d5f88e23f",
+   "bytes": 372,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-6504225896792064.xlsx",
+   "sha256": "a4e85686a0c801774ca5fad9beac37073ffbc68772bb2937bf133bc34695d482",
+   "bytes": 10245,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-6504225896792064.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-6594557414080512.xlsx",
+   "sha256": "9313f4e25f326db2bc1ef5d4087db9e94267184df76b1bd4b6aff1e4d7171f7b",
+   "bytes": 1523,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-6594557414080512.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/crash-274d6342e4842d61be0fb48eaadad6208ae767ae.xlsx",
+   "sha256": "002b86de5d3bc0764bbba7f52ca7416c7d813640a205a23b55529dd50669c3d9",
+   "bytes": 6874,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/crash-274d6342e4842d61be0fb48eaadad6208ae767ae.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/crash-9bf3cd4bd6f50a8a9339d363c2c7af14b536865c.xlsx",
+   "sha256": "3c7cc047fae52016c6b89f5461411feb371cb71614bcd6422d92bf74b8141ccd",
+   "bytes": 8548,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/crash-9bf3cd4bd6f50a8a9339d363c2c7af14b536865c.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/deep-data.xlsx",
+   "sha256": "382a42a0febe5e79a3053059c81bd8b15486e28e1ed9632b5675cb53980d0c96",
+   "bytes": 964835,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/deep-data.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  },
+  {
+   "path": "hostile/protected_passtika.xlsx",
+   "sha256": "e58713895915de62efead6d99018245cc5490cddd2493c84508b4a67fb001581",
+   "bytes": 12800,
+   "source": "https://github.com/apache/poi/blob/47dcff769bb395034dddfd59c4609659b6dbc6a4/test-data/spreadsheet/protected_passtika.xlsx",
+   "license": "Apache-2.0 (repository license; see NOTE in README)",
+   "made_by": null,
+   "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
+   "features": {}
+  }
+ ]
+}
