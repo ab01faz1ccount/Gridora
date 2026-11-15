@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from gridora_contracts.models import BoolValue, CellValue, ErrValue, NumValue, StrValue
 
-EMPTY, NUM, STR, BOOL, ERR = 0, 1, 2, 3, 4
+EMPTY, NUM, STR, BOOL, ERR, NOVAL = 0, 1, 2, 3, 4, 5  # NOVAL: formula without a cached value
 
 # Index order is part of the in-memory format only (never persisted).
 ERR_CODES: tuple[str, ...] = (

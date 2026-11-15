@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal, Protocol
 
-from gridora_contracts.models import CompatibilityReport, Frozen, SheetMeta, Workbook
+from gridora_contracts.models import CompatibilityReport, DefinedName, Frozen, SheetMeta, Workbook
 
 from .dates import DateSystem
 from .sheet import SheetStore, StoreBudget
 from .values import StringTable
+
+
+class Materializer(Protocol):
+    """Lazy backing of a sheet (XLSX): makes rows available in the SheetStore on demand."""
+
+    def ensure(self, row_lo: int, row_hi: int) -> None: ...
+    def materialize_all(self) -> None: ...
+    def used_hint(self) -> tuple[int, int]: ...
+    def close(self) -> None: ...
+
+
+@dataclass
+class StyleInfo:
+    """Per cell-format (xf) index: number format id and whether it shows a date/time."""
+
+    xf_numfmt: list[int] = field(default_factory=list)
+    xf_is_date: list[bool] = field(default_factory=list)
 
 
 @dataclass
@@ -19,9 +36,20 @@ class SheetState:
     rtl: bool = False
     visible: Literal["visible", "hidden", "very_hidden"] = "visible"
     frozen: Frozen | None = None
+    lazy: Materializer | None = None
+    part_name: str = ""
+    formulas: dict[int, str] = field(default_factory=dict)  # (r << 14) | c -> text without '='
+    fkind: dict[int, int] = field(default_factory=dict)  # see xlsx.cellparse (2..5)
+
+    def ensure(self, row_lo: int, row_hi: int) -> None:
+        if self.lazy is not None:
+            self.lazy.ensure(row_lo, row_hi)
 
     def meta(self) -> SheetMeta:
         rows, cols = self.store.used_size()
+        if self.lazy is not None:
+            hr, hc = self.lazy.used_hint()
+            rows, cols = max(rows, hr), max(cols, hc)
         return SheetMeta(
             id=self.id, name=self.name, index=self.index, visible=self.visible,
             row_count=rows, col_count=cols, frozen=self.frozen, rtl=self.rtl,
@@ -38,6 +66,10 @@ class WorkbookState:
     sheets: list[SheetState] = field(default_factory=list)
     date_system: DateSystem = "1900"
     compat: CompatibilityReport | None = None
+    defined_names: list[DefinedName] = field(default_factory=list)
+    styles: StyleInfo | None = None
+    package: Any = None  # PackageModel for XLSX workbooks (kept open: parts stream from it)
+    findings: list[Any] = field(default_factory=list)  # lazily discovered anomalies (E6 report)
 
     def sheet(self, sheet_id: str) -> SheetState | None:
         for s in self.sheets:
@@ -48,6 +80,14 @@ class WorkbookState:
     def to_model(self) -> Workbook:
         return Workbook(
             id=self.id, file_id=self.file_id, name=self.name,
-            sheets=[s.meta() for s in self.sheets],
+            sheets=[s.meta() for s in self.sheets], defined_names=self.defined_names,
             date_system=self.date_system, compat=self.compat,
         )
+
+    def close(self) -> None:
+        for s in self.sheets:
+            if s.lazy is not None:
+                s.lazy.close()
+        if self.package is not None:
+            self.package.close()
+            self.package = None
