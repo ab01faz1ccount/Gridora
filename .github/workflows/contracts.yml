@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npx --yes typescript@5 tsc --noEmit --strict --target es2020 contracts/typescript/index.ts
+      - run: npx --yes --package=typescript@5 tsc --noEmit --strict --target es2020 contracts/typescript/index.ts
   boundaries:
     runs-on: ubuntu-latest
     steps:
