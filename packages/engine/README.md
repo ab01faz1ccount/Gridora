@@ -2,7 +2,7 @@
 
 Owner: Agent 1. Brief: [agents/AGENT_1_ENGINE.md](../../agents/AGENT_1_ENGINE.md). Plan: [PLAN.md](PLAN.md).
 
-**Status (E4): CSV, XLSX read (lazy), cell store, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
+**Status (E5): CSV, XLSX read (lazy), value edits with undo/redo, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
 
 What works (tested in `tests/`):
 - `import_csv`: encoding detection (BOM, strict UTF-8, Windows-1256 guess, Windows-1252 fallback;
@@ -51,8 +51,25 @@ XLSX import (`import_xlsx`, read-only so far):
   (ids only); fixtures are generated, **no Excel-produced file has been tested**; whole-sheet reads are slow
   in pure Python (see BENCHMARKS.md).
 
-What does not work yet (raises `EngineNotImplementedError`): `apply_cell_edits`,
-`apply_delta`, `recalculate`, `export_xlsx`. `FormattingEngine`/`StructureEngine` not implemented.
+Edits (`apply_cell_edits`, `apply_delta`; CSV and XLSX workbooks, value edits only):
+- A `CellPatchDelta` carries before/after for exactly the edited cells (CC-4 semantics; there are no
+  formula dependents to add yet). `apply_delta(inverse=True/False)` restores/re-applies cell contents
+  exactly (value, formula text, style id) and never recalculates. Edits are atomic: validation first,
+  rollback on any failure (e.g. a cell/memory budget hit midway).
+- Rejected with `validation_failed` and a stable `reason`: formulas (`edit.formulas_unsupported`),
+  coordinates outside Excel's limits, NaN/infinity, texts over 32,767 characters, more than
+  `max_patch_cells` (200,000) cells (`too_large_for_history`), dates in a workbook without a date format
+  (`edit.date_needs_format`; otherwise the cell keeps its date style or gets the workbook's first one),
+  and **cells that belong to shared or array formulas** (`edit.protected_formula_cell`) until E7 can
+  translate them. Overwriting an ordinary formula cell with a value is allowed and undoable.
+- Lazy sheets: the 256-row blocks an edit touches are parsed first, and a later full re-parse keeps
+  edits. `SheetState.dirty` tracks cells that differ from the imported file (basis of the E6 export);
+  typing the original content back makes a cell clean again.
+- **Cached results of formulas are not updated** after an edit (no evaluator yet), so dependents show stale values.
+- `tests/roundtrip/test_replay_determinism.py` replays deltas on a fresh engine (through JSON) and
+  compares full-workbook fingerprints at every step, including full undo/redo.
+
+What does not work yet (raises `EngineNotImplementedError`): `recalculate`, `export_xlsx`. `FormattingEngine`/`StructureEngine` not implemented.
 
 Known limitations:
 - CSV dates and booleans stay text (no inference). Leading `+` numbers stay text on purpose.

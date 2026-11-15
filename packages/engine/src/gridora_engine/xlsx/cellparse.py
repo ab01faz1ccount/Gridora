@@ -66,10 +66,12 @@ class SheetCtx:
     findings: Findings
     formulas: dict[int, str] = field(default_factory=dict)  # (r<<14)|c -> text without '='
     fkind: dict[int, int] = field(default_factory=dict)
+    array_ranges: list[tuple[int, int, int, int]] = field(default_factory=list)
 
     def reset_cells(self) -> None:
         self.formulas.clear()
         self.fkind.clear()
+        self.array_ranges.clear()
 
 
 _LN: dict[str, str] = {}
@@ -200,6 +202,7 @@ class CellParser:
             elif kind == "array":
                 ctx.formulas[key] = self._ftext
                 ctx.fkind[key] = ARRAY
+                self._array_range(r, c)
             elif kind == "dataTable":
                 ctx.fkind[key] = DATA_TABLE
             else:
@@ -210,6 +213,16 @@ class CellParser:
                 ctx.store.put(r, c, NOVAL, 0.0, self._s)
             return
         ctx.store.put(r, c, tag, val, self._s)
+
+    def _array_range(self, r: int, c: int) -> None:
+        ref = self._fattrs.get("ref", "")
+        try:
+            a, _, b = ref.partition(":")
+            r0, c0 = parse_ref(a)
+            r1, c1 = parse_ref(b or a)
+        except (ValueError, OverflowError):
+            r0, c0, r1, c1 = r, c, r, c
+        self.ctx.array_ranges.append((r0, c0, max(r0, r1), max(c0, c1)))
 
     def _value(self, r: int, c: int) -> tuple[int, float]:
         ctx, t = self.ctx, self._t

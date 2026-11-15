@@ -104,3 +104,26 @@ Reading it honestly:
   measurably; a fast path that bypasses expat would change the safety model and is not attempted.
 - For comparison, the spike measured IronCalc (Rust) loading the same shape of file in ~1.1 s including
   formula parsing; that is the only route found so far to fast whole-sheet access.
+
+## E5 — edit and undo latency, 100k x 20 XLSX (lazy reader)
+
+Command: `python benchmarks/bench_edits_100k.py`. Same file and container as E4. Single runs.
+
+| Operation | Result |
+|---|---|
+| 1 edit in a cold 256-row block (the block is parsed first) | 22 ms |
+| 1 edit in a warm block | 0.1 ms |
+| Undo of that edit (`apply_delta`, inverse) | < 0.1 ms |
+| 10,000-cell edit (500 rows x 20 cols, cold blocks) | 266 ms |
+| Undo / redo of the 10,000-cell edit | 77 ms / 27 ms |
+| Delta of 10,000 cells -> JSON | 19 ms, 1.6 MB (before + after) |
+
+Reading it honestly:
+- There are no formulas to recalculate yet (E7), so "edit" is value-only and deltas contain exactly the
+  edited cells. Dependents of an edited cell are **not** updated (their cached values go stale);
+  the export report (E6) will say so and set `fullCalcOnLoad`.
+- A delta costs ~160 bytes per cell in JSON; at the 200,000-cell cap that is ~32 MB per history entry,
+  which is Agent 0's/Agent 3's call to budget (cap is `max_patch_cells`, default 200,000).
+- Sheets that contain shared or array formulas are loaded completely on the first edit (so the
+  protection check sees every formula group): ~11-13 s for a 100k x 20 sheet of this kind. The
+  benchmark file has none.

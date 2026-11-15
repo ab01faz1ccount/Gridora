@@ -32,6 +32,7 @@ class ResourceLimits:
     max_zip_entries: int = 10_000  # used by the zip reader (E3)
     max_part_bytes: int = 400 * 1024**2  # largest single decompressed part
     max_xml_depth: int = 64
+    max_patch_cells: int = 200_000  # Phase 2 decision A2-Q5: larger edits cannot be recorded in history
     deadline_seconds: float | None = None  # cooperative wall-clock budget per call
 
     @classmethod
