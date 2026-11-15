@@ -51,7 +51,11 @@ def serial_to_iso(serial: float, system: DateSystem = "1900") -> str | None:
 
 
 def iso_to_serial(iso: str, system: DateSystem = "1900") -> float:
-    """Inverse of serial_to_iso for date and datetime strings. Raises ValueError if invalid."""
+    """Inverse of serial_to_iso for date and datetime strings. Raises ValueError if invalid.
+
+    Excel dates carry no time zone, so the parsed value is deliberately naive; only its date and
+    time-of-day fields are used (no naive datetime is constructed here).
+    """
     if system == "1900" and iso.startswith("1900-02-29"):
         rest = iso[10:]
         frac = 0.0
@@ -59,17 +63,18 @@ def iso_to_serial(iso: str, system: DateSystem = "1900") -> float:
             t = datetime.fromisoformat("2000-01-01" + rest)
             frac = (t.hour * 3600 + t.minute * 60 + t.second) / 86400
         return 60.0 + frac
-    dt = datetime.fromisoformat(iso)
+    parsed = datetime.fromisoformat(iso)
+    d = parsed.date()
     if system == "1904":
-        base = datetime(1904, 1, 1)
-    elif dt >= datetime(1900, 3, 1):
-        base = datetime(1899, 12, 30)
-    elif dt >= datetime(1900, 1, 1):
-        base = datetime(1899, 12, 31)
+        base = date(1904, 1, 1)
+    elif d >= date(1900, 3, 1):
+        base = date(1899, 12, 30)
+    elif d >= date(1900, 1, 1):
+        base = date(1899, 12, 31)
     else:
         raise ValueError("date before 1900-01-01 is not representable")
-    delta = dt - base
-    return delta.days + delta.seconds / 86400
+    seconds = parsed.hour * 3600 + parsed.minute * 60 + parsed.second
+    return (d - base).days + seconds / 86400
 
 
 _QUOTED = re.compile(r'"[^"]*"')
