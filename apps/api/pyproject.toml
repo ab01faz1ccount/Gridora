@@ -21,7 +21,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "httpx", "ruff", "mypy"]
+# Tool versions are PINNED on purpose: an unpinned linter that updates itself can turn CI red
+# with no change in our code. Bump them deliberately, in their own PR (re-run ruff/mypy, fix, commit).
+dev = [
+  "pytest==9.2.0",
+  "pytest-asyncio==1.5.0",
+  "httpx==0.28.1",
+  "ruff==0.17.5",
+  "mypy==2.4.1",
+  "psycopg2-binary==2.9.13",  # only for the migrations-vs-models test
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

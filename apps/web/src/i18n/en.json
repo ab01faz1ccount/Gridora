@@ -50,5 +50,17 @@
   "error.rate_limited": "Too many requests; try again shortly.",
   "error.internal_error": "An internal error occurred.",
   "error.network": "Could not reach the server.",
-  "error.generic": "Something went wrong."
+  "error.generic": "Something went wrong.",
+  "grid.label": "Data grid",
+  "grid.true": "TRUE",
+  "grid.false": "FALSE",
+  "grid.loadError": "This part could not be loaded",
+  "grid.sheetTabs": "Sheets",
+  "grid.rowHeader": "Row {n}",
+  "grid.colHeader": "Column {name}",
+  "workbook.loading": "Opening the file…",
+  "workbook.notFound": "This file was not found.",
+  "workbook.back": "Back to workspaces",
+  "workbook.noSheets": "This file has no visible sheet.",
+  "workbook.dimensions": "{rows} rows × {cols} columns"
 }
