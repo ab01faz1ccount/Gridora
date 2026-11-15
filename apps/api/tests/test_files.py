@@ -249,3 +249,41 @@ def test_layout_only_accepts_uuids_and_allowlisted_parts(tmp_path: Path) -> None
         lay.table_path(u, u, 0)
     with pytest.raises(ValueError):
         lay.resolve_key("../../etc/passwd")
+
+
+def test_magic_check_reads_only_the_header(tmp_path: Path) -> None:
+    """Regression: check_magic once read the WHOLE file into memory to look at 8 KiB."""
+    from gridora_api.services.uploads import check_magic
+
+    class Spy:
+        def __init__(self, f: object) -> None:
+            self.f, self.read_sizes = f, []
+
+        def read(self, n: int = -1) -> bytes:
+            self.read_sizes.append(n)
+            return self.f.read(n)  # type: ignore[attr-defined]
+
+        def __enter__(self) -> Spy:
+            return self
+
+        def __exit__(self, *a: object) -> None:
+            self.f.close()  # type: ignore[attr-defined]
+
+    p = tmp_path / "big.csv"
+    p.write_bytes(b"a,b\n" * 100_000)
+    import builtins
+
+    real_open = builtins.open
+    spies: list[Spy] = []
+
+    def spy_open(*a: object, **k: object) -> Spy:
+        s = Spy(real_open(*a, **k))  # type: ignore[arg-type]
+        spies.append(s)
+        return s
+
+    builtins.open = spy_open  # type: ignore[assignment]
+    try:
+        check_magic(p, "csv")
+    finally:
+        builtins.open = real_open
+    assert spies and all(n == 8192 for s in spies for n in s.read_sizes)
