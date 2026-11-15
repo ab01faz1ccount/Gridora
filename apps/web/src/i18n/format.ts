@@ -4,11 +4,17 @@ import type { Calendar, Digits } from "@/state/prefs";
 
 const NUMBERING: Record<Digits, string> = { latin: "latn", persian: "arabext", arabic: "arab" };
 
-export function formatNumber(n: number, digits: Digits, maximumFractionDigits = 10): string {
+export function formatNumber(
+  n: number,
+  digits: Digits,
+  maximumFractionDigits = 10,
+  useGrouping = true,
+): string {
   const locale = digits === "latin" ? "en" : "fa-IR";
   return new Intl.NumberFormat(locale, {
     numberingSystem: NUMBERING[digits],
     maximumFractionDigits,
+    useGrouping,
   }).format(n);
 }
 

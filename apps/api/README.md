@@ -103,6 +103,13 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
 - Single API worker process (working copies will live in memory). No horizontal scaling.
 - No OS-level isolation for hostile-file parsing in v1 (ADR-011); relies on engine limits. Phase 4.
 
+## Pinned tooling
+`ruff`, `mypy`, `pytest`, `pytest-asyncio`, `httpx` and `psycopg2-binary` are pinned to exact versions in
+`pyproject.toml` (`[dev]`), and `requirements.lock` pins the whole dev environment (runtime + dev, from a
+clean venv). `requirements.runtime.lock` pins only what the Docker image installs. Bump a tool in its own
+PR: update `pyproject.toml`, regenerate the lock, re-run `ruff`/`mypy`/`pytest`, fix what the new version
+reports. The web app already pins every dependency exactly (`package.json` + `package-lock.json`).
+
 ## Development
 ```bash
 pip install -e ../../contracts/python

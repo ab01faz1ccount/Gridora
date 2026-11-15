@@ -50,5 +50,17 @@
   "error.rate_limited": "درخواست‌ها زیاد است؛ کمی بعد دوباره امتحان کنید.",
   "error.internal_error": "خطای داخلی رخ داد.",
   "error.network": "اتصال به سرور برقرار نشد.",
-  "error.generic": "مشکلی پیش آمد."
+  "error.generic": "مشکلی پیش آمد.",
+  "grid.label": "جدول داده‌ها",
+  "grid.true": "درست",
+  "grid.false": "نادرست",
+  "grid.loadError": "بارگذاری این بخش ناموفق بود",
+  "grid.sheetTabs": "برگه‌ها",
+  "grid.rowHeader": "ردیف {n}",
+  "grid.colHeader": "ستون {name}",
+  "workbook.loading": "در حال باز کردن فایل…",
+  "workbook.notFound": "این فایل پیدا نشد.",
+  "workbook.back": "بازگشت به فضاهای کاری",
+  "workbook.noSheets": "این فایل برگه‌ی قابل نمایش ندارد.",
+  "workbook.dimensions": "{rows} ردیف × {cols} ستون"
 }
