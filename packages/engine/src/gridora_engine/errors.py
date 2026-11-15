@@ -47,3 +47,7 @@ def unsupported_workbook(reason: str, message: str) -> GridoraEngineError:
 
 def file_too_large(reason: str, message: str) -> GridoraEngineError:
     return GridoraEngineError("file_too_large", reason, message)
+
+
+def validation_failed(reason: str, message: str) -> GridoraEngineError:
+    return GridoraEngineError("validation_failed", reason, message)

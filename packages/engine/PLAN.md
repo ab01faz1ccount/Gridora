@@ -81,7 +81,8 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 | E2 spike | **not started** |
 | E3 hostile-safe zip/XML, package model, byte-equal no-op round trip | implemented, branch `agent1/e3-package` (stacked on `agent1/v030-ci`) |
 | E4 XLSX read, lazy row windows, compat report, 100k benchmark | implemented, branch `agent1/e4-xlsx-read` (stacked on E3) |
-| E5 onward | Review 2 orders: E5 value edits + undo; **no formulas (E7) yet** |
+| E5 value edits, deltas, undo/redo, replay determinism, 200,000-cell cap | implemented, branch `agent1/e5-edits` (stacked on E4) |
+| E6 onward | XLSX export with dirty-row patching, then E7 formulas only after ADR-003; **no formulas yet** |
 
 ---
 

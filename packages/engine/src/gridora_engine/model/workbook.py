@@ -40,6 +40,11 @@ class SheetState:
     part_name: str = ""
     formulas: dict[int, str] = field(default_factory=dict)  # (r << 14) | c -> text without '='
     fkind: dict[int, int] = field(default_factory=dict)  # see xlsx.cellparse (2..5)
+    array_ranges: list[tuple[int, int, int, int]] = field(default_factory=list)  # r0, c0, r1, c1
+    # Cells whose content differs from the file as imported (used by export, E6), and the
+    # imported content of each: key -> (tag, val, style, formula text or None).
+    dirty: set[int] = field(default_factory=set)
+    orig: dict[int, tuple[int, float, int, str | None]] = field(default_factory=dict)
 
     def ensure(self, row_lo: int, row_hi: int) -> None:
         if self.lazy is not None:
