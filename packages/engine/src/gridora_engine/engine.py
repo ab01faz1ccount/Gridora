@@ -19,7 +19,7 @@ from gridora_contracts.models import (
     Window,
     Workbook,
 )
-from gridora_contracts.protocols import CsvOptions, WorkbookHandle
+from gridora_contracts.protocols import BlobStore, CsvOptions, WorkbookHandle
 
 from .compat.report import build_report
 from .csvio.importer import import_csv_file
@@ -43,7 +43,8 @@ class Handle:
 
 
 class GridoraEngine:
-    def __init__(self, config: Mapping[str, Any]) -> None:
+    def __init__(self, config: Mapping[str, Any], blobs: BlobStore | None = None) -> None:
+        self.blobs = blobs
         unknown = set(config) - _KNOWN_CONFIG
         if unknown:
             raise bad_request("config.unknown_key", "Unknown engine configuration key.")

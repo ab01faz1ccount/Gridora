@@ -86,6 +86,80 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 
 ---
 
+### 0.7 E5b — columnar access and range snapshots (DESIGN ONLY; Review 3 order, ADR-014)
+
+Not built. To be built after E5 merges. Contracts 0.4.0: `ColumnarRange`/`ColumnarColumn`, `RangeSnapshotDelta`,
+`BlobStore`, `create_engine(config, blobs=None)` (the `blobs` argument is already accepted and unused).
+
+**Interface (proposal CC-12, optional engine protocol, Agent 0 decides).** The contract defines
+`ColumnarExecContext` (supplied by apps/api) but nothing on the *engine* side that it can call. I propose an
+optional `ColumnarEngine` protocol next to `FormattingEngine`/`StructureEngine`:
+`read_range_columnar(wb, rng) -> ColumnarRange` and `write_range_columnar(wb, rng, data) -> Delta`;
+`apps/api` feature-detects it (`isinstance`) and implements `ColumnarExecContext` on top.
+
+**`read_range_columnar`.** Same cells as `get_cells` over `rng`, without building a pydantic `Cell` per cell.
+1. Materialize the rows (lazy blocks) once; then per column, walk the 256-row chunks and read `tags`/`vals` slices.
+2. Column kind from the tags present (ignoring empties): only NUM -> `num` (`float | None`), only STR -> `str`
+   (via the string table), only BOOL -> `bool`, NUM whose every non-empty cell has a date style -> `date`
+   (ISO via `serial_to_iso`), none -> `empty`, anything else (errors, mixed types, formula-without-value) -> `mixed`
+   (list of `CellValue` dicts, exact).
+3. `has_formulas` = any key of `SheetState.formulas` inside the range (dict scan; shared/array children count).
+4. Expected cost, **not measured**: ~0.3-0.5 us per cell for typed columns (vs ~7.8 us measured for contract
+   `Cell` objects), so ~1 s for a 2 M-cell range **after** the sheet is parsed. Parsing 100k x 20 in pure
+   Python still costs 11-13 s (BENCHMARKS.md), so the end-to-end gain for the first operation on a cold sheet is
+   bounded by parse speed. The Rust-core option (ADR-003) is the only route found to change that.
+
+**`write_range_columnar`.** Values only; every cell of `rng` ends up equal to `data` (uncovered/None cleared),
+same protection rules as E5 (shared/array formula groups refused; ordinary formula cells overwritten, their text
+recorded in `before`). Dirty tracking at **row granularity** for bulk writes (`SheetState.dirty_rows`; the E6
+exporter regenerates those rows), because per-cell dirty bookkeeping costs ~3 us per cell. Revert-detection
+(a cell becoming clean again) is then per-cell only for E5-style edits.
+Delta returned: changed cells only. If `<= max_patch_cells` -> `CellPatchDelta`; else, with a `BlobStore` ->
+`RangeSnapshotDelta` (cap lifted only then, per ADR-014 step 2); else `too_large_for_history`.
+
+**Range snapshot blob (profile R of the format below).** Deterministic bytes for identical content:
+- Header: magic `GRSB`, `format_version` (u16), rows, cols, flags, SHA-256 of the uncompressed body.
+- Body, compressed with `zlib` (stdlib, no new dependency), per column: kind byte, null/tag bytes, payload
+  (`num`/`date` float64 LE, `str` string table + u32 indices, `bool` bit-packed, `mixed` tag + payload per
+  cell, errors as tag + index); sparse formula list (index, UTF-8 text); style ids as u16 run-length pairs.
+- Loader: validates counts against `ResourceLimits` *before* allocating, decompresses with a byte budget
+  (`decompressobj(max_length)`), rejects newer `format_version`, never uses pickle/eval, verifies SHA-256, and
+  fails with a typed error (`snapshot.unavailable` / `snapshot.corrupt`) when a blob is missing or damaged:
+  undo must never silently restore less than it recorded.
+- `apply_delta(range_snapshot, inverse)` streams the blob column by column into the store (bulk array writes) and
+  marks rows dirty. Replay determinism (C1.3) is tested with the same fingerprint as E5, with blobs in a fake
+  `BlobStore`.
+- Size, **not measured**: raw numeric 100k x 20 = 16 MB; expect roughly 3-8 MB per blob after zlib for
+  numeric/low-cardinality data, more with unique strings; before + after = two blobs per history entry.
+
+**Cost estimate (for Agent 0; +-50%, I have not built any of it).**
+| Piece | Size | Notes |
+|---|---|---|
+| E5b-1: columnar read/write + `CellPatchDelta` path + tests incl. equivalence with `get_cells`/edits | ~500 lines code, ~400 tests, ~2-3 working days | needs CC-12 decision; benchmark vs the 7.8 us/cell figure |
+| E5b-2: blob codec + `RangeSnapshotDelta` produce/apply + corruption tests + replay test | ~700 lines code, ~500 tests, ~3-4 working days | the bulk of the risk (determinism, bounds, dirty rows) |
+| Total | ~5-7 working days | no new dependencies; sequencing: after E5 merges and E6 (export) because `dirty_rows` must be consumed there |
+
+**Risks:** (1) parse time (11-13 s) still dominates the first in-place operation on a 100k x 20 sheet;
+(2) per-cell Python loops on the apply path may erase the gain, hence bulk array writes; (3) a format that
+is "versioned" but has only one version is untested against migration; (4) 200,000 -> unlimited cap shifts the cost to the
+BlobStore (disk) and to history retention, which is Agent 0's/Agent 3's budget to set.
+
+**One format for history and for Phase 4 import isolation (ADR-011)? Yes for the codec, no for the whole.**
+One versioned container with typed sections and one column codec can serve both, as two profiles:
+profile R (a rectangular range of one sheet, used by history blobs) and profile W (a whole workbook: string
+table, every sheet's cells, defined names, the import report, and for XLSX the package parts as validated
+decompressed blobs, relationship graph and row-offset index). The codec, limits and corruption handling are
+shared; building it once in E5b avoids a second format later. What is **not** shared: profile W is new work
+(package sections, row index, report), and it crosses a trust boundary (a compromised parser worker), so its
+loader needs authentication from the channel (HMAC by apps/api) that history blobs do not.
+A real tension to decide in Phase 4: for isolation the worker must do the hostile parsing, i.e.
+`materialize_all` (11-13 s per 100k x 20 sheet in pure Python), and ship parsed cells; shipping raw sheet bytes
+instead would move hostile-origin XML parsing back into the trusted process (still through the safe expat
+path, but that defeats the point). A faster parser (Rust core, ADR-003) makes the isolation design cheap;
+without it the choice is between slow imports and weaker isolation.
+
+---
+
 ## 1. Goals and non-goals
 
 **Goals (from `agents/AGENT_1_ENGINE.md`)**

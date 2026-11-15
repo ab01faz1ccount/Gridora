@@ -46,3 +46,21 @@ def test_bad_config_rejected_without_leaking_values(cfg):
 def test_error_requires_contract_code():
     with pytest.raises(ValueError):
         GridoraEngineError("made_up", "x", "y")
+
+
+def test_create_engine_accepts_the_optional_blob_store_of_contracts_0_4_0():
+    import inspect
+
+    from gridora_engine import create_engine as ce
+
+    p = inspect.signature(ce).parameters["blobs"]
+    assert p.default is None
+
+    class Blobs:
+        def put(self, data: bytes) -> str:
+            return "ref"
+
+        def get(self, ref: str) -> bytes:
+            return b""
+
+    assert create_engine({}, Blobs()).blobs is not None and create_engine({}).blobs is None
