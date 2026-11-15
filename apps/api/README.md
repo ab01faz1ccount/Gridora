@@ -50,7 +50,7 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
   `write_range` that clears uncovered cells in one delta, 200,000-cell cap per undoable step
   (`operation_conflict` with detail code `too_large_for_history`).
 - **STUBS (clearly marked, not real implementations):**
-  - `StubEngine`: in-memory, single sheet, **CSV only** (UTF-8 with/without BOM, Windows-1256,
+  - `StubEngine`: in-memory (raw values ~150 B/cell; a window read costs the window, not the sheet), single sheet, **CSV only** (UTF-8 with/without BOM, Windows-1256,
     delimiter sniffing). XLSX import/export raise `unsupported_workbook`. `export_csv` returns a `CompatibilityReport` (contract v0.3.0): text that would run as a formula in a spreadsheet (leading `= + - @`, tab, CR) is prefixed with an apostrophe and each such cell is reported with its location; numbers are never touched. Formulas are **not**
     evaluated or stored (a formula edit is rejected with a JSON-pointer error; text that looks like a
     formula stays text). No styles. Every import reports a `partial` compatibility item.
@@ -77,7 +77,7 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
 - The API owns identity: `Workbook.id` is the document id, `file_id` the stored original, `name` the
   user's display name.
 
-- Upload memory (measured in `deploy/`): a 100 MiB upload through nginx costs ~+5 MB of API peak RSS (streamed to disk). A regression test pins the fix for `check_magic`, which used to read the whole file to look at 8 KiB. The *import* is a different matter: the stub engine holds the whole sheet in memory (a 100 MiB CSV peaked near 670 MB), the real engine's lazy reader is Agent 1's E4 target.
+- Upload memory (measured in `deploy/`): a 100 MiB upload through nginx costs ~+5 MB of API peak RSS (streamed to disk). A regression test pins the fix for `check_magic`, which used to read the whole file to look at 8 KiB. The *import* is a different matter: the stub engine holds the whole sheet in memory (a 100 MiB CSV used ~670 MB before the storage rewrite; see `deploy/README.md` / PR for current numbers), the real engine's lazy reader is Agent 1's E4 target.
 
 ### What does not work yet
 - No cell edits, history, undo/redo, save, export, operations, tables or charts (PR 10 onward).

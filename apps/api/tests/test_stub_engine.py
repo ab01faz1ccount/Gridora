@@ -199,3 +199,46 @@ def test_import_keeps_file_id(tmp_path: Path) -> None:
     p.write_text("a\n1\n")
     _, wb = StubEngine().import_csv(p, Opts(), file_id="f-123")  # type: ignore[arg-type]
     assert wb.file_id == "f-123"
+
+
+def test_reading_a_window_costs_the_window_not_the_sheet(tmp_path: Path) -> None:
+    """Regression: get_cells used to sort EVERY cell of the sheet on every request (about 1 s for a
+    2M-cell sheet), which made the grid unusable. Compare a small and a 100x larger sheet."""
+    import time
+
+    from gridora_api.composition.stubs.engine_stub import StubHandle
+
+    def timed(n_rows: int) -> float:
+        h = StubHandle(id="x", sheet_id="s")
+        h.cells = {(r, c): float(r) for r in range(n_rows) for c in range(10)}
+        eng = StubEngine()
+        w = Window(row0=n_rows // 2, col0=0, rows=100, cols=10)
+        t0 = time.perf_counter()
+        for _ in range(20):
+            cw = eng.get_cells(h, "s", w)
+        assert len(cw.cells) == 1000
+        return time.perf_counter() - t0
+
+    small, large = timed(1_000), timed(100_000)  # 10k vs 1M cells
+    assert large < small * 8 + 0.05, (small, large)
+
+
+def test_a_window_larger_than_the_sheet_returns_sorted_cells(tmp_path: Path) -> None:
+    eng, h, _ = open_csv(tmp_path, b"a,b\n1,2\n")
+    cw = eng.get_cells(h, h.sheet_id, Window(row0=0, col0=0, rows=1000, cols=100))
+    assert [(c.r, c.c) for c in cw.cells] == [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+
+def test_cells_are_stored_compactly() -> None:
+    import tracemalloc
+
+    from gridora_api.composition.stubs.engine_stub import StubHandle, _to_raw
+
+    tracemalloc.start()
+    h = StubHandle(id="x", sheet_id="s")
+    for r in range(50_000):
+        for c in range(4):
+            h.cells[(r, c)] = _to_raw(NumValue(n=float(r)))
+    current, _peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert current / 200_000 < 400  # bytes per cell (pydantic Cell objects were ~1,300)
