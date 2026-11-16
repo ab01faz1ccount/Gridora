@@ -19,6 +19,20 @@
         "property": "mode"
       }
     },
+    "formulas": {
+      "default": "refuse",
+      "enum": [
+        "refuse",
+        "convert_to_values"
+      ],
+      "title": "ops.split_column.params.formulas.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "convert_to_values": "ops.split_column.params.formulas.options.convert_to_values",
+        "refuse": "ops.split_column.params.formulas.options.refuse"
+      },
+      "x-gridora-group": "ops.groups.advanced"
+    },
     "has_header": {
       "default": true,
       "title": "ops.split_column.params.has_header.title",

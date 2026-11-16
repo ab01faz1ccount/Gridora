@@ -27,6 +27,20 @@
       "title": "ops.find_replace.params.find.title",
       "type": "string"
     },
+    "formulas": {
+      "default": "refuse",
+      "enum": [
+        "refuse",
+        "convert_to_values"
+      ],
+      "title": "ops.find_replace.params.formulas.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "convert_to_values": "ops.find_replace.params.formulas.options.convert_to_values",
+        "refuse": "ops.find_replace.params.formulas.options.refuse"
+      },
+      "x-gridora-group": "ops.groups.advanced"
+    },
     "has_header": {
       "default": true,
       "title": "ops.find_replace.params.has_header.title",

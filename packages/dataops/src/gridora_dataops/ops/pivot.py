@@ -31,6 +31,7 @@ class PivotOp(OperationSpec):
     category = "analyze"
     destructive = False
     creates_table = True
+    rewrites_cells = False  # reads the range, never changes it: formulas are fine (their values are used)
     Params = PivotParams
 
     def plan(self, frame: pl.DataFrame, params: ParamsModel, env: PlanEnv) -> OpOutput:

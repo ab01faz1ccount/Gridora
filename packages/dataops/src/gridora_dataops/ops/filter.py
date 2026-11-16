@@ -146,6 +146,7 @@ class FilterOp(OperationSpec):
     destructive = False
     Params = FilterParams
     sheet_output: ClassVar[str] = "new_table"
+    rewrites_cells = False  # the result goes to a new table: formulas in the range are fine (their values are used)
 
     def plan(self, frame: pl.DataFrame, params: ParamsModel, env: PlanEnv) -> OpOutput:
         assert isinstance(params, FilterParams)
