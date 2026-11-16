@@ -95,11 +95,19 @@ def test_invalid_edits_are_rejected_without_changing_anything(tmp_path, edit, wh
     assert snap(eng, h, s) == before  # the valid first edit was not applied either
 
 
+def conflict(fn):
+    """Review 4 / ADR-015: top-level operation_conflict, detail code too_large_for_history."""
+    with pytest.raises(GridoraEngineError) as e:
+        fn()
+    assert e.value.code == "operation_conflict" and e.value.reason == "too_large_for_history"
+    assert e.value.to_detail().code == "too_large_for_history"
+
+
 def test_patch_size_cap_and_unknown_sheet_and_closed_handle(tmp_path):
     eng, h, _wb, s = csv_wb(tmp_path, limits={"max_patch_cells": 2})
-    assert reason(lambda: eng.apply_cell_edits(h, s.id, [num(0, 0, 1), num(0, 1, 1), num(0, 2, 1)])) == "too_large_for_history"
+    conflict(lambda: eng.apply_cell_edits(h, s.id, [num(0, 0, 1), num(0, 1, 1), num(0, 2, 1)]))
     big = CellPatchDelta(sheet_id=s.id, before=[], after=[eng.apply_cell_edits(h, s.id, [num(0, 0, 1)]).after[0]] * 3)
-    assert reason(lambda: eng.apply_delta(h, big, inverse=False)) == "too_large_for_history"
+    conflict(lambda: eng.apply_delta(h, big, inverse=False))
     with pytest.raises(GridoraEngineError) as e:
         eng.apply_cell_edits(h, "nope", [num(0, 0, 1)])
     assert e.value.code == "not_found"

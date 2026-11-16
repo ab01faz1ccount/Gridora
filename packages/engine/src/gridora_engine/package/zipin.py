@@ -105,10 +105,7 @@ class SafeZip:
         f.seek(0)
         head = f.read(4)
         if head[:4] == b"\xd0\xcf\x11\xe0":
-            raise unsupported_workbook(
-                "xlsx.encrypted_or_legacy",
-                "The file is an encrypted or legacy (OLE2) workbook, which is not supported.",
-            )
+            raise self._classify_ole2()
         if head[:2] != b"PK":
             raise unsupported_workbook("zip.not_a_zip", "The file is not an XLSX package.")
         if declared_entry_count(f, self.size) > limits.max_zip_entries:
@@ -127,6 +124,27 @@ class SafeZip:
         self._validate(infos)
         self.infos = [i for i in infos if not i.filename.endswith("/")]
         self.by_name = {i.filename: i for i in self.infos}
+
+    def _classify_ole2(self) -> Exception:
+        """OLE2 container: an old .xls, or an encrypted OOXML package. A heuristic on the stream
+        names in the compound-file directory (UTF-16LE), read from the first 8 MiB only."""
+        self._f.seek(0)
+        sample = self._f.read(min(self.size, 8 << 20))
+        if "EncryptedPackage".encode("utf-16-le") in sample:
+            return unsupported_workbook(
+                "xlsx.encrypted",
+                "The workbook is password-protected (encrypted); remove the password and try again.",
+            )
+        if "Workbook".encode("utf-16-le") in sample or "Book\x00".encode("utf-16-le") in sample:
+            return unsupported_workbook(
+                "xlsx.legacy_xls",
+                "This is an old binary Excel file (.xls), a format that is not supported; "
+                "open it in Excel and save it as .xlsx.",
+            )
+        return unsupported_workbook(
+            "xlsx.encrypted_or_legacy",
+            "The file is an encrypted or legacy (OLE2) workbook, which is not supported.",
+        )
 
     def _validate(self, infos: list[zipfile.ZipInfo]) -> None:
         limits = self.limits

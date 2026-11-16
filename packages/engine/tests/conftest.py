@@ -36,3 +36,11 @@ def cells_of(engine, h, wb, rows=1000, cols=100):
             v.n if v.k == "num" else v.s if v.k == "str" else v.b if v.k == "bool" else v.e
         )
     return out
+
+
+@pytest.fixture(scope="session")
+def corpus_root() -> Path:
+    root = Path(__file__).resolve().parents[3] / "corpus"
+    if not root.exists():
+        pytest.skip("corpus/ is not present")
+    return root

@@ -178,3 +178,20 @@ def test_directory_entries_are_ignored_not_parts(tmp_path):
     p = write_zip(tmp_path / "dir.xlsx", {"xl/": b"", "xl/a.xml": "<a/>"})
     with open_zip(p) as z:
         assert z.names() == ["xl/a.xml"]
+
+
+def _ole2(tmp_path, stream_name):
+    p = tmp_path / "o.xlsx"
+    p.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 400 + stream_name.encode("utf-16-le") + b"\x00" * 400)
+    return p
+
+
+def test_ole2_containers_get_a_clear_unsupported_format_error(tmp_path):
+    for name, reason, words in [("Workbook", "xlsx.legacy_xls", (".xls", "not supported")),
+                                ("EncryptedPackage", "xlsx.encrypted", ("password",)),
+                                ("Other", "xlsx.encrypted_or_legacy", ("not supported",))]:
+        p = _ole2(tmp_path, name)
+        assert reason_of(p) == reason
+        with pytest.raises(GridoraEngineError) as e:
+            open_zip(p)
+        assert e.value.code == "unsupported_workbook" and all(w in str(e.value) for w in words)
