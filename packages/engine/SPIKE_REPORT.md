@@ -135,3 +135,14 @@ Code read: none copied, adapted or vendored. Ideas used from candidates: none ye
 candidate repos: LICENSE*, NOTICE, Cargo.toml, Cargo.lock, README/ROADMAP/ATTRIBUTION headings,
 `docs/file-format-parity.md` (GridCraft). Third-party web pages were used only to locate repositories
 and are not evidence for any claim above. The tested IronCalc binary is the PyPI wheel noted in section 2.
+
+
+## Update (E6 phase): full-parse time of real files, open items
+Measured on the pure-Python engine, 1-CPU container (details: BENCHMARKS.md, corpus section):
+- `LIBRE_OFFICE-116306-0.xlsx` (662,923 cells, 2.8 MB): import 0.15 s, full parse 2.6 s (~256k cells/s).
+- `bug62181.xlsx` (175,095 cells): 0.69 s full parse. `file_example_XLSX_5000.xlsx` (40,007 cells): 0.20 s.
+- `softwiro-piece-rate-payroll` (7,034 cells, 6,806 formulas, Excel-made): 0.075 s.
+- Extrapolated 100k x 20 (~2 M cells): about 8-13 s at 150k-255k cells/s, **below the 30 s gate** of ADR-015, but
+  no real 100k x 20 file has been measured; formulas are not evaluated in any of these numbers.
+Open items still open: IronCalc built from source (no Rust toolchain here), spill behavior, a recalculation API
+that returns only changed cells, formula comparison on Excel-produced files (the corpus now has some; E7 is blocked).

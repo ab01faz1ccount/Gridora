@@ -51,3 +51,12 @@ def file_too_large(reason: str, message: str) -> GridoraEngineError:
 
 def validation_failed(reason: str, message: str) -> GridoraEngineError:
     return GridoraEngineError("validation_failed", reason, message)
+
+
+def too_large_for_history() -> GridoraEngineError:
+    """Review 4 / ADR-015: top-level `operation_conflict`, detail code `too_large_for_history`
+    (`to_detail().code`). apps/api maps `exc.code` to the HTTP status and `exc.to_detail()` to the detail."""
+    return GridoraEngineError(
+        "operation_conflict", "too_large_for_history",
+        "The change is too large to be undone in one step.",
+    )
