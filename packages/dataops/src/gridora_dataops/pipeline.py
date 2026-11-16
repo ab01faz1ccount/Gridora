@@ -117,8 +117,8 @@ def _rollback(ctx: ExecContext, applied: list[OperationResult]) -> bool:
                     store.discard_version(ctx.user_id, d.table_id, d.to_version)
             elif isinstance(d, CellPatchDelta):
                 _restore_cells(ctx, d)
-        except (DataOpsError, OSError):
-            complete = False  # keep going: undo as much as possible
+        except Exception:  # noqa: BLE001 - the context may raise its own typed errors; keep undoing as much as possible
+            complete = False
     return complete
 
 
@@ -216,6 +216,9 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
                 res = ex.apply(op, ctx)
         except DataOpsError as e:
             res = OperationResult(status="error", errors=e.errors)
+        except Exception:
+            _rollback(ctx, results)  # an error of the context itself (e.g. the API's history-cap error) propagates,
+            raise                    # but never with earlier steps left applied
         if res.status != "ok":
             errs = _prefixed(res.errors, i)
             if not _rollback(ctx, results):

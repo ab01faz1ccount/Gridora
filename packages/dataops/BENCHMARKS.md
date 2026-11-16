@@ -112,6 +112,19 @@ What this means, honestly:
 - **Against the full test double there is no measurable benefit** (0.7x to 1.0x): its own per-cell diff and object building dominate, and its columnar methods convert back to cells to reuse it. The real benefit therefore **depends on the engine implementing the columnar methods natively** (no per-cell objects, no per-cell diff). That has not been measured: no real engine was available. The numbers above are the ceiling on what the dataops side can contribute, not a promise.
 - The 200,000-cell patch cap still limits in-place sheet operations to about 10,000 x 20.
 
+## Pipeline hand-off: planned frames kept in memory between steps
+Before, every committed step re-read its input (a Parquet version or the sheet range) although phase 1 (the dry run) had just computed the same frame. Now the frames are kept (up to 512 MB, else it falls back) and committed directly; per-step deltas, undo and rollback are unchanged and tested identical (`tests/test_pipeline_handoff.py`: 10 sheet and 6 table pipelines, with and without hand-off, both sheet paths; mutation-checked).
+
+5-step pipeline (clean_text, remove_duplicates, change_type, sort, fill), median of 3, seconds:
+
+| Target | hand-off off | hand-off on | gain |
+|---|---:|---:|---:|
+| data table, 100,000 x 20 (real `ParquetTableStore`) | 2.56 | 1.43 | 1.8x |
+| sheet, 10,000 x 19, row path, full test double | 12.70 | 12.63 | 1.0x |
+| sheet, 10,000 x 19, columnar path, full test double | 14.85 | 12.37 | 1.2x |
+
+Reading: on tables it removes the Parquet re-reads and is worth about 1.8x (what remains is writing one version per step, which the per-step undo requires). On sheets the full test double's own per-cell diff dominates (about 2.5 s per step), so nothing measurable changes; with a real engine the saving is one `read_range` per step, which has not been measured. Peak memory on the table pipeline: 297 MB with hand-off, 331 MB without (the held frames are offset by not re-reading).
+
 ## Where the sheet time went before the columnar path (profile of `sort`, same 10,000 rows)
 | Step | seconds |
 |---|---:|
