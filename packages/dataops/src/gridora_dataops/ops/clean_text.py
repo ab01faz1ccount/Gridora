@@ -15,13 +15,13 @@ from ..persian.chars import (
     VARIANT_LETTERS,
     ZWNJ,
 )
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams
 
 _LATIN = "0123456789"
 _DIGIT_TARGET = {"to_latin": _LATIN, "to_persian": PERSIAN_DIGITS, "to_arabic_indic": ARABIC_INDIC_DIGITS}
 
 
-class CleanTextParams(ParamsModel):
+class CleanTextParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     columns: list[str] = Field(default_factory=list, description="d", json_schema_extra={
         "x-gridora-column": True, "x-gridora-column-types": ["text"], "x-gridora-widget": "column-list",

@@ -7,10 +7,10 @@ import polars as pl
 from pydantic import Field
 
 from ..conversions import convert_column
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, column_field
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams, column_field
 
 
-class ChangeTypeParams(ParamsModel):
+class ChangeTypeParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     column: str = column_field()
     to: Literal["int64", "float64", "bool", "string", "date", "datetime", "decimal"]

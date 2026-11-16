@@ -16,10 +16,10 @@ from ..errors import DataOpsError, pointer
 from ..ops_common import unique_name
 from ..persian.chars import variant_fold
 from ..persian.jalali import MAX_YEAR, MIN_YEAR, format_jalali, from_jalali, to_jalali
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, column_field
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams, column_field
 
 
-class CalendarParams(ParamsModel):
+class CalendarParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     column: str = column_field()
     direction: Literal["to_jalali", "from_jalali"] = "to_jalali"

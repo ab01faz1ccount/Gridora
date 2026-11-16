@@ -7,10 +7,10 @@ import polars as pl
 from pydantic import Field
 
 from ..persian.chars import variant_fold
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams
 
 
-class DedupeParams(ParamsModel):
+class DedupeParams(RewriteParams):
     has_header: bool = Field(True, description="d", json_schema_extra={"x-gridora-order": 0})
     columns: list[str] = Field(default_factory=list, description="d", json_schema_extra={
         "x-gridora-column": True, "x-gridora-widget": "column-list", "x-gridora-order": 1})

@@ -122,7 +122,7 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
             if kind == "sheet_range" and not (spec.creates_table or spec.sheet_output == "new_table"):
                 assert cur_range is not None
                 rows = frame.height + (1 if src.has_header else 0)
-                check_write(ctx, cur_range, rows, frame.width, max_cells=ex.max_patch_cells)
+                check_write(ctx, cur_range, rows, frame.width, max_cells=ex.max_patch_cells, columnar=ex.columnar)
                 cur_range = Range(sheet_id=cur_range.sheet_id, r0=cur_range.r0, c0=cur_range.c0,
                                   r1=cur_range.r0 + max(rows, 1) - 1, c1=cur_range.c0 + max(frame.width, 1) - 1)
             elif spec.creates_table or (kind == "sheet_range" and spec.sheet_output == "new_table"):

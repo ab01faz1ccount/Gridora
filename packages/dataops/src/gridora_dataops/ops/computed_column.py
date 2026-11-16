@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import DataOpsError, pointer, verr
 from ..ops_common import unique_name
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, column_field
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams, column_field
 
 MAX_DEPTH = 20
 MAX_NODES = 200
@@ -51,7 +51,7 @@ Call.model_rebuild()
 Node = Union[Lit, Col, Call]
 
 
-class ComputedParams(ParamsModel):
+class ComputedParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     name: str = Field(min_length=1, max_length=200, json_schema_extra={"x-gridora-order": 1})
     expr: Annotated[Union[Lit, Col, Call], Field(discriminator="kind")] = Field(

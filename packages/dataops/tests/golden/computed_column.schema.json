@@ -393,6 +393,20 @@
       "x-gridora-order": 2,
       "x-gridora-widget": "expression-builder"
     },
+    "formulas": {
+      "default": "refuse",
+      "enum": [
+        "refuse",
+        "convert_to_values"
+      ],
+      "title": "ops.computed_column.params.formulas.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "convert_to_values": "ops.computed_column.params.formulas.options.convert_to_values",
+        "refuse": "ops.computed_column.params.formulas.options.refuse"
+      },
+      "x-gridora-group": "ops.groups.advanced"
+    },
     "has_header": {
       "default": true,
       "title": "ops.computed_column.params.has_header.title",

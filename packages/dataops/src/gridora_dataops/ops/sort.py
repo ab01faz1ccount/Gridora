@@ -7,7 +7,7 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..persian.chars import collation_key
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, column_field
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams, column_field
 
 
 class SortKey(BaseModel):
@@ -17,7 +17,7 @@ class SortKey(BaseModel):
     nulls: Literal["first", "last"] = "last"
 
 
-class SortParams(ParamsModel):
+class SortParams(RewriteParams):
     has_header: bool = Field(True, description="d", json_schema_extra={"x-gridora-order": 0})
     keys: list[SortKey] = Field(min_length=1, max_length=8, description="d",
                                 json_schema_extra={"x-gridora-widget": "sort-keys", "x-gridora-order": 1})

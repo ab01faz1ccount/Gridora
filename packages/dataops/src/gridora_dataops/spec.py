@@ -19,6 +19,14 @@ class ParamsModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RewriteParams(ParamsModel):
+    """Params of operations that rewrite the cells of a sheet range in place. Formulas in the range are never turned
+    into values silently: `refuse` (default) fails with `range_has_formulas`; the user may confirm `convert_to_values`."""
+
+    formulas: Literal["refuse", "convert_to_values"] = Field(
+        "refuse", json_schema_extra={"x-gridora-group": "ops.groups.advanced"})
+
+
 def column_field(*, column_of: str = "target", types: list[str] | None = None, **kwargs: Any) -> Any:
     """Pydantic field for a parameter that holds a column name (`x-gridora-column`)."""
     extra: dict[str, Any] = {"x-gridora-column": True}

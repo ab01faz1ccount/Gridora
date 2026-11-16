@@ -44,6 +44,7 @@ class JoinOp(OperationSpec):
     category = "combine"
     destructive = False
     creates_table = True
+    rewrites_cells = False  # reads the range, never changes it: formulas are fine (their values are used)
     extra_inputs = 1
     Params = JoinParams
 

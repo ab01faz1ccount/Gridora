@@ -7,10 +7,10 @@ from pydantic import Field
 from ..conversions import _expr
 from ..errors import pointer
 from ..ops_common import unique_name
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams
 
 
-class MergeParams(ParamsModel):
+class MergeParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     columns: list[str] = Field(min_length=2, max_length=50, json_schema_extra={
         "x-gridora-column": True, "x-gridora-widget": "column-list", "x-gridora-order": 1})
