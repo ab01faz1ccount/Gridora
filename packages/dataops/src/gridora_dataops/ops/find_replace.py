@@ -9,7 +9,7 @@ from pydantic import Field
 from ..errors import DataOpsError, pointer
 from ..ops_common import text_columns
 from ..persian.chars import ARABIC_INDIC_DIGITS, DIACRITICS, PERSIAN_DIGITS, TATWEEL, ZWNJ
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, column_field  # noqa: F401
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams
 
 _VARIANT_CLASS: dict[str, str] = {"ی": "یيى", "ي": "یيى", "ى": "یيى", "ک": "کك", "ك": "کك"}
 for _d in range(10):
@@ -33,7 +33,7 @@ def needle_regex(needle: str, ignore_variants: bool) -> str:
     return (f"[{_IGNORABLE}]*" if ignore_variants else "").join(parts)
 
 
-class FindReplaceParams(ParamsModel):
+class FindReplaceParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     columns: list[str] = Field(default_factory=list, description="d", json_schema_extra={
         "x-gridora-column": True, "x-gridora-column-types": ["text"], "x-gridora-widget": "column-list",

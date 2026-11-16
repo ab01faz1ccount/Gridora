@@ -80,7 +80,39 @@ Second, complete run (all 15 operations plus chart and pipeline). An earlier par
 
 **These sheet numbers do not include the real engine, and they are not at 100,000 rows. This is by design, not an omission:** contract decision CC-11 (ADR-013) caps one patch at **200,000 cells**, so an in-place operation on a sheet range can never touch more than about 10,000 rows x 20 columns. A 100,000 x 20 sheet is 2,000,000 cells; operations on it are refused with `too_large_for_history` (and the in-memory test double could not hold it in 4 GB anyway). The 100,000-row figures are therefore the data-table results above. Operations that create a new table read the range but write nothing back, which is why they are 5-10 times faster here than the in-place ones.
 
-## Where the sheet time goes (profile of `sort`, same 10,000 rows)
+## Columnar sheet path (contracts 0.4.0): before and after
+The row-major adapter (`list[list[Cell]]`) was the bottleneck of every sheet-range operation (about 7 microseconds per cell). Contract v0.4.0 added the optional `ColumnarExecContext`; the adapter now uses it when the range has no formulas, and writes only the body when the header row is unchanged. Both paths give identical results (see `tests/test_columnar_equivalence.py`: 15 operations, same final grid, same deltas, same undo, plus the entire suite re-run through the columnar double).
+
+Command: `python benchmarks/sheet_paths.py [--only "<label>"] [--runs N]` (lean doubles, `benchmarks/doubles.py`) and `... --full-double` (the pydantic test double). 10,000 rows x 19 columns = 190,019 cells, same machine as above, median of 3-5 runs (worst in the PR description's raw output; variation between repeats on this VM is 10-40%).
+
+**Lean doubles: the dataops side only, with a zero-cost engine.** "A": the row double hands out prebuilt `Cell` objects. "B": it builds a `Cell` per cell on read and parses rows on write, i.e. what any engine must do to honour `list[list[Cell]]`; the columnar double only slices and stores lists.
+
+| Operation | A row s | A columnar s | gain | B row s | B columnar s | gain |
+|---|---:|---:|---:|---:|---:|---:|
+| sort (Persian text + number) | 1.39 | 0.11 | 12.9x | 3.73 | 0.12 | 32x |
+| remove_duplicates (all columns) | 1.37 | 0.15 | 9.0x | 3.72 | 0.12 | 32x |
+| change_type (Persian digits -> int64) | 1.33 | 0.19 | 6.9x | 3.53 | 0.16 | 23x |
+| find_replace (3 text columns) | 1.35 | 0.13 | 10.9x | 4.03 | 0.10 | 40x |
+| fill (down) | 3.05 | 0.23 | 13.1x | 5.56 | 0.11 | 50x |
+| clean_text (Persian options) | 1.46 | 0.13 | 11.2x | 4.27 | 0.14 | 30x |
+| convert_calendar (to Jalali, replace) | 1.31 | 0.09 | 14.2x | 3.57 | 0.09 | 41x |
+| split_column (adds columns: header changes) | 1.56 | 0.99 | 1.6x | 3.78 | 1.09 | 3.5x |
+| computed_column (adds a column: header changes) | 1.65 | 0.47 | 3.5x | 3.64 | 1.15 | 3.2x |
+
+**The full test double (`tests/fakes.py`), which diffs every written cell with pydantic equality (like a naive engine):**
+
+| Operation | row s | columnar s | gain |
+|---|---:|---:|---:|
+| sort | 3.60 | 3.49 | 1.0x |
+| fill (down) | 1.44 | 1.53 | 0.9x |
+| convert_calendar (to Jalali) | 1.27 | 1.84 | 0.7x |
+
+What this means, honestly:
+- Where the header is unchanged, the **dataops adapter cost fell by roughly an order of magnitude** (about 0.5 microseconds per cell instead of about 7). Where columns are added, the write stays on the exact path (the header row changes), so only the read gains: 1.6 to 3.5x.
+- **Against the full test double there is no measurable benefit** (0.7x to 1.0x): its own per-cell diff and object building dominate, and its columnar methods convert back to cells to reuse it. The real benefit therefore **depends on the engine implementing the columnar methods natively** (no per-cell objects, no per-cell diff). That has not been measured: no real engine was available. The numbers above are the ceiling on what the dataops side can contribute, not a promise.
+- The 200,000-cell patch cap still limits in-place sheet operations to about 10,000 x 20.
+
+## Where the sheet time went before the columnar path (profile of `sort`, same 10,000 rows)
 | Step | seconds |
 |---|---:|
 | Polars plan (the actual sort) | 0.012 |
@@ -97,7 +129,7 @@ So the dataops adapter costs about **7 microseconds per cell** (~1.35 s for 190k
 - The 5-step table pipeline takes 3.8 s because every step re-reads and re-writes a Parquet version (this is the "no in-memory hand-off between committed steps" limitation in the README); 0.2 s of that per step is the Parquet round trip measured in the first row.
 
 ## Findings and suggested follow-ups (not done)
-1. **A columnar path for sheet ranges** would remove the dominant dataops cost: e.g. an engine API that returns/accepts a range as typed columns (Arrow-like) instead of `list[list[Cell]]`. This needs a contract decision (Agent 0/Agent 1); I have not changed anything.
+1. ~~A columnar path for sheet ranges~~ **done** (contract v0.4.0 + the adapter; see the section above). It still needs an engine that implements it natively to pay off.
 2. In-memory hand-off between pipeline steps (keep the frame, write one version per step at the end) would cut the pipeline time roughly in half but needs care to keep per-step deltas and rollback exact.
 3. Measure on reference hardware with more than one core before quoting any number outside this repository.
 

@@ -14,6 +14,20 @@
       "x-gridora-order": 1,
       "x-gridora-widget": "column-list"
     },
+    "formulas": {
+      "default": "refuse",
+      "enum": [
+        "refuse",
+        "convert_to_values"
+      ],
+      "title": "ops.merge_columns.params.formulas.title",
+      "type": "string",
+      "x-gridora-enum-labels": {
+        "convert_to_values": "ops.merge_columns.params.formulas.options.convert_to_values",
+        "refuse": "ops.merge_columns.params.formulas.options.refuse"
+      },
+      "x-gridora-group": "ops.groups.advanced"
+    },
     "has_header": {
       "default": true,
       "title": "ops.merge_columns.params.has_header.title",

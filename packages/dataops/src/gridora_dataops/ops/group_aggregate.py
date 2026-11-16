@@ -31,6 +31,7 @@ class GroupAggregateOp(OperationSpec):
     category = "analyze"
     destructive = False
     creates_table = True
+    rewrites_cells = False  # reads the range, never changes it: formulas are fine (their values are used)
     Params = GroupParams
 
     def validate_static(self, params: ParamsModel):  # type: ignore[no-untyped-def]

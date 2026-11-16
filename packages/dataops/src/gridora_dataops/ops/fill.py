@@ -8,10 +8,10 @@ from pydantic import Field
 
 from ..errors import DataOpsError, pointer
 from ..ops_common import coerce_scalar
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams
 
 
-class FillParams(ParamsModel):
+class FillParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     columns: list[str] = Field(default_factory=list, description="d", json_schema_extra={
         "x-gridora-column": True, "x-gridora-widget": "column-list", "x-gridora-order": 1})

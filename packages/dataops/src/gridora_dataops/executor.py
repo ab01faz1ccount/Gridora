@@ -61,9 +61,11 @@ class _Source:
 
 
 class DataOpsExecutor:
-    def __init__(self, registry: OperationRegistry | None = None, *, max_patch_cells: int = DEFAULT_MAX_PATCH_CELLS) -> None:
+    def __init__(self, registry: OperationRegistry | None = None, *, max_patch_cells: int = DEFAULT_MAX_PATCH_CELLS,
+                 columnar: bool = True) -> None:
         self.registry = registry if registry is not None else default_registry()
         self.max_patch_cells = max_patch_cells
+        self.columnar = columnar  # False forces the row-major sheet path (tests, benchmarks)
 
     # ------------------------------------------------------------ describe
     def describe_all(self) -> list[OperationDescriptor]:
@@ -109,7 +111,8 @@ class DataOpsExecutor:
     def _load_target(self, target: Target, ctx: ExecContext, *, has_header: bool = True, allow_formulas: bool = False,
                      lenient: bool = False) -> _Source:
         if isinstance(target, SheetRangeTarget):
-            sf = load_sheet_frame(ctx, target.range, has_header, allow_formulas=allow_formulas, lenient=lenient)
+            sf = load_sheet_frame(ctx, target.range, has_header, allow_formulas=allow_formulas, lenient=lenient,
+                                  columnar=self.columnar)
             return _Source(sf.frame, sf.names, sf.has_header, sheet=sf)
         assert isinstance(target, DataTableTarget)
         store = self._store(ctx)
@@ -201,7 +204,8 @@ class DataOpsExecutor:
                     affected=Affected(rows=frame.height, cells=frame.height * frame.width),
                     delta=TableVersionDelta(table_id=t.table_id, from_version=t.version, to_version=dt.version))
             assert src.sheet is not None
-            delta, cells = commit_sheet_frame(ctx, src.sheet, frame, max_cells=self.max_patch_cells)
+            delta, cells = commit_sheet_frame(ctx, src.sheet, frame, max_cells=self.max_patch_cells,
+                                               columnar=self.columnar)
         except DataOpsError as e:
             return OperationResult(status="error", errors=e.errors)
         return OperationResult(status="ok", affected=Affected(cells=cells, rows=frame.height), delta=delta,
@@ -231,4 +235,5 @@ class DataOpsExecutor:
 
 
 def create_executor(config: Mapping[str, Any]) -> DataOpsExecutor:
-    return DataOpsExecutor(max_patch_cells=int(config.get("max_patch_cells", DEFAULT_MAX_PATCH_CELLS)))
+    return DataOpsExecutor(max_patch_cells=int(config.get("max_patch_cells", DEFAULT_MAX_PATCH_CELLS)),
+                           columnar=bool(config.get("columnar_sheets", True)))

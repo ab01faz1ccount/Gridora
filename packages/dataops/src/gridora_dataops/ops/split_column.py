@@ -9,12 +9,12 @@ from pydantic import Field
 
 from ..errors import DataOpsError, pointer
 from ..ops_common import unique_name
-from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, column_field
+from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams, column_field
 
 MAX_PARTS = 50
 
 
-class SplitParams(ParamsModel):
+class SplitParams(RewriteParams):
     has_header: bool = Field(True, json_schema_extra={"x-gridora-order": 0})
     column: str = column_field(types=["text"])
     mode: Literal["delimiter", "fixed_width"] = "delimiter"

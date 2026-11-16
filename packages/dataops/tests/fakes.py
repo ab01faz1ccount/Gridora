@@ -1,7 +1,7 @@
 """In-memory ExecContext used by tests (dataops never imports the real engine)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from gridora_contracts.models import Cell, CellPatchDelta, CellValue, Delta, NumValue, Range, StrValue
 
@@ -81,3 +81,57 @@ class FakeExecContext:
                 self.grid.pop((cell.r, cell.c), None)
             else:
                 self.grid[(cell.r, cell.c)] = cell.model_copy(deep=True)
+
+
+RowFakeExecContext = FakeExecContext  # always the row-major-only double, whatever GRIDORA_COLUMNAR says
+
+
+# ---------------------------------------------------------------------------------- columnar flavour (contract v0.4.0)
+class ColumnarFakeExecContext(FakeExecContext):
+    """The same in-memory sheet, additionally implementing the optional ColumnarExecContext protocol.
+    Writes go through the row double's `write_range`, so both flavours compute identical deltas."""
+
+    def __init__(self, sheet_id: str = "s1", store: Any = None) -> None:
+        super().__init__(sheet_id, store)
+        self.columnar_reads = 0
+        self.columnar_writes = 0
+
+    def read_range_columnar(self, rng: Range) -> Any:
+        from gridora_contracts.models import ColumnarColumn, ColumnarRange
+        self.columnar_reads += 1
+        cols, has_formulas = [], False
+        for c in range(rng.c0, rng.c1 + 1):
+            cells = [self.grid.get((r, c)) for r in range(rng.r0, rng.r1 + 1)]
+            has_formulas = has_formulas or any(x is not None and x.f is not None for x in cells)
+            values = [None if x is None else x.v for x in cells]
+            kinds = {v.k for v in values if v is not None}
+            if not kinds:
+                cols.append(ColumnarColumn(kind="empty", values=[None] * len(values)))
+            elif len(kinds) == 1 and next(iter(kinds)) in ("num", "str", "bool", "date"):
+                k = next(iter(kinds))
+                pick = {"num": lambda v: v.n, "str": lambda v: v.s, "bool": lambda v: v.b, "date": lambda v: v.iso}[k]
+                cols.append(ColumnarColumn(kind=k, values=[None if v is None else pick(v) for v in values]))  # type: ignore[arg-type]
+            else:
+                cols.append(ColumnarColumn(kind="mixed", values=[None if v is None else v.model_dump() for v in values]))
+        return ColumnarRange(range=rng, columns=cols, has_formulas=has_formulas)
+
+    def write_range_columnar(self, rng: Range, data: Any) -> Delta:
+        from gridora_contracts.models import BoolValue, DateValue, ErrValue, NumValue, StrValue
+        self.columnar_writes += 1
+        height = rng.r1 - rng.r0 + 1
+        rows: list[list[Optional[CellValue]]] = [[None] * len(data.columns) for _ in range(height)]
+        for j, col in enumerate(data.columns):
+            for i, v in enumerate(col.values):
+                if v is None or col.kind == "empty":
+                    continue
+                rows[i][j] = {"num": lambda x: NumValue(n=x), "str": lambda x: StrValue(s=x), "bool": lambda x: BoolValue(b=x),
+                              "date": lambda x: DateValue(iso=x), "mixed": lambda x: ErrValue(**x) if x.get("k") == "err" else x
+                              }[col.kind](v)
+        return self.write_range(rng, rows)
+
+
+import os as _os
+
+if _os.environ.get("GRIDORA_COLUMNAR") == "1":
+    # Run the WHOLE suite through the columnar path: every test that builds a FakeExecContext now gets the columnar one.
+    FakeExecContext = ColumnarFakeExecContext  # type: ignore[misc,assignment]
