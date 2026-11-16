@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); 284 tests; benchmarks in `BENCHMARKS.md`. Contract version: 0.3.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
+**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); 345 tests (the whole suite also runs through the columnar double); benchmarks in `BENCHMARKS.md`. Contract version: 0.4.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -41,8 +41,8 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - Rolling back a sheet step writes the `before` values back; a formula removed by a *confirmed* `convert_to_values` step cannot be restored that way. If a rollback is incomplete the result says `rollback_incomplete`.
 
 **Sheet ranges**
-- In-place operations refuse ranges with formulas (unless the operation's `formulas` parameter says `convert_to_values`), with error values, and with mixed-type columns; dates arrive only as `DateValue`; number columns are always `Float64`. Results that grow need free cells to the right/below (`would_overwrite`); there is no row/column insertion in v1.
-- The adapter between `list[list[Cell]]` and Polars costs about 7 microseconds per cell; with the 200,000-cell cap the largest in-place range is about 10,000 rows x 20 columns (see `BENCHMARKS.md`).
+- In-place operations refuse ranges with formulas (the `formulas` parameter, `refuse` by default, can be set to `convert_to_values` by the user; undo restores the formula; operations that only read the range, such as filter/group/pivot/unpivot/join, accept formulas and use their values), with error values, and with mixed-type columns; dates arrive only as `DateValue`; number columns are always `Float64`. Results that grow need free cells to the right/below (`would_overwrite`); there is no row/column insertion in v1.
+- Two sheet paths with identical results: row-major (`list[list[Cell]]`, about 7 microseconds per cell in the adapter) and, when the context implements the optional `ColumnarExecContext` (contract v0.4.0) and the range has no formulas, columnar (about 0.5 microsecond per cell; the write skips an unchanged header row; operations that change the header still write row-major). `columnar=False` forces the row path. Whether this pays off with the real engine is **not measured** (`BENCHMARKS.md`). With the 200,000-cell cap the largest in-place range is about 10,000 rows x 20 columns.
 - `chart_data` reads a sheet source with its first row as header (the spec has no header flag). Analysis operations accept sheet ranges by reading them as an implicit snapshot (the catalog lists tables). `filter` on a sheet range creates a new table.
 
 **Operations**
