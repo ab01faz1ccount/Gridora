@@ -33,7 +33,7 @@ export interface KeyInfo {
 /** Returns the new selection, or null when the key is not a navigation key. */
 export function navigate(sel: Selection, k: KeyInfo, d: Dims): Selection | null {
   const from = k.shift ? sel.focus : sel.active;
-  let to: Pos | null = null;
+  let to: Pos;
   const dc = (visual: -1 | 1) => (d.rtl ? -visual : visual); // visual left/right -> logical column step
   switch (k.key) {
     case "ArrowUp": to = { r: from.r - 1, c: from.c }; break;
