@@ -690,5 +690,42 @@
    "why": "corrupt, fuzzer-minimized or encrypted input: must be rejected or reported, never crash or hang",
    "features": {}
   }
+ ],
+ "private": [
+  {
+   "path": "private/softwiro-piece-rate-payroll.xlsx",
+   "sha256": "7db81c3de4550c130796e1e8a573a835531880ef841d7c5af6591d567c37fbbb",
+   "bytes": 134261,
+   "why": "Arabic RTL payroll workbook (Excel-made): 7 sheets all rightToLeft, 6,806 formulas (INDEX/MATCH/SUMIFS/IFERROR), sheet protection, DV, CF, merges, hyperlinks, fullCalcOnLoad. Licence unknown.",
+   "note": "not in git; tests skip if absent"
+  },
+  {
+   "path": "private/actual_budget_workbook_br.xlsx",
+   "sha256": "cdd5f45c90d4edc7036c3c06b5b4b3763c145bff497253aa48b4261101f24e7e",
+   "bytes": 99482,
+   "why": "Excel-made: pivots, tables, comments, drawings, DV, names. Contextures, informal licence.",
+   "note": "not in git; tests skip if absent"
+  },
+  {
+   "path": "private/file_example_XLSX_5000.xlsx",
+   "sha256": "678b8763910394479084f263667d45fcf2b7e345bef274ccfc1c7f8c5e36adcd",
+   "bytes": 188887,
+   "why": "5,000 plain rows, 40k cells: import speed.",
+   "note": "not in git; tests skip if absent"
+  },
+  {
+   "path": "private/file_example_XLS_5000.xls",
+   "sha256": "e9ead91638c88c48ce657dfc3bb126be62c21365a8566d68a88c5a9c43effab0",
+   "bytes": 672256,
+   "why": "Legacy BIFF .xls: must get a clear unsupported-format error, no crash.",
+   "note": "not in git; tests skip if absent"
+  },
+  {
+   "path": "private/Product-Sales-Region.xlsx",
+   "sha256": "9411ffd6ca8f6135f8d1c8409015a750df3fc6931480b24d50826bb349a6b9ba",
+   "bytes": 149740,
+   "why": "Plain data, 28k cells, no formulas.",
+   "note": "not in git; tests skip if absent"
+  }
  ]
 }
