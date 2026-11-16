@@ -35,6 +35,7 @@ from .tables.bridge import infer_table_frame
 from .tables.store import ParquetTableStore
 from .targets import SheetFrame, commit_sheet_frame, load_sheet_frame
 
+DEFAULT_HANDOFF_MAX_BYTES = 512 * 1024 * 1024  # above this, a pipeline falls back to re-reading between steps
 DEFAULT_MAX_PATCH_CELLS = 200_000  # Phase 2 decision A2-Q5; configurable via create_executor(config)
 
 
@@ -62,10 +63,13 @@ class _Source:
 
 class DataOpsExecutor:
     def __init__(self, registry: OperationRegistry | None = None, *, max_patch_cells: int = DEFAULT_MAX_PATCH_CELLS,
-                 columnar: bool = True) -> None:
+                 columnar: bool = True, pipeline_handoff: bool = True,
+                 handoff_max_bytes: int = DEFAULT_HANDOFF_MAX_BYTES) -> None:
         self.registry = registry if registry is not None else default_registry()
         self.max_patch_cells = max_patch_cells
         self.columnar = columnar  # False forces the row-major sheet path (tests, benchmarks)
+        self.pipeline_handoff = pipeline_handoff  # keep planned frames in memory between pipeline steps
+        self.handoff_max_bytes = handoff_max_bytes
 
     # ------------------------------------------------------------ describe
     def describe_all(self) -> list[OperationDescriptor]:
@@ -188,26 +192,28 @@ class DataOpsExecutor:
     def apply(self, op: Operation, ctx: ExecContext) -> OperationResult:
         try:
             spec, src, frame, warnings = self._plan(op, ctx)
-            if spec.creates_table or (src.sheet is not None and spec.sheet_output == "new_table"):
-                store = self._store(ctx)  # the source is never modified; the result is a NEW table
-                name = catalog("fa").get(f"ops.{spec.type}.label", spec.type)
-                dt = store.create_table(ctx.user_id, ctx.workspace_id, name, infer_table_frame(frame))
-                return OperationResult(
-                    status="ok", warnings=warnings, output=DataTableTarget(table_id=dt.id),
-                    affected=Affected(rows=frame.height, cells=frame.height * frame.width),
-                    delta=TableVersionDelta(table_id=dt.id, from_version=0, to_version=1))
-            if src.table is not None:  # in-place on a data table: a new immutable version
-                t = src.table
-                dt = t.store.write_version(t.owner, t.table_id, frame, parent=t.version)
-                return OperationResult(
-                    status="ok", warnings=warnings,
-                    affected=Affected(rows=frame.height, cells=frame.height * frame.width),
-                    delta=TableVersionDelta(table_id=t.table_id, from_version=t.version, to_version=dt.version))
-            assert src.sheet is not None
-            delta, cells = commit_sheet_frame(ctx, src.sheet, frame, max_cells=self.max_patch_cells,
-                                               columnar=self.columnar)
+            return self._commit_frame(spec, frame, warnings, ctx, table=src.table, sheet=src.sheet)
         except DataOpsError as e:
             return OperationResult(status="error", errors=e.errors)
+
+    def _commit_frame(self, spec: OperationSpec, frame: pl.DataFrame, warnings: list[Warning_], ctx: ExecContext, *,
+                      table: Optional[_TableRef], sheet: Optional[SheetFrame]) -> OperationResult:
+        """Write an already planned result: a new table, a new version of the table, or the sheet range. Raises
+        DataOpsError. Shared by `apply` and by the in-memory hand-off of pipelines."""
+        affected = Affected(rows=frame.height, cells=frame.height * frame.width)
+        if spec.creates_table or (sheet is not None and spec.sheet_output == "new_table"):
+            store = self._store(ctx)  # the source is never modified; the result is a NEW table
+            name = catalog("fa").get(f"ops.{spec.type}.label", spec.type)
+            dt = store.create_table(ctx.user_id, ctx.workspace_id, name, infer_table_frame(frame))
+            return OperationResult(status="ok", warnings=warnings, output=DataTableTarget(table_id=dt.id), affected=affected,
+                                   delta=TableVersionDelta(table_id=dt.id, from_version=0, to_version=1))
+        if table is not None:  # in-place on a data table: a new immutable version
+            dt = table.store.write_version(table.owner, table.table_id, frame, parent=table.version)
+            return OperationResult(status="ok", warnings=warnings, affected=affected,
+                                   delta=TableVersionDelta(table_id=table.table_id, from_version=table.version,
+                                                           to_version=dt.version))
+        assert sheet is not None
+        delta, cells = commit_sheet_frame(ctx, sheet, frame, max_cells=self.max_patch_cells, columnar=self.columnar)
         return OperationResult(status="ok", affected=Affected(cells=cells, rows=frame.height), delta=delta,
                                warnings=warnings)
 
@@ -236,4 +242,6 @@ class DataOpsExecutor:
 
 def create_executor(config: Mapping[str, Any]) -> DataOpsExecutor:
     return DataOpsExecutor(max_patch_cells=int(config.get("max_patch_cells", DEFAULT_MAX_PATCH_CELLS)),
-                           columnar=bool(config.get("columnar_sheets", True)))
+                           columnar=bool(config.get("columnar_sheets", True)),
+                           pipeline_handoff=bool(config.get("pipeline_handoff", True)),
+                           handoff_max_bytes=int(config.get("handoff_max_bytes", DEFAULT_HANDOFF_MAX_BYTES)))

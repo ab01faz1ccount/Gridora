@@ -7,6 +7,7 @@ and tables created by this run are discarded; sheet cells are restored value by 
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import polars as pl
@@ -26,8 +27,49 @@ from gridora_contracts.models import (
 from gridora_contracts.protocols import ExecContext
 
 from .errors import DataOpsError, pointer, verr
-from .targets import check_write
+from .executor import _Source, _TableRef
+from .tables.bridge import infer_table_frame
+from .tables.frames import normalize_frame
+from .targets import SheetFrame, check_write
 from .tools import placeholders
+
+
+@dataclass
+class _Plan:
+    """One planned step: what phase 1 decided, kept so phase 2 can commit it without re-reading."""
+
+    spec: Any
+    frame: Optional[pl.DataFrame]
+    warnings: list[Any]
+    kind: str
+    range: Optional[Range]
+    names: list[str]
+    exact: bool
+    has_header: bool
+    table_ref: Any = None
+
+
+def sheet_roundtrip(frame: pl.DataFrame) -> pl.DataFrame:
+    """The frame a re-read of the just-written range would give: numbers are floats, NaN and all-empty columns are
+    empty/text, header names are stripped and made unique. Keeps hand-off results identical to re-reading."""
+    exprs = []
+    for name, dtype in frame.schema.items():
+        c = pl.col(name)
+        if dtype.is_integer() or dtype.is_float():
+            exprs.append(c.cast(pl.Float64).fill_nan(None))
+        elif isinstance(dtype, pl.Datetime):
+            exprs.append(c.cast(pl.Datetime("us")))
+        elif dtype not in (pl.String, pl.Boolean, pl.Date):
+            exprs.append(c.cast(pl.String))
+    out = frame.with_columns(exprs) if exprs else frame
+    out = out.with_columns([pl.col(c).cast(pl.String) for c in out.columns if out[c].null_count() == out.height and out[c].dtype != pl.String])
+    names = [(n.strip() or f"column_{i + 1}") for i, n in enumerate(out.columns)]
+    seen: dict[str, int] = {}
+    final = []
+    for n in names:
+        seen[n] = seen.get(n, 0) + 1
+        final.append(n if seen[n] == 1 else f"{n}_{seen[n]}")
+    return out.rename(dict(zip(out.columns, final, strict=True))) if final != list(out.columns) else out
 
 
 def _prefixed(errs: list[ValidationError], i: int) -> list[ValidationError]:
@@ -101,11 +143,16 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
                                          "all steps on a sheet range must agree on has_header")])
 
     # ---------------------------------------------------------------- phase 1: dry run
+    plans: list[_Plan] = []
     cur_frame: Optional[pl.DataFrame] = None
     kind = target.kind
     cur_range: Optional[Range] = target.range if isinstance(target, SheetRangeTarget) else None
-    ranges: list[Optional[Range]] = []
     cur_target: Target = target
+    names_before: list[str] = []
+    exact_before = True
+    table_ref: Any = None
+    total_bytes = 0
+    keep = ex.pipeline_handoff
     try:
         for i, st in enumerate(p.steps):
             op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params)
@@ -114,33 +161,61 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
                 return _fail(n, i, _prefixed(errs, i))
             if cur_frame is None:
                 src = ex._load(spec, params, op, ctx)
+                names_before = list(src.names)
+                exact_before = src.sheet.header_exact if src.sheet is not None else True
+                table_ref = src.table
             else:
-                from .executor import _Source
-                src = _Source(cur_frame, list(cur_frame.columns), spec.has_header(params))
-            ranges.append(cur_range)
-            frame, _w = ex._plan_from(spec, params, src, [])
+                src = _Source(cur_frame, names_before, spec.has_header(params))
+            frame, warns = ex._plan_from(spec, params, src, [])
+            plans.append(_Plan(spec, frame, warns, kind, cur_range, list(names_before), exact_before, src.has_header,
+                               table_ref if i == 0 else None))
+            total_bytes += frame.estimated_size()
+            if total_bytes > ex.handoff_max_bytes:
+                keep = False  # too big to hold: re-read between steps instead
             if kind == "sheet_range" and not (spec.creates_table or spec.sheet_output == "new_table"):
                 assert cur_range is not None
                 rows = frame.height + (1 if src.has_header else 0)
                 check_write(ctx, cur_range, rows, frame.width, max_cells=ex.max_patch_cells, columnar=ex.columnar)
                 cur_range = Range(sheet_id=cur_range.sheet_id, r0=cur_range.r0, c0=cur_range.c0,
                                   r1=cur_range.r0 + max(rows, 1) - 1, c1=cur_range.c0 + max(frame.width, 1) - 1)
+                cur_frame = sheet_roundtrip(frame)
+                exact_before = list(frame.columns) == list(cur_frame.columns)
             elif spec.creates_table or (kind == "sheet_range" and spec.sheet_output == "new_table"):
                 kind, cur_range = "data_table", None
                 cur_target = DataTableTarget(table_id="__pending__")
-            cur_frame = frame
+                cur_frame, exact_before = normalize_frame(infer_table_frame(frame)), True
+            else:
+                cur_frame, exact_before = normalize_frame(frame), True
+            names_before = list(cur_frame.columns)
     except DataOpsError as e:
         return _fail(n, i, _prefixed(e.errors, i))
+    if not keep:
+        for pl_ in plans:
+            pl_.frame = None  # release the memory; the commit re-reads
 
     # ---------------------------------------------------------------- phase 2: commit
     results: list[OperationResult] = []
     cur_target = target
     kind = target.kind
+    store: Any = plans[0].table_ref.store if plans[0].table_ref is not None else None
+    ref: Any = plans[0].table_ref
     for i, st in enumerate(p.steps):
-        if kind == "sheet_range" and ranges[i] is not None:
-            cur_target = SheetRangeTarget(range=ranges[i])
-        op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params)
-        res = ex.apply(op, ctx)
+        try:
+            if keep and plans[i].frame is not None:  # in-memory hand-off: commit the frame planned in phase 1
+                pl_ = plans[i]
+                if pl_.kind == "sheet_range":
+                    assert pl_.frame is not None and pl_.range is not None
+                    sf = SheetFrame(pl_.frame, pl_.range, pl_.has_header, pl_.names, 0, 0, header_exact=pl_.exact)
+                    res = ex._commit_frame(pl_.spec, pl_.frame, pl_.warnings, ctx, table=None, sheet=sf)
+                else:
+                    res = ex._commit_frame(pl_.spec, pl_.frame, pl_.warnings, ctx, table=ref, sheet=None)
+            else:  # re-read between steps (memory guard or `pipeline_handoff=False`)
+                if kind == "sheet_range" and plans[i].range is not None:
+                    cur_target = SheetRangeTarget(range=plans[i].range)
+                op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params)
+                res = ex.apply(op, ctx)
+        except DataOpsError as e:
+            res = OperationResult(status="error", errors=e.errors)
         if res.status != "ok":
             errs = _prefixed(res.errors, i)
             if not _rollback(ctx, results):
@@ -151,6 +226,8 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
         if isinstance(res.delta, TableVersionDelta):  # name the exact version for the next step (no 'highest' guess)
             cur_target = DataTableTarget(table_id=res.delta.table_id, version=res.delta.to_version)
             kind = "data_table"
+            store = store or ex._store(ctx)
+            ref = _TableRef(store, ctx.user_id, res.delta.table_id, res.delta.to_version, assumed=False)
         elif isinstance(res.output, DataTableTarget):
             cur_target, kind = res.output, "data_table"
     return results
