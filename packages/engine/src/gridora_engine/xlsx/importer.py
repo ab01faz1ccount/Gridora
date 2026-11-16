@@ -154,7 +154,7 @@ def _load_sheet(
     lazy = LazySheet(src, ctx, limits.deadline_seconds)
     sheet = SheetState(
         id=str(uuid.uuid4()), name=ref.name, index=len(state.sheets), store=store,
-        visible=ref.state, lazy=lazy, part_name=part, formulas=ctx.formulas, fkind=ctx.fkind,
+        visible=ref.state, lazy=lazy, part_name=part, formulas=ctx.formulas, fkind=ctx.fkind, array_ranges=ctx.array_ranges,
     )
     try:
         if lazy.eager:
@@ -163,6 +163,7 @@ def _load_sheet(
     except GridoraEngineError:
         lazy.close()
         raise
+    lazy.bind(sheet)
     rows_hint, cols_hint = lazy.used_hint()
     if cols_hint == 0 and rows_hint > 0:  # no spans or dimension: read the first block for a width
         lazy.ensure(0, 256)

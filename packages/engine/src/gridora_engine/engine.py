@@ -12,23 +12,23 @@ from typing import Any
 from gridora_contracts.models import (
     Cell,
     CellEdit,
+    CellPatchDelta,
     CellWindow,
     CompatibilityReport,
-    DateValue,
     Delta,
     Window,
     Workbook,
 )
-from gridora_contracts.protocols import CsvOptions, WorkbookHandle
+from gridora_contracts.protocols import BlobStore, CsvOptions, WorkbookHandle
 
 from .compat.report import build_report
 from .csvio.importer import import_csv_file
 from .csvio.writer import write_csv
-from .errors import EngineNotImplementedError, GridoraEngineError, bad_request
+from .errors import EngineNotImplementedError, GridoraEngineError, bad_request, validation_failed
 from .limits import ResourceLimits
-from .model.dates import serial_to_iso
-from .model.values import NUM, to_contract_value
-from .model.workbook import WorkbookState
+from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
+from .model.edits import Snap, apply_all, key_of
+from .model.workbook import SheetState, WorkbookState
 from .xlsx.importer import import_xlsx_file
 
 _KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding"}
@@ -43,7 +43,8 @@ class Handle:
 
 
 class GridoraEngine:
-    def __init__(self, config: Mapping[str, Any]) -> None:
+    def __init__(self, config: Mapping[str, Any], blobs: BlobStore | None = None) -> None:
+        self.blobs = blobs
         unknown = set(config) - _KNOWN_CONFIG
         if unknown:
             raise bad_request("config.unknown_key", "Unknown engine configuration key.")
@@ -95,40 +96,102 @@ class GridoraEngine:
         if sheet is None:
             raise GridoraEngineError("not_found", "sheet.unknown", "The sheet does not exist.")
         sheet.ensure(window.row0, window.row0 + window.rows)
-        styles = state.styles
-        xf_date = styles.xf_is_date if styles else []
-        xf_fmt = styles.xf_numfmt if styles else []
-        formulas = sheet.formulas
-        cells = []
-        for r, c, tag, val, style in sheet.store.window(
-            window.row0, window.col0, window.rows, window.cols
-        ):
-            v = to_contract_value(tag, val, state.strings)
-            fmt = None
-            if style:
-                if tag == NUM and style < len(xf_date) and xf_date[style]:
-                    iso = serial_to_iso(val, state.date_system)
-                    if iso is not None:
-                        v = DateValue.model_construct(k="date", iso=iso)
-                if style < len(xf_fmt) and xf_fmt[style]:
-                    fmt = str(xf_fmt[style])
-            text = formulas.get((r << 14) | c) if formulas else None
-            cells.append(
-                Cell.model_construct(
-                    r=r, c=c, v=v, f=None if text is None else "=" + text,
-                    s=style or None, t=fmt,
-                )
+        cells = [
+            make_cell(state, sheet, r, c, tag, val, style)
+            for r, c, tag, val, style in sheet.store.window(
+                window.row0, window.col0, window.rows, window.cols
             )
+        ]
         return CellWindow(
             sheet_id=sheet_id, row0=window.row0, col0=window.col0,
             rows=window.rows, cols=window.cols, cells=cells,
         )
 
     def apply_cell_edits(self, wb: WorkbookHandle, sheet_id: str, edits: list[CellEdit]) -> Delta:
-        raise EngineNotImplementedError("apply_cell_edits")
+        state, sheet = self._sheet(wb, sheet_id)
+        limits = self.limits
+        if len(edits) > limits.max_patch_cells:
+            raise validation_failed(
+                "too_large_for_history", "The change is too large to record in the history."
+            )
+        final: dict[int, CellEdit] = {}
+        for e in edits:  # validate everything first; the last edit of a cell wins
+            if e.r >= limits.max_rows or e.c >= limits.max_cols:
+                raise validation_failed("edit.out_of_range", "A cell lies outside the sheet limits.")
+            if e.formula is not None:
+                raise validation_failed(
+                    "edit.formulas_unsupported", "Formulas cannot be entered yet."
+                )
+            v = e.value
+            if v is not None and v.k == "num" and (v.n != v.n or v.n in (float("inf"), float("-inf"))):
+                raise validation_failed("edit.invalid_number", "The number is not a finite value.")
+            if v is not None and v.k == "str" and len(v.s) > limits.max_field_chars:
+                raise validation_failed("edit.string_too_long", "The text is longer than 32,767 characters.")
+            final[key_of(e.r, e.c)] = e
+        self._load_for_edit(sheet, [(k >> 14) for k in final])
+        for k in final:
+            if self._protected(sheet, k >> 14, k & 0x3FFF):
+                raise validation_failed(
+                    "edit.protected_formula_cell",
+                    "This cell belongs to a shared or array formula and cannot be edited yet.",
+                )
+        before: list[Cell] = []
+        changes: list[tuple[int, int, Snap]] = []
+        for k, e in final.items():
+            r, c = k >> 14, k & 0x3FFF
+            before.append(read_cell(state, sheet, r, c))
+            _tag, _val, style = sheet.store.get(r, c)
+            tag, val, style = internal_value(state, e.value, style)
+            changes.append((r, c, (tag, val, style, None)))
+        apply_all(sheet, changes)
+        after = [read_cell(state, sheet, r, c) for r, c, _s in changes]
+        return CellPatchDelta(sheet_id=sheet_id, before=before, after=after)
 
     def apply_delta(self, wb: WorkbookHandle, delta: Delta, *, inverse: bool) -> None:
-        raise EngineNotImplementedError("apply_delta")
+        if delta.kind != "cell_patch":
+            raise validation_failed("delta.unsupported_kind", "This kind of change is not supported yet.")
+        state, sheet = self._sheet(wb, delta.sheet_id)
+        cells = delta.before if inverse else delta.after
+        if len(cells) > self.limits.max_patch_cells:
+            raise validation_failed("too_large_for_history", "The change is too large to apply.")
+        for cell in cells:
+            if cell.r >= self.limits.max_rows or cell.c >= self.limits.max_cols or (cell.s or 0) > 65535:
+                raise validation_failed("delta.out_of_range", "The change refers to a cell outside the sheet.")
+        self._load_for_edit(sheet, [cell.r for cell in cells])
+        changes: list[tuple[int, int, Snap]] = []
+        for cell in cells:
+            tag, val, style, text = cell_to_internal(state, cell)
+            changes.append((cell.r, cell.c, (tag, val, style, text)))
+        apply_all(sheet, changes)
+
+    # -- helpers ----------------------------------------------------------------------------
+    def _sheet(self, wb: WorkbookHandle, sheet_id: str) -> tuple[WorkbookState, SheetState]:
+        state = self._state(wb)
+        sheet = state.sheet(sheet_id)
+        if sheet is None:
+            raise GridoraEngineError("not_found", "sheet.unknown", "The sheet does not exist.")
+        return state, sheet
+
+    @staticmethod
+    def _load_for_edit(sheet: SheetState, rows: list[int]) -> None:
+        """Make sure every row about to change is materialized BEFORE it changes (a later lazy
+        parse would overwrite edits). Sheets with shared/array formulas are loaded completely so
+        the protection check sees every formula group."""
+        lazy = sheet.lazy
+        if lazy is None:
+            return
+        src = getattr(lazy, "source", None)
+        if src is not None and (src.array_count or src.shared_count):
+            lazy.materialize_all()
+            return
+        for block in sorted({r >> 8 for r in rows}):
+            lazy.ensure(block << 8, (block << 8) + 1)
+
+    @staticmethod
+    def _protected(sheet: SheetState, r: int, c: int) -> bool:
+        if (r << 14) | c in sheet.fkind:
+            return True
+        return any(r0 <= r <= r1 and c0 <= c <= c1 for r0, c0, r1, c1 in sheet.array_ranges)
 
     def recalculate(self, wb: WorkbookHandle) -> None:
         raise EngineNotImplementedError("recalculate")

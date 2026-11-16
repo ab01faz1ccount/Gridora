@@ -148,6 +148,10 @@ class TableStore(Protocol):                          # implemented by packages/d
 - Optional engine extensions (`FormattingEngine`, `StructureEngine`) are feature-detected by `apps/api`.
 - User management in v1 is a CLI plus bootstrap-admin env; there are no HTTP admin endpoints.
 
+## 11b. Stable detail codes (v0.4.1)
+`ErrorDetail.code` values that clients may rely on, in addition to module sub-codes documented in each module README:
+- `too_large_for_history` under top-level `operation_conflict` (HTTP 409): an in-place sheet write would exceed the 200,000-cell history cap. The UI should offer "convert this range to a Data Table" (Data Tables have no such cap).
+
 ## 12. Versioning
 
 Breaking changes bump `/api/v1` → `/api/v2`. Operation param schemas carry `schema_version`; migration functions live beside each operation.

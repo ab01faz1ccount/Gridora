@@ -70,3 +70,13 @@ Format: Context · Decision · Consequences. Status: Proposed → Accepted (afte
 Also: `DataTableTarget.version` (apps/api passes the current pointer, fixing the "highest version" ambiguity after undo) and `sheet_range_to_table(name=...)`.
 **Consequences:** Nothing existing changes. A fake context in dataops can implement the columnar protocol immediately. The real engine implements both after E5 (value edits and deltas) and E4 (reading). Status: Accepted. Not measured on the real engine yet; the gain is expected, not demonstrated.
 
+## ADR-015 — ColumnarEngine accepted; long whole-sheet work; import isolation stays Phase 4 (contract v0.4.1)
+**Context:** Agent 1 finished E5 and measured: lazy XLSX open 0.85 s at 100k x 20, but a full parse of every row costs 11 to 13 s (about 27 s counting contract `Cell` objects). Any whole-sheet operation (recalculation, convert to table, in-place sort) pays this.
+**Decisions:**
+1. CC-12 **accepted** as the optional `ColumnarEngine` protocol (contract 0.4.1). Build order: E6 (export), then E5b-1 (columnar), then E5b-2 (snapshot deltas, codec profile R only).
+2. **Codec profile W (whole-workbook snapshot for import isolation) is not built before Phase 4.** One codec and container, two profiles, as Agent 1 proposed; only profile R is in scope now. The tension Agent 1 found (isolation means parsing in a worker, and a 100k x 20 parse takes 11 to 13 s) is real; the thread-based import of ADR-011 stands for v1 and the numbers go into the Phase 4 decision.
+3. **Whole-sheet work runs as a job with progress**, never inside a request. Agent 1 proposes how long engine calls report progress and can be cancelled (CC-13); Agent 3's job runner consumes it.
+4. **History limit error:** top-level `operation_conflict` plus detail code `too_large_for_history` (what apps/api already does). The engine's `validation_failed` with a reason is aligned to this.
+5. **ADR-003 part 2 (formula core) is still pending** and E7 stays blocked. Gate: E6 merged, owner-supplied real Excel files measured, and the full-parse time of those files known. If a real 100k x 20 file needs more than 30 s to parse in pure Python, the Rust-core option is brought back for a decision before any formula work.
+**Consequences:** A dataops run on large sheets still waits for E5b; until then large sheet operations return `too_large_for_history`. Status: Accepted.
+

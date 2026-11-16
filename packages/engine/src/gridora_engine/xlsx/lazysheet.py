@@ -6,6 +6,7 @@ import bisect
 from ..errors import GridoraEngineError, import_failed
 from ..limits import Deadline
 from ..model.sheet import CHUNK_ROWS, CHUNK_SHIFT
+from ..model.workbook import SheetState
 from ..package import xmlsafe
 from .cellparse import EXCEL_COLS, CellParser, SheetCtx, parse_ref
 from .sheetsource import FeatureCollector, SheetSource
@@ -32,6 +33,11 @@ class LazySheet:
         self.eager = not source.indexed
         self.fell_back = False  # True when the byte-scan index was rejected at parse time
         self._all = False
+        self._sheet: SheetState | None = None
+
+    def bind(self, sheet: SheetState) -> None:
+        """Give the lazy sheet access to the edit overlay (dirty cells survive a full re-parse)."""
+        self._sheet = sheet
 
     # -- size hints (cheap; corrected as rows are materialized) -----------------------------------
     def used_hint(self) -> tuple[int, int]:
@@ -83,6 +89,7 @@ class LazySheet:
         """Safe full parse of the whole part (also the fallback when the index is not trusted)."""
         if self._all:
             return
+        overlay = self._capture_overlay()
         self._reset_store()
         deadline = Deadline(self._deadline_seconds)
         parser = CellParser(self.ctx)
@@ -122,6 +129,28 @@ class LazySheet:
             self.source.features = collector.f
         self._all = True
         self.parsed_blocks = set(range(EXCEL_BLOCKS))
+        self._restore_overlay(overlay)
+
+    def _capture_overlay(self) -> list[tuple[int, tuple[int, float, int], str | None]]:
+        sh = self._sheet
+        if sh is None or not sh.dirty:
+            return []
+        return [
+            (k, sh.store.get(k >> 14, k & 0x3FFF), sh.formulas.get(k)) for k in sorted(sh.dirty)
+        ]
+
+    def _restore_overlay(
+        self, overlay: list[tuple[int, tuple[int, float, int], str | None]]
+    ) -> None:
+        sh = self._sheet
+        if sh is None:
+            return
+        for key, (tag, val, style), text in overlay:
+            sh.store.put(key >> 14, key & 0x3FFF, tag, val, style)
+            if text is None:
+                sh.formulas.pop(key, None)
+            else:
+                sh.formulas[key] = text
 
     def _reset_store(self) -> None:
         self.ctx.store.reset()
