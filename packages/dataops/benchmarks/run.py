@@ -86,7 +86,8 @@ def child(case: str, mode: str, rows: int, runs: int, data: Path) -> None:
     ids = iter(f"t{i}" for i in range(10_000))
     store = create_table_store(lambda o, t, v: store_root / o / t / f"v{v}.parquet", new_id=ids.__next__)
     ctx = FakeExecContext(store=store)
-    ex = DataOpsExecutor(max_patch_cells=10**9)
+    import os
+    ex = DataOpsExecutor(max_patch_cells=10**9, pipeline_handoff=os.environ.get("BENCH_HANDOFF", "1") == "1")
     left = pl.read_parquet(data / "main.parquet")
     store.create_table("u1", "w1", "main", left)                                       # t0 (the pristine copy)
     store.create_table("u1", "w1", "right", pl.read_parquet(data / "right.parquet"))   # t1

@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); 345 tests (the whole suite also runs through the columnar double); benchmarks in `BENCHMARKS.md`. Contract version: 0.4.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
+**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); 380 tests (the whole suite also runs through the columnar double); benchmarks in `BENCHMARKS.md`. Contract version: 0.4.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -37,7 +37,7 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 **Pipelines and Tools**
 - `join` (needs `extra_targets`) cannot be a pipeline step: `PipelineStep` has no such field (decision: stays out of v1).
 - `range` Tool inputs are accepted by no v1 parameter; `validate_tool` cannot know columns created by earlier steps (it checks the first step's literal columns when given a context).
-- Each committed step re-reads its input (no in-memory hand-off, see `BENCHMARKS.md`); all steps of a sheet pipeline must agree on `has_header`.
+- Between steps the planned frames are handed over in memory (default; `pipeline_handoff=False` or a frame set above `handoff_max_bytes`, 512 MB, falls back to re-reading). Results, deltas, per-step undo and rollback are identical either way (tests run every pipeline both ways). All steps of a sheet pipeline must agree on `has_header`.
 - Rolling back a sheet step writes the `before` values back; a formula removed by a *confirmed* `convert_to_values` step cannot be restored that way. If a rollback is incomplete the result says `rollback_incomplete`.
 
 **Sheet ranges**
@@ -52,6 +52,8 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - `pivot` is capped at 200 new columns; `join` refuses more than 5,000,000 matching pairs; charts cap at 5,000 categories; unpivot of mixed types converts everything to text (warning).
 - Decimal columns are stored as Decimal(38,10) (verified with polars 2.1.0 only). Floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums may differ between machines.
 - Tables are read fully into memory for an operation (not tested larger than memory). No DuckDB (ADR-012).
+
+**Errors for the API**: `OperationResult.errors` / `DataOpsError.code` use the dataops codes; `gridora_dataops.errors.envelope(code)` gives `(top-level contract code, detail code)`, e.g. `too_large_for_history` -> `("operation_conflict", "too_large_for_history")` (ADR-015). An error raised by the context itself (the API's own history-cap error) propagates unchanged from `apply`; in a pipeline earlier steps are rolled back first.
 
 **Performance**: `BENCHMARKS.md` (data tables at 100,000 x 20: 0.04 to 1.0 s per operation on a 1-core VM; sheet ranges measured at 10,000 rows with a test double, no real engine).
 
