@@ -82,7 +82,8 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 | E3 hostile-safe zip/XML, package model, byte-equal no-op round trip | implemented, branch `agent1/e3-package` (stacked on `agent1/v030-ci`) |
 | E4 XLSX read, lazy row windows, compat report, 100k benchmark | implemented, branch `agent1/e4-xlsx-read` (stacked on E3) |
 | E5 value edits, deltas, undo/redo, replay determinism, 200,000-cell cap | implemented, branch `agent1/e5-edits` (stacked on E4) |
-| E6 onward | XLSX export with dirty-row patching, then E7 formulas only after ADR-003; **no formulas yet** |
+| E6 XLSX export by row patching, report of stale formula results, corpus round trip | implemented, branch `agent1/e6-export` |
+| E5b-1 / E5b-2 | next, in that order (ADR-015); then CC-13 once Agent 0 answers; **E7 formulas stay blocked on ADR-003** |
 
 ---
 
@@ -157,6 +158,41 @@ A real tension to decide in Phase 4: for isolation the worker must do the hostil
 instead would move hostile-origin XML parsing back into the trusted process (still through the safe expat
 path, but that defeats the point). A faster parser (Rust core, ADR-003) makes the isolation design cheap;
 without it the choice is between slow imports and weaker isolation.
+
+---
+
+### 0.8 CC-13 — progress and cancellation of long engine calls (PROPOSAL ONLY; not built)
+
+**Problem.** Whole-sheet work is slow in pure Python (11-13 s to parse 100k x 20, ~2 s to export, columnar reads
+and later recalculation on top). ADR-015: it must run as a job with progress, and a user must be able to cancel it.
+The engine is synchronous and not thread-safe per workbook; Agent 3's job runner calls it from a worker thread.
+
+**Proposal.** One tiny protocol in `contracts/` and an optional keyword on the long methods:
+
+```python
+class JobControl(Protocol):
+    def report(self, done: int, total: int | None, stage: str) -> None: ...   # never blocks
+    def cancelled(self) -> bool: ...                                          # cheap, thread-safe
+```
+`import_xlsx`, `import_csv`, `export_xlsx`, `read_range_columnar`, `write_range_columnar` (and `recalculate` at E7) get
+`control: JobControl | None = None`. Short calls (`get_cells`, small edits) do not.
+- The engine calls `report` at natural checkpoints (every 256-row block, every 10,000 shared strings, every 1 MiB of
+  zip data written) and `cancelled()` at the same places. The existing cooperative `Deadline` becomes one kind of
+  `JobControl`, so there is one mechanism.
+- On cancellation the engine raises `GridoraEngineError("operation_conflict", "cancelled", ...)` (no new top-level
+  code needed; Agent 0 may prefer a dedicated one).
+- **Consistency guarantees** (testable): a cancelled read leaves the workbook valid (a lazy block is either fully
+  parsed or not at all, 28 ms each at 100k x 20); a cancelled edit/write rolls back as today (all-or-nothing); a
+  cancelled export removes its `.part` file; a cancelled import returns no handle and releases the spool.
+- **Threading:** the engine only *calls* the two methods from the thread that runs the engine call; the runner
+  implements them with a `threading.Event` and an atomic counter. Latency: at most one block (~30 ms) plus one
+  zip chunk. Overhead: ~400 `report` calls per 100k rows.
+- **Rejected:** interrupting the thread (unsafe in CPython, can leave locks and half-written state); killing a
+  process (belongs to Phase 4 isolation, ADR-011); generator-style APIs (invasive for every caller).
+- **Open questions for Agent 0/3:** is progress `done/total` in rows, bytes or cells (I suggest rows for sheets,
+  bytes for zip work, with `stage` naming which); who owns the "progress is a hint, not a promise" wording; whether
+  `report` may raise to cancel (I say no: use `cancelled()`).
+Not built until Agent 0 answers (Review 4).
 
 ---
 

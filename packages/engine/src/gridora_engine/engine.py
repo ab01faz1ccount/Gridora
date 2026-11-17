@@ -35,6 +35,7 @@ from .limits import ResourceLimits
 from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
 from .model.edits import Snap, apply_all, key_of
 from .model.workbook import SheetState, WorkbookState
+from .xlsx.exporter import export_xlsx_file
 from .xlsx.importer import import_xlsx_file
 
 _KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding"}
@@ -201,7 +202,7 @@ class GridoraEngine:
         raise EngineNotImplementedError("recalculate")
 
     def export_xlsx(self, wb: WorkbookHandle, path: Path) -> CompatibilityReport:
-        raise EngineNotImplementedError("export_xlsx")
+        return export_xlsx_file(self._state(wb), path, self.limits)
 
     def export_csv(self, wb: WorkbookHandle, sheet_id: str, path: Path) -> CompatibilityReport:
         state = self._state(wb)

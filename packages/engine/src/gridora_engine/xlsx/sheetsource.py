@@ -107,6 +107,7 @@ class SheetSource:
         self.size = size
         self.row_nums: array[int] = array("I")
         self.row_starts: array[int] = array("Q")
+        self.sheetdata_start = 0  # offset of '<sheetData'
         self.data_start = 0
         self.data_end = 0  # offset of </sheetData> (or data_start when self-closing/empty)
         self.close_end = 0  # first byte after </sheetData>
@@ -170,6 +171,7 @@ def _scan(src: SheetSource, limits: ResourceLimits, deadline: Deadline) -> None:
             src.indexed = False
     if src.indexed:
         self_closing = mm[j - 1 : j] == b"/"
+        src.sheetdata_start = i
         src.data_start = j + 1
         if self_closing:
             src.data_end = src.close_end = j + 1

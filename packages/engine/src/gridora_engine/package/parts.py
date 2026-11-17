@@ -7,6 +7,7 @@ parts byte-for-byte preserved. External relationship targets are recorded, never
 from __future__ import annotations
 
 import posixpath
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Self
@@ -42,6 +43,7 @@ class Part:
     name: str
     state: PartState = "clean"
     data: bytes | None = None  # only for dirty/added parts; clean parts stream from the source
+    producer: Callable[[], Iterator[bytes]] | None = None  # streamed content of a dirty part
 
 
 @dataclass

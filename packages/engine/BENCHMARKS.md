@@ -219,3 +219,33 @@ Reading it honestly:
   `right-to-left.xlsx` (POI) has Arabic text but no RTL sheet view. No Persian (as opposed to Arabic) workbook
   with a Jalali date format is in the corpus.
 - Not covered: `private/actual_budget_workbook_br.xlsx` (listed in the manifest, not in the repository).
+
+## E6 — export, 100k x 20 XLSX (row patching)
+
+Command: `python benchmarks/bench_export_100k.py`. Same file and container as E4/E5, single runs.
+
+| Operation | Result |
+|---|---|
+| `export_xlsx`, no edits (verbatim copy of every part) | 2.26 s |
+| after 1 edit (one row rebuilt, rest copied from the spooled original) | 1.95 s |
+| after +10,000 edited cells (500 rows rebuilt) | 2.08 s |
+| Re-import of the exported file (lazy) | 0.85 s |
+| Max RSS of the whole process (import + edits + 3 exports + re-import) | 219 MB |
+
+Reading it honestly: the time is dominated by re-compressing the 74 MB sheet with deflate, not by row
+rebuilding (rebuilding 500 rows costs less than the noise between runs). Memory stays flat because the
+sheet is streamed from the spool, never held whole.
+
+### Export round trip on the real corpus (`tests/corpus/test_corpus_export.py`)
+All 31 readable corpus files (29 Apache POI + 2 private xlsx + softwiro) go through import, three
+deterministic value edits per sheet, export, and a re-import by a fresh engine: **the fingerprint of every
+cell of every sheet is identical** to the live workbook, only the expected parts change (edited sheets,
+`workbook.xml` gaining `fullCalcOnLoad`, and `workbook.xml.rels`/`[Content_Types].xml`/`calcChain.xml` when
+formulas changed), and inside an edited sheet only the rows that contain edits differ, byte for byte.
+LibreOffice (secondary oracle, not Excel) opens the exported file and shows the edit for 5 representative files
+(calcChain dropped, xlsm with VBA, pivot, tables, a 663k-cell sheet).
+**A bug this found:** Excel-made rows carry prefixed attributes (`x14ac:dyDescent`); the lazy reader parsed row
+slices with namespace processing, the prefix was unbound in the slice, and every such sheet silently fell back to
+the slow full parse (my synthetic fixtures never had prefixes, so the 100k benchmark did not show it). Row
+slices are now parsed without namespace processing. Before the fix 14 of the 31 files could not be exported
+(`export.sheet_not_patchable` / `xml.malformed`); after it, none.
