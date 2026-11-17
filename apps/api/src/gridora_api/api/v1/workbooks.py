@@ -3,7 +3,14 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from gridora_contracts.models import CellWindow, CompatibilityReport, Window, Workbook
+from gridora_contracts.models import (
+    CellEditRequest,
+    CellsChangedResult,
+    CellWindow,
+    CompatibilityReport,
+    Window,
+    Workbook,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
@@ -11,6 +18,7 @@ from ...core.errors import DomainError
 from ...db.models import StoredFile, WorkbookRow
 from ...db.repos.owned import get_owned
 from ...db.session import get_db
+from ...services import history as history_service
 from ...services import workbooks as wb_service
 from ...services.auth import AuthContext
 from ..deps import auth
@@ -81,5 +89,33 @@ async def get_cells(
         db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
     )
     window = Window(row0=r0, col0=c0, rows=rows, cols=cols)
-    cw = await st.copies.call(entry, st.services.engine.get_cells, entry.handle, sheet_id, window)
-    return ok(request, cw)
+    cw = await st.copies.call(
+        entry, st.services.engine.get_cells, entry.handle, entry.to_engine(sheet_id), window
+    )
+    # clients only ever see the public sheet id (the engine's differs after a rebuild)
+    return ok(request, cw.model_copy(update={"sheet_id": sheet_id}))
+
+
+@router.patch(
+    "/workbooks/{id}/sheets/{sheet_id}/cells", response_model=Envelope[CellsChangedResult]
+)
+async def edit_cells(
+    id: str,
+    sheet_id: str,
+    body: CellEditRequest,
+    request: Request,
+    ctx: Ctx,
+    db: Db,
+) -> Envelope[CellsChangedResult]:
+    """One request = one history entry. Atomic: it all applies or none of it does."""
+    st = request.app.state
+    row = await history_service.lock_workbook(db, ctx.user.id, id)  # row lock held until commit
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    result = await history_service.apply_edits(
+        db, st.services, st.copies, row, entry, sheet_id, body
+    )
+    return ok(request, result)

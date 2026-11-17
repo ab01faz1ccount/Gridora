@@ -36,4 +36,17 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("GET", "/api/v1/workbooks/{id}/sheets/{sheet_id}/cells"): lambda c, ids: c.get(
         f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/cells?r0=0&c0=0&rows=5&cols=5"
     ),
+    ("PATCH", "/api/v1/workbooks/{id}/sheets/{sheet_id}/cells"): lambda c, ids: c.patch(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/cells",
+        json={"base_seq": 0, "edits": [{"r": 0, "c": 0, "value": {"k": "num", "n": 1}}]},
+    ),
+    ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
+        f"/api/v1/documents/{ids['wb']}/history"
+    ),
+    ("POST", "/api/v1/documents/{id}/undo"): lambda c, ids: c.post(
+        f"/api/v1/documents/{ids['wb']}/undo"
+    ),
+    ("POST", "/api/v1/documents/{id}/redo"): lambda c, ids: c.post(
+        f"/api/v1/documents/{ids['wb']}/redo"
+    ),
 }

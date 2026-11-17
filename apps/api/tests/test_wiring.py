@@ -29,8 +29,11 @@ def test_default_is_stub_and_loads_all_protocols(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("which", ["engine", "dataops"])
 def test_real_without_the_package_fails_at_startup_with_a_clear_message(
-    tmp_path: Path, which: str
+    tmp_path: Path, which: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # the real packages may be installed in this environment: hide them for this test
+    monkeypatch.setitem(sys.modules, "gridora_engine", None)
+    monkeypatch.setitem(sys.modules, "gridora_dataops", None)
     with pytest.raises(CompositionError, match="not installed"):
         build_services(fast_settings(tmp_path, **{which: "real"}), layout(tmp_path))
     with pytest.raises(CompositionError):
@@ -41,7 +44,7 @@ def test_real_without_the_package_fails_at_startup_with_a_clear_message(
 def fake_real(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stand-in 'real' packages exposing exactly the fixed factories (contracts protocols.py)."""
     eng = types.ModuleType("gridora_engine")
-    eng.create_engine = lambda config: engine_stub.create_engine(config)  # type: ignore[attr-defined]
+    eng.create_engine = lambda config, blobs=None: engine_stub.create_engine(config, blobs)  # type: ignore[attr-defined]
     ops = types.ModuleType("gridora_dataops")
     ops.create_executor = executor_stub.create_executor  # type: ignore[attr-defined]
     ops.create_table_store = executor_stub.create_table_store  # type: ignore[attr-defined]
@@ -89,7 +92,7 @@ def test_missing_factory_or_wrong_type_is_rejected(
     with pytest.raises(CompositionError, match="create_engine"):
         build_services(fast_settings(tmp_path, engine="real"), layout(tmp_path))
     bad = types.ModuleType("gridora_engine")
-    bad.create_engine = lambda config: object()  # type: ignore[attr-defined]
+    bad.create_engine = lambda config, blobs=None: object()  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "gridora_engine", bad)
     with pytest.raises(CompositionError, match="WorkbookEngine"):
         build_services(fast_settings(tmp_path, engine="real"), layout(tmp_path))

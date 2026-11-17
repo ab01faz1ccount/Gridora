@@ -60,7 +60,10 @@ def migrated_db() -> None:
     command.upgrade(alembic_config(), "head")
 
 
-TABLES = "audit_log, login_attempts, jobs, workbooks, documents, files, workspaces, sessions, users"
+TABLES = (
+    "audit_log, login_attempts, jobs, history_entries, workbooks, documents, files, "
+    "workspaces, sessions, users"
+)
 
 
 @pytest.fixture(autouse=True)

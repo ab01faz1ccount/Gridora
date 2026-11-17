@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gridora_contracts.protocols import (
+    ColumnarEngine,
     FormattingEngine,
     OperationExecutor,
     StructureEngine,
@@ -24,7 +25,9 @@ from gridora_contracts.protocols import (
 )
 
 from ..config import Settings
+from ..storage.blobs import FileBlobStore
 from ..storage.layout import StorageLayout
+from .engine_adapter import EngineErrorAdapter
 from .stubs import catalog_stub, engine_stub, executor_stub
 
 
@@ -49,6 +52,10 @@ class Services:
     def structure_available(self) -> bool:
         return isinstance(self.engine, StructureEngine)
 
+    @property
+    def columnar_available(self) -> bool:
+        return isinstance(self.engine, ColumnarEngine)
+
 
 def _load(module: str, which: str) -> Any:
     try:
@@ -68,10 +75,14 @@ def _factory(mod: Any, name: str) -> Any:
 
 def build_services(settings: Settings, layout: StorageLayout) -> Services:
     config: dict[str, Any] = {}
+    blobs = FileBlobStore(layout.root / "blobs")
     if settings.engine == "real":
-        engine = _factory(_load("gridora_engine", "ENGINE"), "create_engine")(config)
+        raw = _factory(_load("gridora_engine", "ENGINE"), "create_engine")(config, blobs)
+        if not isinstance(raw, WorkbookEngine):
+            raise CompositionError("the engine does not implement the WorkbookEngine protocol")
+        engine: WorkbookEngine = EngineErrorAdapter(raw)
     else:
-        engine = engine_stub.create_engine(config)
+        engine = engine_stub.create_engine(config, blobs)
     if not isinstance(engine, WorkbookEngine):
         raise CompositionError("the engine does not implement the WorkbookEngine protocol")
 
