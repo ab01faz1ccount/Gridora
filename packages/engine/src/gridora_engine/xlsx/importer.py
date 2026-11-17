@@ -124,6 +124,8 @@ def _build(
         _add(hits, "xlsx.defined_name")
     if info.workbook_protection:
         _add(hits, "xlsx.workbook_protection")
+    if info.full_calc_on_load:
+        _add(hits, "xlsx.full_calc_on_load")
     if info.external_refs:
         _add(hits, "xlsx.external_link", 0)  # counted from parts below; keeps the entry if parts are missing
     for pt in model.parts:

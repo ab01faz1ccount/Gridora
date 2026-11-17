@@ -127,3 +127,95 @@ Reading it honestly:
 - Sheets that contain shared or array formulas are loaded completely on the first edit (so the
   protection check sees every formula group): ~11-13 s for a 100k x 20 sheet of this kind. The
   benchmark file has none.
+
+## Corpus — open times of real and hostile files (`corpus/`, Review 4 order)
+
+Command: `python benchmarks/corpus_report.py`. 1-CPU container, Python 3.12.3, **single run per file**, warm
+disk cache. "import" = `import_xlsx` (validation, workbook/styles/strings, sheet spool + index, report);
+"parse-all" = time to materialize every row afterwards; "cells" = cells with a value or formula, equal to an
+independent ElementTree count in the tests. `-` in cells/s: too fast to time.
+
+| file | size KB | import s | parse-all s | cells | cells/s | report items | note |
+|---|---:|---:|---:|---:|---:|---:|---|
+| StructuredRefs-lots-with-lookups.xlsx | 318 | 0.034 | 0.240 | 37,696 | 157,171 | 11 | |
+| 57181.xlsm | 327 | 0.017 | 0.145 | 12,454 | 85,983 | 11 | |
+| 47813.xlsx | 54 | 0.004 | 0.011 | 2,164 | - | 7 | |
+| dataValidationTableRange.xlsx | 114 | 0.020 | 0.035 | 6,615 | - | 9 | |
+| ExcelPivotTableSample.xlsx | 19 | 0.002 | 0.001 | 50 | - | 3 | |
+| DataTableCities.xlsx | 23 | 0.002 | 0.001 | 185 | - | 5 | |
+| WithChartSheet.xlsx | 30 | 0.016 | 0.002 | 267 | - | 5 | |
+| 54436.xlsx | 12 | 0.001 | 0.000 | 28 | - | 2 | |
+| LIBRE_OFFICE-116306-0.xlsx | 2,793 | 0.146 | 2.593 | 662,923 | 255,656 | 3 | |
+| 61495-test.xlsm | 20 | 0.003 | 0.001 | 4 | - | 3 | |
+| testNames.xlsm | 13 | 0.001 | 0.000 | 15 | - | 3 | |
+| ExcelWithAttachments.xlsm | 61 | 0.001 | 0.001 | 6 | - | 7 | |
+| 60512.xlsm | 65 | 0.003 | 0.004 | 564 | - | 7 | |
+| ConditionalFormattingSamples.xlsx | 639 | 0.012 | 0.015 | 1,723 | - | 10 | |
+| NewStyleConditionalFormattings.xlsx | 13 | 0.001 | 0.002 | 340 | - | 4 | |
+| conditional_formatting_with_formula_on_second_sheet.xlsx | 68 | 0.002 | 0.000 | 2 | - | 3 | |
+| DataValidationEvaluations.xlsx | 13 | 0.001 | 0.001 | 139 | - | 5 | |
+| FormulaEvalTestData_Copy.xlsx | 63 | 0.007 | 0.022 | 4,177 | - | 5 | |
+| 45544.xlsx | 42 | 0.004 | 0.005 | 589 | - | 6 | |
+| MatrixFormulaEvalTestData.xlsx | 15 | 0.001 | 0.003 | 697 | - | 3 | |
+| xlookup.xlsx | 12 | 0.001 | 0.001 | 97 | - | 3 | |
+| 51710.xlsx | 83 | 0.008 | 0.067 | 13,688 | 205,161 | 2 | |
+| Tables.xlsx | 53 | 0.006 | 0.014 | 2,111 | - | 5 | |
+| VLookupFullColumn.xlsx | 13 | 0.002 | 0.004 | 623 | - | 2 | |
+| 46535.xlsx | 306 | 0.019 | 0.035 | 7,156 | - | 5 | |
+| NumberFormatTests.xlsx | 21 | 0.003 | 0.007 | 1,314 | - | 4 | |
+| GeneralFormatTests.xlsx | 35 | 0.002 | 0.003 | 296 | - | 4 | |
+| right-to-left.xlsx | 14 | 0.003 | 0.000 | 8 | - | 2 | |
+| bug62181.xlsx | 854 | 0.075 | 0.692 | 175,095 | 252,895 | 0 | |
+| Product-Sales-Region.xlsx | 146 | 0.016 | 0.118 | 28,149 | 238,686 | 1 | |
+| file_example_XLSX_5000.xlsx | 184 | 0.031 | 0.195 | 40,007 | 204,771 | 1 | |
+| file_example_XLS_5000.xls | 656 | - | - | - | - | - | `xlsx.legacy_xls` |
+| open_data_us.csv | 8 | 0.001 | 0.000 | 396 | - | 1 | |
+| softwiro-piece-rate-payroll-2026-11-16.xlsx | 131 | 0.014 | 0.075 | 7,034 | 93,257 | 9 | |
+
+Hostile files:
+
+| file | outcome |
+|---|---|
+| 58616.xlsx | `unsupported_workbook` / `xlsx.encrypted` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIFuzzer-5040805309710336.xl | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-482872700108800 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-508944730560921 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-518504958957977 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-593738531956326 | `import_failed` / `zip.bad_crc` (0.005 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-612346160781721 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-641936625591910 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-POIXSSFFuzzer-644825896334131 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-50254011169505 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-55428654792704 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-56364391516078 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-65042258967920 | `import_failed` / `zip.corrupt` (0.000 s) |
+| clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-65945574140805 | `import_failed` / `zip.corrupt` (0.000 s) |
+| crash-274d6342e4842d61be0fb48eaadad6208ae767ae.xlsx | `import_failed` / `zip.corrupt` (0.000 s) |
+| crash-9bf3cd4bd6f50a8a9339d363c2c7af14b536865c.xlsx | `unsupported_workbook` / `xlsx.encrypted` (0.000 s) |
+| deep-data.xlsx | `import_failed` / `zip.corrupt` (0.000 s) |
+| protected_passtika.xlsx | `unsupported_workbook` / `xlsx.encrypted` (0.000 s) |
+
+
+Reading it honestly:
+- **Parse rate on real files: ~150k-255k cells/s** (the largest, `LIBRE_OFFICE-116306-0.xlsx`, 662,923 cells,
+  parses in 2.6 s; `bug62181.xlsx`, 175,095 cells, in 0.69 s). Extrapolating linearly to a 100k x 20 sheet
+  (~2 M cells) gives roughly 8-13 s. That is an extrapolation: **no real Excel-made 100k x 20 file exists in the
+  corpus**, and the largest file was not necessarily made by Excel. Gate in ADR-015: 30 s.
+- Import (lazy) stays under 0.15 s for every file here, including the 663k-cell one.
+- **Nothing important is lost in the reports of the 29 Apache POI files.** The manifest's feature flags and our
+  reports differ in 5 files, all verified by tests as non-losses: three list `drawings` that are only legacy
+  comment shapes (`vmlDrawing`, reported as `xlsx.comments`); one lists `media` but `xl/media/` is an empty
+  directory; one lists a defined name that is only the auto-filter bookkeeping name `_xlnm._FilterDatabase`
+  (the filter is reported as `xlsx.auto_filter`). Sheet counts, formula counts, error-cell counts and date1904
+  match the manifest in all 29; cell counts match an independent oracle in all 29 + 2 private plain files + softwiro.
+- **The hostile corpus tests less than its size suggests:** 15 of the 18 files are truncated or damaged ZIP
+  containers without a central directory (Python's `zipfile` and `unzip` reject them too; Java streaming
+  readers tolerate them). They prove typed rejection of broken containers, not the XML or limits paths. We do
+  **not** try to recover them by streaming local headers: that would bypass the central-directory checks
+  (overlap, declared sizes, entry count). Three files are encrypted OLE2 packages (`xlsx.encrypted`).
+- `file_example_XLS_5000.xls` (old BIFF): rejected at once with `unsupported_workbook` / `xlsx.legacy_xls`.
+- Files tested through the Persian lens: `softwiro-piece-rate-payroll` (all 7 sheets RTL, 6,806 ordinary
+  formulas, 5 protected sheets, DV/CF/merges/hyperlinks, `fullCalcOnLoad`) is the only Excel-made RTL workbook;
+  `right-to-left.xlsx` (POI) has Arabic text but no RTL sheet view. No Persian (as opposed to Arabic) workbook
+  with a Jalali date format is in the corpus.
+- Not covered: `private/actual_budget_workbook_br.xlsx` (listed in the manifest, not in the repository).

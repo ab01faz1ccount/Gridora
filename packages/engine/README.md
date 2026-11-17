@@ -2,7 +2,7 @@
 
 Owner: Agent 1. Brief: [agents/AGENT_1_ENGINE.md](../../agents/AGENT_1_ENGINE.md). Plan: [PLAN.md](PLAN.md).
 
-**Status (E5): CSV, XLSX read (lazy), value edits with undo/redo, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
+**Status (E5 + corpus tests): CSV, XLSX read (lazy), value edits with undo/redo, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
 
 What works (tested in `tests/`):
 - `import_csv`: encoding detection (BOM, strict UTF-8, Windows-1256 guess, Windows-1252 fallback;
@@ -68,6 +68,16 @@ Edits (`apply_cell_edits`, `apply_delta`; CSV and XLSX workbooks, value edits on
 - **Cached results of formulas are not updated** after an edit (no evaluator yet), so dependents show stale values.
 - `tests/roundtrip/test_replay_determinism.py` replays deltas on a fresh engine (through JSON) and
   compares full-workbook fingerprints at every step, including full undo/redo.
+
+Stable error identifiers (`GridoraEngineError.code` = contract top-level code; `.reason` = detail code, via `to_detail()`):
+- `operation_conflict` / `too_large_for_history`: an edit or delta above `max_patch_cells` (default 200,000). Review 4: apps/api maps `exc.code` to the status and `exc.to_detail()` to the detail, as it already does for dataops.
+- `validation_failed` / `edit.protected_formula_cell`: the cell belongs to a shared or array formula (refused until E7). Other edit reasons: `edit.formulas_unsupported`, `edit.out_of_range`, `edit.invalid_number`, `edit.string_too_long`, `edit.date_needs_format`, `delta.out_of_range`, `delta.unsupported_kind`.
+- `unsupported_workbook` / `xlsx.legacy_xls` (old binary .xls), `xlsx.encrypted` (password-protected OOXML), `xlsx.encrypted_or_legacy` (other OLE2), `xlsx.strict_ooxml`. Messages are fixed English text; apps should map the reason to a localized message.
+
+Corpus: `tests/corpus/` runs every file in `corpus/` (Apache POI workbooks, the private plain files, the softwiro
+payroll workbook, hostile files in a child process with memory/time limits, the `.xls`, the CSV). Cell counts are
+checked against an independent oracle, other counts against `corpus/manifest.json`, and any report item the
+manifest lists but the report lacks must be explained by an explicit, verified rule.
 
 What does not work yet (raises `EngineNotImplementedError`): `recalculate`, `export_xlsx`. `FormattingEngine`/`StructureEngine` not implemented.
 

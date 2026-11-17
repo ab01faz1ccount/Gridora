@@ -206,3 +206,11 @@ def test_chartsheet_is_preserved_and_listed_in_report(eng, tmp_path):
     parts["xl/chartsheets/sheet1.xml"] = HDR + "<chartsheet/>"
     _h, wb, rep = eng.import_xlsx(write_zip(tmp_path / "cs.xlsx", parts))
     assert [s.name for s in wb.sheets] == ["Sheet1", "برگه ۲"] and codes(rep)["xlsx.chartsheet"].location == "Chart1"
+
+
+def test_full_calc_on_load_flag_is_reported(eng, tmp_path):
+    wb_xml = xlsx_parts()["xl/workbook.xml"].replace('<calcPr calcId="191029"/>', '<calcPr calcId="191029" fullCalcOnLoad="1"/>')
+    _h, _wb, rep = eng.import_xlsx(make_xlsx(tmp_path / "f.xlsx", sheet_doc(""), **{"xl/workbook.xml": wb_xml}))
+    assert "xlsx.full_calc_on_load" in codes(rep)
+    _h, _wb, rep = eng.import_xlsx(make_xlsx(tmp_path / "g.xlsx", sheet_doc("")))
+    assert "xlsx.full_calc_on_load" not in codes(rep)

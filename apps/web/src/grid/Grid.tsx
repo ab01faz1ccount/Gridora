@@ -1,0 +1,281 @@
+// Virtualized grid. DOM-based (apps/PLAN.md 3.3): correct bidi/RTL text, IME and accessibility come
+// from the browser. Only the visible window (+ overscan) is rendered; cells arrive in blocks from
+// the BlockCache. The sheet's own direction (`rtl`) decides column order and arrow-key meaning,
+// independent of the UI language.
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { useT } from "@/i18n";
+import { usePrefs } from "@/state/prefs";
+import { BlockCache } from "./block-cache";
+import { cellDisplay, type DisplayPrefs } from "./cellText";
+import type { DataSource } from "./datasource";
+import {
+  columnLetters,
+  makeScroller,
+  uniformAxis,
+  variableAxis,
+  visibleRange,
+  type Axis,
+} from "./geometry";
+import { boundsOf, inRange, navigate, single, type Pos, type Selection } from "./selection";
+
+export const ROW_H = 26;
+export const COL_W = 110;
+export const HEADER_H = 28;
+export const HEADER_W = 64;
+const ROW_OVERSCAN = 8;
+const COL_OVERSCAN = 2;
+
+export interface GridProps {
+  source: DataSource;
+  rtl: boolean;
+  /** Test/measurement hooks. */
+  cache?: BlockCache;
+  viewport?: { width: number; height: number };
+  colWidth?: (c: number) => number;
+  onSelectionChange?: (sel: Selection) => void;
+  label?: string;
+}
+
+interface CellViewProps {
+  id: string;
+  r: number;
+  c: number;
+  top: number;
+  start: number;
+  w: number;
+  text: string;
+  kind: string;
+  loading: boolean;
+  failed: boolean;
+  selected: boolean;
+  active: boolean;
+}
+
+const CellView = memo(function CellView(p: CellViewProps) {
+  const cls =
+    "gv-cell" +
+    ` gv-${p.kind}` +
+    (p.loading ? " gv-loading" : "") +
+    (p.failed ? " gv-failed" : "") +
+    (p.selected ? " gv-selected" : "") +
+    (p.active ? " gv-active" : "");
+  return (
+    <div id={p.id} role="gridcell" aria-colindex={p.c + 1} aria-selected={p.selected || undefined}
+      aria-busy={p.loading || undefined} className={cls}
+      style={{ top: p.top, insetInlineStart: p.start, inlineSize: p.w, blockSize: ROW_H }}
+      data-r={p.r} data-c={p.c}>
+      {p.kind === "str" ? <bdi>{p.text}</bdi> : p.text}
+    </div>
+  );
+});
+
+export function Grid({ source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label }: GridProps) {
+  const t = useT();
+  const prefs = usePrefs();
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const bodyLayerRef = useRef<HTMLDivElement>(null);
+  const rowHdrLayerRef = useRef<HTMLDivElement>(null);
+
+  // data
+  const cache = useMemo(() => cacheProp ?? new BlockCache(source), [cacheProp, source]);
+  useEffect(() => () => (cacheProp ? undefined : cache.dispose()), [cache, cacheProp]);
+  useSyncExternalStore(cache.subscribe, cache.getVersion);
+
+  // geometry
+  const rows = useMemo(() => uniformAxis(source.rowCount, ROW_H), [source.rowCount]);
+  const cols: Axis = useMemo(
+    () => variableAxis(source.colCount, colWidth ?? (() => COL_W)),
+    [source.colCount, colWidth],
+  );
+
+  // viewport size (px of the scroller), scroll position
+  const [size, setSize] = useState(viewport ?? { width: 800, height: 500 });
+  const [scroll, setScroll] = useState({ top: 0, left: 0 });
+  useLayoutEffect(() => {
+    if (viewport) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const measure = () => setSize({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewport]);
+
+  const bodyH = Math.max(0, size.height - HEADER_H);
+  const bodyW = Math.max(0, size.width - HEADER_W);
+  const scroller = useMemo(() => makeScroller(rows.total, bodyH), [rows.total, bodyH]);
+  const contentTop = scroller.toContent(scroll.top);
+  const contentLeft = Math.abs(scroll.left); // RTL scrollLeft is <= 0
+
+  const rr = visibleRange(rows, contentTop, bodyH, ROW_OVERSCAN);
+  const cr = visibleRange(cols, contentLeft, bodyW, COL_OVERSCAN);
+
+  // ask the cache for what is on screen (+ one block of prefetch in each direction)
+  useEffect(() => {
+    if (rr.last < rr.first || cr.last < cr.first) return;
+    cache.ensure(rr.first - 100, rr.last + 100, cr.first, cr.last);
+  }, [cache, rr.first, rr.last, cr.first, cr.last]);
+
+  // position the layers: in scaled mode this changes on EVERY scroll event; it is one style write
+  const layerTop = scroll.top + rows.offset(rr.first) - contentTop;
+  useLayoutEffect(() => {
+    const px = `${layerTop}px`;
+    if (bodyLayerRef.current) bodyLayerRef.current.style.top = px;
+    if (rowHdrLayerRef.current) rowHdrLayerRef.current.style.top = px;
+  });
+
+  const onScroll = useCallback(() => {
+    const el = scrollerRef.current;
+    if (el) setScroll({ top: el.scrollTop, left: el.scrollLeft });
+  }, []);
+
+  // selection
+  const [sel, setSel] = useState<Selection>(single({ r: 0, c: 0 }));
+  const bounds = boundsOf(sel);
+  const update = useCallback(
+    (s: Selection) => {
+      setSel(s);
+      onSelectionChange?.(s);
+    },
+    [onSelectionChange],
+  );
+
+  const dims = { rowCount: source.rowCount, colCount: source.colCount, rtl,
+    pageRows: Math.max(1, Math.floor(bodyH / ROW_H) - 1) };
+
+  const scrollIntoView = useCallback(
+    (p: Pos) => {
+      const el = scrollerRef.current;
+      if (!el) return;
+      // vertical (through the scroll mapping)
+      const rowTop = rows.offset(p.r);
+      const rowBottom = rowTop + ROW_H;
+      const curTop = scroller.toContent(el.scrollTop);
+      if (rowTop < curTop) el.scrollTop = scroller.toScroll(rowTop);
+      else if (rowBottom > curTop + bodyH) el.scrollTop = scroller.toScroll(rowBottom - bodyH);
+      // horizontal
+      const colStart = cols.offset(p.c);
+      const colEnd = colStart + cols.size(p.c);
+      const curLeft = Math.abs(el.scrollLeft);
+      const sign = rtl ? -1 : 1;
+      if (colStart < curLeft) el.scrollLeft = sign * colStart;
+      else if (colEnd > curLeft + bodyW) el.scrollLeft = sign * (colEnd - bodyW);
+    },
+    [rows, cols, scroller, bodyH, bodyW, rtl],
+  );
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const next = navigate(sel, { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }, dims);
+    if (!next) return;
+    e.preventDefault();
+    update(next);
+    scrollIntoView(next.focus);
+  };
+
+  // pointer selection: cells carry their own coordinates (data-r / data-c)
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
+    if (!target) return;
+    const p = { r: Number(target.dataset.r), c: Number(target.dataset.c) };
+    scrollerRef.current?.focus({ preventScroll: true });
+    if (e.shiftKey) update({ active: sel.active, anchor: sel.anchor, focus: p });
+    else update(single(p));
+  };
+  const onPointerOver = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.buttons !== 1) return; // dragging with the primary button extends the range
+    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
+    if (!target) return;
+    update({ active: sel.active, anchor: sel.anchor,
+      focus: { r: Number(target.dataset.r), c: Number(target.dataset.c) } });
+  };
+
+  const display: DisplayPrefs = {
+    digits: prefs.digits, calendar: prefs.calendar, locale: prefs.locale,
+    trueText: t("grid.true"), falseText: t("grid.false"),
+  };
+
+  // build the visible cells
+  const cells = [];
+  const rowHeaders = [];
+  for (let r = rr.first; r <= rr.last; r++) {
+    const top = rows.offset(r) - rows.offset(rr.first);
+    rowHeaders.push(
+      <div key={r} className={"gv-rowhdr-cell" + (r >= bounds.r0 && r <= bounds.r1 ? " gv-hdr-selected" : "")}
+        style={{ top, blockSize: ROW_H }} aria-hidden="true">
+        {r + 1}
+      </div>,
+    );
+    const rowCells = [];
+    for (let c = cr.first; c <= cr.last; c++) {
+      const look = cache.getCell(r, c);
+      const d = cellDisplay(look.cell, display);
+      rowCells.push(
+        <CellView key={c} id={`gv-${r}-${c}`} r={r} c={c} top={top}
+          start={cols.offset(c) - cols.offset(cr.first)} w={cols.size(c)} text={d.text} kind={d.kind}
+          loading={look.status === "loading" || look.status === "absent"} failed={look.status === "error"}
+          selected={inRange(bounds, r, c)} active={sel.active.r === r && sel.active.c === c} />,
+      );
+    }
+    cells.push(
+      <div key={r} role="row" aria-rowindex={r + 2} style={{ display: "contents" }}>
+        {rowCells}
+      </div>,
+    );
+  }
+  const colHeaders = [];
+  for (let c = cr.first; c <= cr.last; c++) {
+    colHeaders.push(
+      <div key={c} className={"gv-colhdr-cell" + (c >= bounds.c0 && c <= bounds.c1 ? " gv-hdr-selected" : "")}
+        style={{ insetInlineStart: cols.offset(c) - cols.offset(cr.first), inlineSize: cols.size(c), blockSize: HEADER_H }}
+        role="columnheader" aria-colindex={c + 1} aria-label={t("grid.colHeader", { name: columnLetters(c) })}>
+        <bdi dir="ltr">{columnLetters(c)}</bdi>
+      </div>,
+    );
+  }
+
+  const activeId = `gv-${sel.active.r}-${sel.active.c}`;
+  const activeRendered = sel.active.r >= rr.first && sel.active.r <= rr.last &&
+    sel.active.c >= cr.first && sel.active.c <= cr.last;
+
+  return (
+    <div ref={scrollerRef} className="gv-scroller" dir={rtl ? "rtl" : "ltr"} role="grid" tabIndex={0}
+      aria-label={label ?? t("grid.label")} aria-rowcount={source.rowCount + 1} aria-colcount={source.colCount}
+      aria-activedescendant={activeRendered ? activeId : undefined} aria-multiselectable="true"
+      onScroll={onScroll} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onPointerOver={onPointerOver}
+      data-rows={source.rowCount} data-scaled={scroller.scaled || undefined}>
+      <div className="gv-content" style={{ inlineSize: HEADER_W + cols.total, blockSize: HEADER_H + scroller.proxyPx }}>
+        <div className="gv-top" style={{ blockSize: HEADER_H }}>
+          <div className="gv-corner" style={{ inlineSize: HEADER_W, blockSize: HEADER_H }} />
+          <div className="gv-colhdr" style={{ inlineSize: cols.total, blockSize: HEADER_H }}>
+            <div className="gv-layer" style={{ insetInlineStart: cols.offset(cr.first) }} role="row" aria-rowindex={1}>
+              {colHeaders}
+            </div>
+          </div>
+        </div>
+        <div className="gv-main" style={{ blockSize: scroller.proxyPx }}>
+          <div className="gv-rowhdr" style={{ inlineSize: HEADER_W, blockSize: scroller.proxyPx }}>
+            <div ref={rowHdrLayerRef} className="gv-layer">{rowHeaders}</div>
+          </div>
+          <div className="gv-body" style={{ inlineSize: cols.total, blockSize: scroller.proxyPx }}>
+            <div ref={bodyLayerRef} className="gv-layer" style={{ insetInlineStart: cols.offset(cr.first) }}>
+              {cells}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -24,7 +24,13 @@ from gridora_contracts.protocols import BlobStore, CsvOptions, WorkbookHandle
 from .compat.report import build_report
 from .csvio.importer import import_csv_file
 from .csvio.writer import write_csv
-from .errors import EngineNotImplementedError, GridoraEngineError, bad_request, validation_failed
+from .errors import (
+    EngineNotImplementedError,
+    GridoraEngineError,
+    bad_request,
+    too_large_for_history,
+    validation_failed,
+)
 from .limits import ResourceLimits
 from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
 from .model.edits import Snap, apply_all, key_of
@@ -111,9 +117,7 @@ class GridoraEngine:
         state, sheet = self._sheet(wb, sheet_id)
         limits = self.limits
         if len(edits) > limits.max_patch_cells:
-            raise validation_failed(
-                "too_large_for_history", "The change is too large to record in the history."
-            )
+            raise too_large_for_history()
         final: dict[int, CellEdit] = {}
         for e in edits:  # validate everything first; the last edit of a cell wins
             if e.r >= limits.max_rows or e.c >= limits.max_cols:
@@ -153,7 +157,7 @@ class GridoraEngine:
         state, sheet = self._sheet(wb, delta.sheet_id)
         cells = delta.before if inverse else delta.after
         if len(cells) > self.limits.max_patch_cells:
-            raise validation_failed("too_large_for_history", "The change is too large to apply.")
+            raise too_large_for_history()
         for cell in cells:
             if cell.r >= self.limits.max_rows or cell.c >= self.limits.max_cols or (cell.s or 0) > 65535:
                 raise validation_failed("delta.out_of_range", "The change refers to a cell outside the sheet.")
