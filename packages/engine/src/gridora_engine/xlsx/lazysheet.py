@@ -72,7 +72,7 @@ class LazySheet:
         try:
             xmlsafe.parse(
                 data, start=parser.start, end=parser.end, chars=parser.chars,
-                max_depth=self.ctx.limits.max_xml_depth,
+                max_depth=self.ctx.limits.max_xml_depth, namespaces=False,
             )
             ok = parser.rows_seen == list(s.row_nums[a:b])
         except GridoraEngineError as e:

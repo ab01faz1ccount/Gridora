@@ -47,6 +47,7 @@ def parse(
     chars: CharsFn | None = None,
     max_depth: int = 64,
     deadline: Deadline | None = None,
+    namespaces: bool = True,
 ) -> None:
     """Parse `data`, calling the handlers. Raises GridoraEngineError on any problem."""
     check_encoding(data[:600])
@@ -69,7 +70,9 @@ def parse(
         if end is not None:
             end(name)
 
-    p = expat.ParserCreate(namespace_separator=" ")
+    # namespaces=False: for slices of a document (a row cut out of a sheet) whose prefixes are
+    # declared on the root element that is not part of the slice.
+    p = expat.ParserCreate(namespace_separator=" " if namespaces else None)
     p.buffer_text = True
     p.StartDoctypeDeclHandler = forbid
     p.EntityDeclHandler = forbid

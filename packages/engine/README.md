@@ -2,7 +2,7 @@
 
 Owner: Agent 1. Brief: [agents/AGENT_1_ENGINE.md](../../agents/AGENT_1_ENGINE.md). Plan: [PLAN.md](PLAN.md).
 
-**Status (E5 + corpus tests): CSV, XLSX read (lazy), value edits with undo/redo, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
+**Status (E6): CSV, XLSX read (lazy), value edits with undo/redo, XLSX/CSV export, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
 
 What works (tested in `tests/`):
 - `import_csv`: encoding detection (BOM, strict UTF-8, Windows-1256 guess, Windows-1252 fallback;
@@ -79,7 +79,31 @@ payroll workbook, hostile files in a child process with memory/time limits, the 
 checked against an independent oracle, other counts against `corpus/manifest.json`, and any report item the
 manifest lists but the report lacks must be explained by an explicit, verified rule.
 
-What does not work yet (raises `EngineNotImplementedError`): `recalculate`, `export_xlsx`. `FormattingEngine`/`StructureEngine` not implemented.
+Export (`export_xlsx`, `export_csv`):
+- **XLSX-origin workbooks are patched, not regenerated.** Parts nobody touched are written byte for byte (unknown
+  parts included); in an edited sheet everything outside the rows that contain edits is copied from the original
+  bytes (prefix, suffix, untouched rows, unedited cells inside a rebuilt row, row attributes; `spans` is
+  recomputed); only edited cells are regenerated. `<dimension>` grows only when edits extend the used range.
+  Edited text is written as **inline strings** (sharedStrings is not touched; Excel converts them on its next
+  save); XML-illegal characters and CR use the `_xHHHH_` convention, and the same escapes are now decoded on import.
+- Each rebuilt row is checked for well-formedness, the output is written to `<path>.part` and renamed, and the
+  finished file is re-opened with our own reader (never leave a file we cannot open).
+- A workbook that was imported from CSV is written as a **new** workbook (one default style, inline strings).
+- **The report says what Gridora could not do:** `xlsx.cached_values_stale` when cells were edited and the workbook
+  has formulas ("Gridora cannot recalculate formulas ... lists every formula cell": dependencies are not analyzed),
+  with `fullCalcOnLoad="1"` set so Excel recalculates on open (`xlsx.full_calc_on_load_set`); `xlsx.calc_chain_dropped`
+  when formulas were added/removed (a stale chain makes Excel report corruption); `xlsx.inline_strings`;
+  `xlsx.macro_enabled_extension` (the file needs `.xlsm`); edits inside the source of a **preserved** table, pivot
+  cache or chart (`xlsx.table.edited_inside`, `xlsx.pivot_table.source_edited`, `xlsx.chart.source_edited`) and
+  `xlsx.preserved_parts_not_assessed` for sources given by name; plus anomalies found lazily while reading
+  (`xlsx.cell_value_invalid`, `xlsx.error_value.unmapped`).
+- **Refused:** edited sheets whose XML layout cannot be patched safely (prefixed element names, non-ascending
+  rows, an index the parser rejected) fail with `unsupported_workbook` / `export.sheet_not_patchable`; rewriting
+  them from the model would lose shared formulas and rich text. Unedited workbooks of any layout export fine.
+- Not done: comments/threaded comments, tables and pivots are kept but never rewritten after edits; sharedStrings
+  is never appended; no style edits.
+
+What does not work yet (raises `EngineNotImplementedError`): `recalculate`. `FormattingEngine`/`StructureEngine` not implemented.
 
 Known limitations:
 - CSV dates and booleans stay text (no inference). Leading `+` numbers stay text on purpose.

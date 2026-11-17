@@ -11,6 +11,7 @@ from ..model.dates import iso_to_serial
 from ..model.sheet import SheetStore
 from ..model.values import BOOL, ERR, ERR_CODES, NOVAL, NUM, STR, StringTable
 from ..package.xmlsafe import local as _local
+from .textenc import decode_text
 
 EXCEL_ROWS = 1_048_576
 EXCEL_COLS = 16_384
@@ -244,7 +245,7 @@ class CellParser:
                 return ERR, float(ERR_INDEX["#VALUE!"])
             tid = ctx.sst_cache[i]
             if tid < 0:
-                tid = ctx.strings.intern(ctx.sst[i])
+                tid = ctx.strings.intern(decode_text(ctx.sst[i]))
                 ctx.sst_cache[i] = tid
             return STR, float(tid)
         if t == "str":
@@ -275,4 +276,4 @@ class CellParser:
     def _text(self, s: str) -> tuple[int, float]:
         if len(s) > self.ctx.limits.max_field_chars:
             raise import_failed("xlsx.string_too_long", "A cell text is longer than 32,767 characters.")
-        return STR, float(self.ctx.strings.intern(s))
+        return STR, float(self.ctx.strings.intern(decode_text(s)))
