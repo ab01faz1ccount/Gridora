@@ -143,6 +143,10 @@ Record results in a file `docs/reviews/UX_TEST_1.md` (template: task, result, ti
 ## 13. Open questions for the owner
 
 - Ribbon-less layout (task bar + side panel): acceptable, or do you want a tabbed toolbar too?
++ Owner-Answer: for now Ribbon-less is acceptable, after test and use for a while will consider for change or not.
 - Default digits in cells: follow the file (as typed) or always Persian? (Spec assumes: as typed; display preference switches rendering only.)
++ Owner-Answer: follow the as typed(default).
 - Jalali dates: display-only conversion (default), or also a Jalali date picker in cells?
++ Owner-Answer: default will be Jalali dates and user can choose for other options(Lunar month, Calendar month). have to talk about type of diagnosis.
 - Should "Convert to Data Table" be offered earlier (for files over ~50k rows) rather than only after the cap error?
++ Owner-Answer: Yes, be offered earlier.
