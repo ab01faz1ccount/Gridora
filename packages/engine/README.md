@@ -2,7 +2,7 @@
 
 Owner: Agent 1. Brief: [agents/AGENT_1_ENGINE.md](../../agents/AGENT_1_ENGINE.md). Plan: [PLAN.md](PLAN.md).
 
-**Status (E6): CSV, XLSX read (lazy), value edits with undo/redo, XLSX/CSV export, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
+**Status (E5b-1): CSV, XLSX read (lazy), value edits with undo/redo, XLSX/CSV export, columnar read/write, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
 
 What works (tested in `tests/`):
 - `import_csv`: encoding detection (BOM, strict UTF-8, Windows-1256 guess, Windows-1252 fallback;
@@ -102,6 +102,16 @@ Export (`export_xlsx`, `export_csv`):
   them from the model would lose shared formulas and rich text. Unedited workbooks of any layout export fine.
 - Not done: comments/threaded comments, tables and pivots are kept but never rewritten after edits; sharedStrings
   is never appended; no style edits.
+
+Columnar access (`ColumnarEngine`, contract 0.4.1; `isinstance(engine, ColumnarEngine)` is true):
+- `read_range_columnar(wb, rng)`: per column `num`/`str`/`bool`/`date` (ISO)/`empty`, or `mixed` (exact cell-value dicts) when a column holds
+  several kinds, errors, or dates next to plain numbers; `has_formulas` is true if any cell in the range has a formula (shared-formula
+  dependents included). Same values as `get_cells`, cell by cell (tested on random ranges and on every corpus file). A formula without a
+  cached value reads as empty. The range area is bounded by `max_cells`.
+- `write_range_columnar(wb, rng, data)`: values only; every cell of the range ends up equal to `data` (`None` clears); only **changed** cells
+  are in the returned `CellPatchDelta`; same rules as edits (shared/array formula cells refused, ordinary formulas overwritten and recorded in
+  `before`, dates need a date format); all-or-nothing; above `max_patch_cells` changed cells it raises `operation_conflict` /
+  `too_large_for_history` (the snapshot delta arrives with E5b-2).
 
 What does not work yet (raises `EngineNotImplementedError`): `recalculate`. `FormattingEngine`/`StructureEngine` not implemented.
 

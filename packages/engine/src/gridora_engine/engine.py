@@ -14,8 +14,10 @@ from gridora_contracts.models import (
     CellEdit,
     CellPatchDelta,
     CellWindow,
+    ColumnarRange,
     CompatibilityReport,
     Delta,
+    Range,
     Window,
     Workbook,
 )
@@ -33,6 +35,7 @@ from .errors import (
 )
 from .limits import ResourceLimits
 from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
+from .model.columnar import read_columnar, write_columnar
 from .model.edits import Snap, apply_all, key_of
 from .model.workbook import SheetState, WorkbookState
 from .xlsx.exporter import export_xlsx_file
@@ -168,6 +171,15 @@ class GridoraEngine:
             tag, val, style, text = cell_to_internal(state, cell)
             changes.append((cell.r, cell.c, (tag, val, style, text)))
         apply_all(sheet, changes)
+
+    # -- ColumnarEngine (contract 0.4.1) ------------------------------------------------------
+    def read_range_columnar(self, wb: WorkbookHandle, rng: Range) -> ColumnarRange:
+        state, sheet = self._sheet(wb, rng.sheet_id)
+        return read_columnar(state, sheet, rng, self.limits)
+
+    def write_range_columnar(self, wb: WorkbookHandle, rng: Range, data: ColumnarRange) -> Delta:
+        state, sheet = self._sheet(wb, rng.sheet_id)
+        return write_columnar(state, sheet, rng, data, self.limits)
 
     # -- helpers ----------------------------------------------------------------------------
     def _sheet(self, wb: WorkbookHandle, sheet_id: str) -> tuple[WorkbookState, SheetState]:

@@ -60,3 +60,6 @@ def too_large_for_history() -> GridoraEngineError:
         "operation_conflict", "too_large_for_history",
         "The change is too large to be undone in one step.",
     )
+
+
+operation_conflict_too_large = too_large_for_history  # readable alias for the columnar module
