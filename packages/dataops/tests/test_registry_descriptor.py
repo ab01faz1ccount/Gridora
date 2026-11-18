@@ -74,6 +74,11 @@ def test_persian_is_default_and_english_falls_back_per_key() -> None:
 
 
 def test_persian_texts_contain_persian_letters_only_where_expected() -> None:
+    import json
     for k, v in catalog("fa").items():
         assert any("\u0600" <= ch <= "\u06ff" for ch in v), k
-        assert "ي" not in v and "ك" not in v, f"Arabic letter variants in {k}"  # ي / ك
+        text = v
+        if k.endswith(".example"):  # the "before" data may show Arabic letters on purpose (that is what clean_text fixes)
+            ex = json.loads(v)
+            text = ex["caption"] + json.dumps(ex["after"], ensure_ascii=False)
+        assert "ي" not in text and "ك" not in text, f"Arabic letter variants in {k}"  # ي / ك
