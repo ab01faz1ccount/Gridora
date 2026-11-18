@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
 )
@@ -146,6 +147,7 @@ class WorkbookRow(Base):
         ForeignKey("files.id", ondelete="SET NULL"), nullable=True
     )  # latest saved version; None until the first save
     last_saved_seq: Mapped[int] = mapped_column(Integer, default=0)
+    seq_counter: Mapped[int] = mapped_column(Integer, default=0)  # highest seq ever issued
     name: Mapped[str] = mapped_column(String(255))
     meta_json: Mapped[dict[str, Any]] = mapped_column(JSONB)  # contract Workbook (incl. compat)
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
@@ -173,3 +175,29 @@ class JobRow(Base):
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(TZ, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(TZ, nullable=True)
+
+
+class HistoryRow(Base):
+    """One undoable step of a document. `seq` is unique per document and NEVER reused (so a stale
+    client cannot mistake a different entry for the one it saw); active entries are a prefix of the
+    stack, undone ones its tail."""
+
+    __tablename__ = "history_entries"
+    __table_args__ = (
+        UniqueConstraint("document_id", "seq", name="uq_history_entries_document_seq"),
+        Index("ix_history_entries_document_id_seq", "document_id", "seq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    seq: Mapped[int] = mapped_column(Integer)
+    operation_json: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    delta_json: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    label: Mapped[str] = mapped_column(String(80))
+    undone: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())

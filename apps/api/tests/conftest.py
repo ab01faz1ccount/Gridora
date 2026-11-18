@@ -60,7 +60,10 @@ def migrated_db() -> None:
     command.upgrade(alembic_config(), "head")
 
 
-TABLES = "audit_log, login_attempts, jobs, workbooks, documents, files, workspaces, sessions, users"
+TABLES = (
+    "audit_log, login_attempts, jobs, history_entries, workbooks, documents, files, "
+    "workspaces, sessions, users"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -204,3 +207,29 @@ def make_user_direct(username: str, password: str = PASSWORD) -> str:
         return str((await create_user(db, hasher, username=username, password=password)).id)
 
     return run_db(go)
+
+
+# ---- end-to-end fixtures: every test using them runs on the stub AND the real engine ----------
+@pytest.fixture(params=["stub", "real"])
+def kind(request: pytest.FixtureRequest) -> str:
+    if request.param == "real":
+        pytest.importorskip("gridora_engine", reason="packages/engine is not installed")
+    return str(request.param)
+
+
+@pytest.fixture
+def eapp(tmp_path: Path, kind: str) -> FastAPI:
+    return create_app(fast_settings(tmp_path / kind, engine=kind, dataops="stub"))
+
+
+@pytest.fixture
+def user(
+    eapp: FastAPI, tmp_path: Path, kind: str, make_user: Callable[..., str]
+) -> Iterator[Session]:
+    make_user("erin")
+    c = ScanningClient(eapp, base_url="https://testserver", raise_server_exceptions=False)
+    c.forbidden = forbidden_fragments(fast_settings(tmp_path / kind))
+    c.__enter__()
+    r = c.post("/api/v1/auth/login", json={"username": "erin", "password": PASSWORD})
+    yield Session(c, "erin", r.json()["data"]["csrf_token"])
+    c.__exit__(None, None, None)

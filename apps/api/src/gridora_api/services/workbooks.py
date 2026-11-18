@@ -18,6 +18,7 @@ from ..core.errors import DomainError
 from ..db.models import Document, StoredFile, WorkbookRow
 from ..db.repos.owned import get_owned
 from ..storage.layout import StorageLayout
+from . import history as history_service
 from .working_copies import Entry, WorkingCopies
 
 
@@ -113,7 +114,7 @@ async def import_file(
     except BaseException:
         services.engine.close(handle)
         raise
-    copies.put(str(doc_id), handle, wb)
+    copies.put(str(doc_id), handle, wb, {s.id: s.id for s in wb.sheets})  # public == engine ids
     return row
 
 
@@ -126,18 +127,34 @@ async def ensure_open(
     *,
     time_limit: float,
 ) -> Entry:
-    """Working copy for a stored workbook; rebuilt from its file after a restart or eviction.
-    (History replay is added with the history service in PR 10; no edits exist before that.)"""
+    """Working copy for a stored workbook, rebuilt after a restart or eviction:
+    stored file -> engine import -> sheet-id map (by position) -> replay of the active history."""
     entry = copies.get(str(row.id))
     if entry is not None:
         return entry
     src_id = row.current_file_id or row.file_id
     f = await get_owned(db, StoredFile, row.owner_id, str(src_id))
     path = layout.resolve_key(f.storage_key)
-    ext, orig_id = _ext(f), str(row.file_id)  # stable sheet ids need the ORIGINAL file id
+    ext, orig_id = _ext(f), str(row.file_id)
+    public_ids = [s["id"] for s in row.meta_json.get("sheets", [])]
+    replay = await history_service.active_deltas_since(db, row)  # [(seq, Delta)] oldest first
 
-    def loader() -> tuple[WorkbookHandle, Workbook]:
-        return import_blocking(services.engine, path, ext, orig_id)
+    def loader() -> tuple[WorkbookHandle, Workbook, dict[str, str]]:
+        handle, wb = import_blocking(services.engine, path, ext, orig_id)
+        engine_ids = [s.id for s in wb.sheets]
+        if len(engine_ids) != len(public_ids):  # the same file must give the same sheets
+            services.engine.close(handle)
+            raise DomainError("import_failed", "The workbook no longer matches its stored state.")
+        sheet_map = dict(zip(public_ids, engine_ids, strict=True))
+        try:
+            for _seq, delta in replay:
+                services.engine.apply_delta(
+                    handle, history_service.delta_with_sheet(delta, sheet_map), inverse=False
+                )
+        except BaseException:
+            services.engine.close(handle)
+            raise
+        return handle, wb, sheet_map
 
     try:
         return await asyncio.wait_for(copies.load(str(row.id), loader), time_limit)

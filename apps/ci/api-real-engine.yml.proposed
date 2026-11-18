@@ -1,0 +1,6 @@
+# PROPOSED by Agent 3 (replace the install step of .github/workflows/apps-api.yml with this one).
+# With packages/engine installed, tests/test_edit_undo_e2e.py and test_operations_api.py also run on the
+# REAL engine (they are skipped, with a visible reason, when it is not installed).
+#   - run: pip install -r requirements.lock && pip install --no-deps -e ../../contracts/python -e .
+#   - run: pip install -e ../../packages/engine     # adds the real-engine variants of the e2e tests
+# Then `pytest -q` as before; expect "N passed" with 0 skipped for those two files.

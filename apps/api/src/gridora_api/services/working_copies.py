@@ -28,8 +28,21 @@ T = TypeVar("T")
 class Entry:
     handle: WorkbookHandle
     workbook: Workbook
+    # Sheet ids the API shows to clients ("public") -> the engine's ids for THIS working copy.
+    # Needed because an engine may give new ids every time it imports the same file (the real engine
+    # does: random uuids), while history deltas and URLs must keep referring to the first ones.
+    sheet_map: dict[str, str] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
     last_used: float = field(default_factory=time.monotonic)
+
+    def to_engine(self, public_id: str) -> str:
+        return self.sheet_map.get(public_id, public_id)
+
+    def to_public(self, engine_id: str) -> str:
+        for pub, eng in self.sheet_map.items():
+            if eng == engine_id:
+                return pub
+        return engine_id
 
 
 class WorkingCopies:
@@ -47,8 +60,14 @@ class WorkingCopies:
         with self._guard:
             return doc_id in self._entries
 
-    def put(self, doc_id: str, handle: WorkbookHandle, workbook: Workbook) -> Entry:
-        entry = Entry(handle, workbook)
+    def put(
+        self,
+        doc_id: str,
+        handle: WorkbookHandle,
+        workbook: Workbook,
+        sheet_map: dict[str, str] | None = None,
+    ) -> Entry:
+        entry = Entry(handle, workbook, sheet_map=dict(sheet_map or {}))
         with self._guard:
             old = self._entries.pop(doc_id, None)
             self._entries[doc_id] = entry
@@ -89,7 +108,7 @@ class WorkingCopies:
             return e
 
     def load_blocking(
-        self, doc_id: str, loader: Callable[[], tuple[WorkbookHandle, Workbook]]
+        self, doc_id: str, loader: Callable[[], tuple[WorkbookHandle, Workbook, dict[str, str]]]
     ) -> Entry:
         """Return the open entry, loading it at most once even under concurrent callers.
         Runs in a worker thread (the loader parses a file)."""
@@ -99,11 +118,11 @@ class WorkingCopies:
             existing = self.get(doc_id)
             if existing is not None:
                 return existing
-            handle, wb = loader()
-            return self.put(doc_id, handle, wb)
+            handle, wb, sheet_map = loader()
+            return self.put(doc_id, handle, wb, sheet_map)
 
     async def load(
-        self, doc_id: str, loader: Callable[[], tuple[WorkbookHandle, Workbook]]
+        self, doc_id: str, loader: Callable[[], tuple[WorkbookHandle, Workbook, dict[str, str]]]
     ) -> Entry:
         return await run_in_threadpool(self.load_blocking, doc_id, loader)
 

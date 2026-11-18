@@ -314,6 +314,6 @@ def _text(v: CellValue) -> str:
     return str(d.get("b", d.get("e", d.get("iso", ""))))
 
 
-def create_engine(config: dict[str, Any] | None = None) -> StubEngine:
+def create_engine(config: dict[str, Any] | None = None, blobs: Any = None) -> StubEngine:
     """Same factory name/signature as gridora_engine.create_engine (contracts protocols.py)."""
     return StubEngine(max_cells=int((config or {}).get("max_cells", 5_000_000)))

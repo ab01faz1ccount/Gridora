@@ -30,9 +30,13 @@ class EngineExecContext:
         user_id: str,
         workspace_id: str,
         store: TableStore,
+        sheet_map: dict[str, str] | None = None,
     ) -> None:
         self._engine, self._handle, self._store = engine, handle, store
         self.user_id, self.workspace_id = user_id, workspace_id
+        # public sheet id -> the engine's id for THIS working copy (they differ after a rebuild)
+        self._to_eng = dict(sheet_map or {})
+        self._to_pub = {eng: pub for pub, eng in self._to_eng.items()}
 
     def read_range(self, rng: Range) -> list[list[Cell | None]]:
         """Typed cells (formulas, errors, format hints visible); empty cells are None.
@@ -47,7 +51,8 @@ class EngineExecContext:
                     rows=min(MAX_WINDOW_ROWS, rng.r1 - r + 1),
                     cols=min(MAX_WINDOW_COLS, rng.c1 - c + 1),
                 )
-                for cell in self._engine.get_cells(self._handle, rng.sheet_id, win).cells:
+                eng_sheet = self._to_eng.get(rng.sheet_id, rng.sheet_id)
+                for cell in self._engine.get_cells(self._handle, eng_sheet, win).cells:
                     out[cell.r - rng.r0][cell.c - rng.c0] = cell
         return out
 
@@ -72,7 +77,12 @@ class EngineExecContext:
             for j in range(width):
                 v = src[j] if j < len(src) else None
                 edits.append(CellEdit(r=rng.r0 + i, c=rng.c0 + j, value=v))
-        return self._engine.apply_cell_edits(self._handle, rng.sheet_id, edits)
+        eng_sheet = self._to_eng.get(rng.sheet_id, rng.sheet_id)
+        delta = self._engine.apply_cell_edits(self._handle, eng_sheet, edits)
+        sid = getattr(delta, "sheet_id", None)
+        if isinstance(sid, str) and sid in self._to_pub:  # hand back PUBLIC ids
+            delta = delta.model_copy(update={"sheet_id": self._to_pub[sid]})
+        return delta
 
     def table_store(self) -> TableStore:
         return self._store
