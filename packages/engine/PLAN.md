@@ -83,7 +83,8 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 | E4 XLSX read, lazy row windows, compat report, 100k benchmark | implemented, branch `agent1/e4-xlsx-read` (stacked on E3) |
 | E5 value edits, deltas, undo/redo, replay determinism, 200,000-cell cap | implemented, branch `agent1/e5-edits` (stacked on E4) |
 | E6 XLSX export by row patching, report of stale formula results, corpus round trip | implemented, branch `agent1/e6-export` |
-| E5b-1 / E5b-2 | next, in that order (ADR-015); then CC-13 once Agent 0 answers; **E7 formulas stay blocked on ADR-003** |
+| E5b-1 columnar read/write | implemented, branch `agent1/e5b1-columnar` |
+| E5b-2 range snapshot delta + blob codec | next (ADR-015); then CC-13 once Agent 0 answers; **E7 formulas stay blocked on ADR-003** |
 
 ---
 

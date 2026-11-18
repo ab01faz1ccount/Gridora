@@ -132,45 +132,45 @@ Reading it honestly:
 
 Command: `python benchmarks/corpus_report.py`. 1-CPU container, Python 3.12.3, **single run per file**, warm
 disk cache. "import" = `import_xlsx` (validation, workbook/styles/strings, sheet spool + index, report);
-"parse-all" = time to materialize every row afterwards; "cells" = cells with a value or formula, equal to an
+"parse-all" = time to materialize every row afterwards; "RSS" = process memory growth after import and after parsing (includes the OS page cache of the spooled sheet, which can be evicted; tiny files read as 0); "report" = items by status in the import report; "cells" = cells with a value or formula, equal to an
 independent ElementTree count in the tests. `-` in cells/s: too fast to time.
 
-| file | size KB | import s | parse-all s | cells | cells/s | report items | note |
-|---|---:|---:|---:|---:|---:|---:|---|
-| StructuredRefs-lots-with-lookups.xlsx | 318 | 0.034 | 0.240 | 37,696 | 157,171 | 11 | |
-| 57181.xlsm | 327 | 0.017 | 0.145 | 12,454 | 85,983 | 11 | |
-| 47813.xlsx | 54 | 0.004 | 0.011 | 2,164 | - | 7 | |
-| dataValidationTableRange.xlsx | 114 | 0.020 | 0.035 | 6,615 | - | 9 | |
-| ExcelPivotTableSample.xlsx | 19 | 0.002 | 0.001 | 50 | - | 3 | |
-| DataTableCities.xlsx | 23 | 0.002 | 0.001 | 185 | - | 5 | |
-| WithChartSheet.xlsx | 30 | 0.016 | 0.002 | 267 | - | 5 | |
-| 54436.xlsx | 12 | 0.001 | 0.000 | 28 | - | 2 | |
-| LIBRE_OFFICE-116306-0.xlsx | 2,793 | 0.146 | 2.593 | 662,923 | 255,656 | 3 | |
-| 61495-test.xlsm | 20 | 0.003 | 0.001 | 4 | - | 3 | |
-| testNames.xlsm | 13 | 0.001 | 0.000 | 15 | - | 3 | |
-| ExcelWithAttachments.xlsm | 61 | 0.001 | 0.001 | 6 | - | 7 | |
-| 60512.xlsm | 65 | 0.003 | 0.004 | 564 | - | 7 | |
-| ConditionalFormattingSamples.xlsx | 639 | 0.012 | 0.015 | 1,723 | - | 10 | |
-| NewStyleConditionalFormattings.xlsx | 13 | 0.001 | 0.002 | 340 | - | 4 | |
-| conditional_formatting_with_formula_on_second_sheet.xlsx | 68 | 0.002 | 0.000 | 2 | - | 3 | |
-| DataValidationEvaluations.xlsx | 13 | 0.001 | 0.001 | 139 | - | 5 | |
-| FormulaEvalTestData_Copy.xlsx | 63 | 0.007 | 0.022 | 4,177 | - | 5 | |
-| 45544.xlsx | 42 | 0.004 | 0.005 | 589 | - | 6 | |
-| MatrixFormulaEvalTestData.xlsx | 15 | 0.001 | 0.003 | 697 | - | 3 | |
-| xlookup.xlsx | 12 | 0.001 | 0.001 | 97 | - | 3 | |
-| 51710.xlsx | 83 | 0.008 | 0.067 | 13,688 | 205,161 | 2 | |
-| Tables.xlsx | 53 | 0.006 | 0.014 | 2,111 | - | 5 | |
-| VLookupFullColumn.xlsx | 13 | 0.002 | 0.004 | 623 | - | 2 | |
-| 46535.xlsx | 306 | 0.019 | 0.035 | 7,156 | - | 5 | |
-| NumberFormatTests.xlsx | 21 | 0.003 | 0.007 | 1,314 | - | 4 | |
-| GeneralFormatTests.xlsx | 35 | 0.002 | 0.003 | 296 | - | 4 | |
-| right-to-left.xlsx | 14 | 0.003 | 0.000 | 8 | - | 2 | |
-| bug62181.xlsx | 854 | 0.075 | 0.692 | 175,095 | 252,895 | 0 | |
-| Product-Sales-Region.xlsx | 146 | 0.016 | 0.118 | 28,149 | 238,686 | 1 | |
-| file_example_XLSX_5000.xlsx | 184 | 0.031 | 0.195 | 40,007 | 204,771 | 1 | |
-| file_example_XLS_5000.xls | 656 | - | - | - | - | - | `xlsx.legacy_xls` |
-| open_data_us.csv | 8 | 0.001 | 0.000 | 396 | - | 1 | |
-| softwiro-piece-rate-payroll-2026-11-16.xlsx | 131 | 0.014 | 0.075 | 7,034 | 93,257 | 9 | |
+| file | size KB | import s | parse-all s | cells | cells/s | RSS after import / parsed MB | report (supported/partial/preserved+unsupported) | note |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| StructuredRefs-lots-with-lookups.xlsx | 318 | 0.033 | 0.168 | 37,696 | 224,862 | 3 / 7 | 0/3/8 |  |
+| 57181.xlsm | 327 | 0.014 | 0.136 | 12,454 | 91,809 | 2 / 6 | 0/3/8 |  |
+| 47813.xlsx | 54 | 0.004 | 0.011 | 2,164 | - | 0 / 0 | 1/2/4 |  |
+| dataValidationTableRange.xlsx | 114 | 0.021 | 0.033 | 6,615 | - | 0 / 0 | 0/2/7 |  |
+| ExcelPivotTableSample.xlsx | 19 | 0.002 | 0.001 | 50 | - | 0 / 0 | 0/0/3 |  |
+| DataTableCities.xlsx | 23 | 0.002 | 0.001 | 185 | - | 0 / 0 | 0/1/4 |  |
+| WithChartSheet.xlsx | 30 | 0.002 | 0.002 | 267 | - | 0 / 0 | 0/0/5 |  |
+| 54436.xlsx | 12 | 0.001 | 0.000 | 28 | - | 0 / 0 | 0/1/1 |  |
+| LIBRE_OFFICE-116306-0.xlsx | 2,793 | 0.127 | 2.467 | 662,923 | 268,693 | 17 / 23 | 1/0/2 | manifest `names` = auto-filter name only (filter reported) |
+| 61495-test.xlsm | 20 | 0.003 | 0.001 | 4 | - | 0 / 0 | 0/1/2 |  |
+| testNames.xlsm | 13 | 0.001 | 0.000 | 15 | - | 0 / 0 | 0/2/1 |  |
+| ExcelWithAttachments.xlsm | 61 | 0.002 | 0.001 | 6 | - | 0 / 0 | 0/1/6 |  |
+| 60512.xlsm | 65 | 0.003 | 0.004 | 564 | - | 0 / 0 | 0/2/5 |  |
+| ConditionalFormattingSamples.xlsx | 639 | 0.012 | 0.015 | 1,723 | - | 0 / 1 | 0/3/7 |  |
+| NewStyleConditionalFormattings.xlsx | 13 | 0.001 | 0.002 | 340 | - | 0 / 0 | 0/2/2 |  |
+| conditional_formatting_with_formula_on_second_sheet.xlsx | 68 | 0.002 | 0.000 | 2 | - | 0 / 0 | 0/1/2 |  |
+| DataValidationEvaluations.xlsx | 13 | 0.001 | 0.001 | 139 | - | 0 / 0 | 0/2/3 | manifest `drawings` = legacy comment shapes (reported as comments) |
+| FormulaEvalTestData_Copy.xlsx | 63 | 0.007 | 0.021 | 4,177 | - | 0 / 0 | 0/2/3 | manifest `drawings` = legacy comment shapes (reported as comments) |
+| 45544.xlsx | 42 | 0.004 | 0.004 | 589 | - | 0 / 0 | 0/3/3 |  |
+| MatrixFormulaEvalTestData.xlsx | 15 | 0.001 | 0.003 | 697 | - | 0 / 0 | 0/2/1 |  |
+| xlookup.xlsx | 12 | 0.001 | 0.001 | 97 | - | 0 / 0 | 0/3/0 |  |
+| 51710.xlsx | 83 | 0.008 | 0.064 | 13,688 | 215,534 | 1 / 1 | 0/2/0 |  |
+| Tables.xlsx | 53 | 0.006 | 0.013 | 2,111 | - | 0 / 0 | 0/4/1 |  |
+| VLookupFullColumn.xlsx | 13 | 0.002 | 0.004 | 623 | - | 0 / 0 | 0/2/0 |  |
+| 46535.xlsx | 306 | 0.018 | 0.034 | 7,156 | - | 0 / 0 | 0/2/3 |  |
+| NumberFormatTests.xlsx | 21 | 0.003 | 0.007 | 1,314 | - | 0 / 0 | 1/2/1 |  |
+| GeneralFormatTests.xlsx | 35 | 0.002 | 0.003 | 296 | - | 0 / 0 | 1/2/1 |  |
+| right-to-left.xlsx | 14 | 0.001 | 0.000 | 8 | - | 0 / 0 | 0/0/2 | manifest `drawings` = legacy comment shapes (reported as comments) |
+| bug62181.xlsx | 854 | 0.074 | 0.669 | 175,095 | 261,777 | 7 / 11 | 0/0/0 | manifest `media` = empty directory |
+| Product-Sales-Region.xlsx | 146 | 0.012 | 0.107 | 28,149 | 263,960 | 1 / 1 | 0/1/0 |  |
+| file_example_XLSX_5000.xlsx | 184 | 0.027 | 0.165 | 40,007 | 242,061 | 2 / 2 | 0/0/1 |  |
+| file_example_XLS_5000.xls | 656 | - | - | - | - | - | - | rejected: `xlsx.legacy_xls` |
+| open_data_us.csv | 8 | 0.001 | 0.000 | 396 | - | 0 / 0 | 0/1/0 |  |
+| softwiro-piece-rate-payroll-2026-11-16.xlsx | 131 | 0.011 | 0.054 | 7,034 | 129,115 | 1 / 1 | 2/2/5 |  |
 
 Hostile files:
 
@@ -194,7 +194,6 @@ Hostile files:
 | crash-9bf3cd4bd6f50a8a9339d363c2c7af14b536865c.xlsx | `unsupported_workbook` / `xlsx.encrypted` (0.000 s) |
 | deep-data.xlsx | `import_failed` / `zip.corrupt` (0.000 s) |
 | protected_passtika.xlsx | `unsupported_workbook` / `xlsx.encrypted` (0.000 s) |
-
 
 Reading it honestly:
 - **Parse rate on real files: ~150k-255k cells/s** (the largest, `LIBRE_OFFICE-116306-0.xlsx`, 662,923 cells,
@@ -249,3 +248,29 @@ slices with namespace processing, the prefix was unbound in the slice, and every
 the slow full parse (my synthetic fixtures never had prefixes, so the 100k benchmark did not show it). Row
 slices are now parsed without namespace processing. Before the fix 14 of the 31 files could not be exported
 (`export.sheet_not_patchable` / `xml.malformed`); after it, none.
+
+## Re-measurement after the namespace fix (E5b-1 branch)
+
+The E4 benchmark was run again after row slices stopped being parsed with namespace processing (see the E6 section).
+Same container class, single runs, **but the host differs between runs (kernel string in the header), and
+run-to-run spread on this machine is about +-30%**, so read the change as "faster", not as a precise factor:
+`import_xlsx` 0.67 s (was 0.85 s); eager full parse 8.5 s (was 12.7 s); every row through `get_cells` windows
+18.9 s (was 26.7 s); window reads unchanged (35-46 ms cold, 0.26 s for 1000x100). The older tables above are kept
+as measured; the ADR-015 gate (30 s) is met by either set.
+
+## E5b-1 — columnar read/write (ColumnarEngine, contract 0.4.1), 100k x 20 XLSX
+
+Command: `python benchmarks/bench_columnar_100k.py`. Single run.
+
+| Operation | Result |
+|---|---|
+| `read_range_columnar`, whole sheet, cold (includes parsing the sheet) | 6.84 s |
+| same, sheet already parsed | 0.21 s = **0.11 us per non-empty cell** (1,942,813 cells; kinds `num`, `str`) |
+| `get_cells` over the same cells, already parsed | 17.5 s = 9.0 us per cell: columnar is **~82x faster** on parsed data |
+| `write_range_columnar` of identical data (nothing changes) | 3.9 s (compares 2 M cells, ~2 us each; delta empty) |
+| `write_range_columnar` changing one column (100,000 cells) | 3.5 s; max RSS of the whole script 978 MB (keeps three copies of the data as Python lists plus the cell objects of the comparison) |
+
+Reading it honestly: the cost of a first whole-sheet operation is the parse (6.8 s here), not the conversion.
+The write path is per-cell Python (~2 us/cell) and is capped at 200,000 changed cells until E5b-2; a bulk path for
+large writes belongs to the snapshot work. Real files: `tests/corpus/test_corpus_columnar.py` compares the columnar
+read with `get_cells`, cell by cell, on every sheet (first 5000 rows) of every readable corpus file.

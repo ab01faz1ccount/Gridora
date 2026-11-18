@@ -107,6 +107,25 @@ class SheetStore:
         self._max_row = self._max_col = -1
         self._bounds_dirty = False
 
+    def column_arrays(self, c: int, r0: int, r1: int) -> tuple[bytearray, array[float], array[int]]:
+        """Tags, values and styles of rows r0..r1 (inclusive) of column c, empties as zeros."""
+        n = r1 - r0 + 1
+        tags = bytearray(n)
+        vals: array[float] = array("d", bytes(8 * n))
+        styles: array[int] = array("H", bytes(2 * n))
+        base = c * _KEY_ROWS
+        for bi in range(r0 >> CHUNK_SHIFT, (r1 >> CHUNK_SHIFT) + 1):
+            ch = self.chunks.get(base + bi)
+            if ch is None:
+                continue
+            lo = max(r0, bi << CHUNK_SHIFT)
+            hi = min(r1, ((bi + 1) << CHUNK_SHIFT) - 1)
+            i0, k, o = lo & CHUNK_MASK, hi - lo + 1, lo - r0
+            tags[o : o + k] = ch.tags[i0 : i0 + k]
+            vals[o : o + k] = ch.vals[i0 : i0 + k]
+            styles[o : o + k] = ch.styles[i0 : i0 + k]
+        return tags, vals, styles
+
     def used_size(self) -> tuple[int, int]:
         """(row_count, col_count) of the used range; (0, 0) for an empty sheet."""
         if self._bounds_dirty:
