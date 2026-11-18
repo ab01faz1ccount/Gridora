@@ -27,6 +27,7 @@ from gridora_contracts.protocols import ExecContext
 from pydantic import ValidationError as PydanticValidationError
 
 from .catalog import catalog
+from .effects import EffectSummary, compute_effect
 from .errors import DataOpsError, pointer, verr
 from .registry import OperationRegistry, default_registry
 from .schema import column_refs
@@ -181,13 +182,22 @@ class DataOpsExecutor:
 
     def preview(self, op: Operation, ctx: ExecContext, limit: int) -> PreviewResult:
         """Never mutates: no write_range, no store writes. Raises DataOpsError(validation_failed) on bad input."""
-        spec, _src, frame, warnings = self._plan(op, ctx)
+        return self.preview_with_effect(op, ctx, limit)[0]
+
+    def preview_with_effect(self, op: Operation, ctx: ExecContext, limit: int) -> tuple[PreviewResult, EffectSummary]:
+        """The preview plus exact numbers about what applying would do (rows removed, formulas converted, new table...).
+        One plan, one extra comparison pass. `PreviewResult` has no field for the numbers (see INTEGRATION.md)."""
+        spec, src, frame, warnings = self._plan(op, ctx)
         if not spec.supports_preview:
             raise DataOpsError("not_implemented", f"'{op.type}' has no preview")
         head = frame.head(max(limit, 0))
-        return PreviewResult(columns=list(frame.columns),
-                             rows=[[_json_value(x) for x in r] for r in head.iter_rows()],
-                             total_rows=frame.height, warnings=warnings)
+        preview = PreviewResult(columns=list(frame.columns),
+                                rows=[[_json_value(x) for x in r] for r in head.iter_rows()],
+                                total_rows=frame.height, warnings=warnings)
+        new_table = spec.creates_table or (src.sheet is not None and spec.sheet_output == "new_table")
+        formulas = src.sheet.formula_cells if (src.sheet is not None and not new_table) else 0
+        return preview, compute_effect(src.frame, frame, destructive=spec.destructive, new_table=new_table,
+                                       formulas_converted=formulas)
 
     def apply(self, op: Operation, ctx: ExecContext) -> OperationResult:
         try:
