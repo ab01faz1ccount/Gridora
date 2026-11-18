@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     job_poll_interval_seconds: float = Field(default=0.5, gt=0)
     import_timeout_seconds: float = Field(default=120, gt=0)
     max_open_workbooks: int = Field(default=8, ge=1)
+    # An operation is always a job; the request waits this long for it before answering 202.
+    operation_inline_seconds: float = Field(default=2.0, ge=0)
 
     # The contract caps are upper bounds; they can only be lowered here.
     max_upload_bytes: int = Field(default=MAX_UPLOAD_BYTES, ge=1, le=MAX_UPLOAD_BYTES)

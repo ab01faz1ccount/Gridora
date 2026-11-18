@@ -2,7 +2,7 @@
 
 Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` (v0.2.0, read-only).
 
-## Status: In progress (PRs 1-5: skeleton, auth, workspaces/files, composition + stubs, jobs + workbooks)
+## Status: In progress (skeleton, auth, files, composition, jobs, workbooks, history, operations; real engine wired)
 
 ### What works (each item has a test)
 - App factory (`gridora_api.main:create_app`), configuration from `GRIDORA_*` environment variables.
@@ -79,10 +79,44 @@ Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: `../../contracts/` 
 
 - Upload memory (measured in `deploy/`): a 100 MiB upload through nginx costs ~+5 MB of API peak RSS (streamed to disk). A regression test pins the fix for `check_magic`, which used to read the whole file to look at 8 KiB. The *import* is a different matter: the stub engine holds the whole sheet in memory (a 100 MiB CSV used ~670 MB before the storage rewrite; see `deploy/README.md` / PR for current numbers), the real engine's lazy reader is Agent 1's E4 target.
 
+- **Cell edits, undo/redo, history (Review 4)**: `PATCH .../cells` (one request = one atomic history entry),
+  `GET /documents/{id}/history` (paged, newest first), `POST .../undo`, `POST .../redo`; responses are the
+  contract `CellsChangedResult`. Alembic 0004. Every mutation holds a row lock on the workbook inside one
+  transaction, so edits, operations and undo never interleave (6 simultaneous edits with the same `base_seq`:
+  exactly one wins); `base_seq` is checked under that lock (`409 version_conflict`, detail `history.stale`);
+  `seq` comes from a counter that never goes backwards (a stale client can never mistake a different entry
+  for the one it saw). If anything fails after the engine changed, the working copy is dropped and rebuilt
+  from the stored file + committed history, so memory never disagrees with the DB.
+- **Rebuild = file + history replay**, with a public<->engine **sheet-id map** (see "Real engine" below).
+- **Operations as jobs**: `GET /operations`, `GET /operations/i18n`, `POST /documents/{id}/operations/preview`,
+  `POST /documents/{id}/operations`. Applying is ALWAYS an `operation` job: the request waits
+  `GRIDORA_OPERATION_INLINE_SECONDS` (default 2 s); a fast operation answers `200 CellsChangedResult` like a
+  cell edit, a slow one answers `202` + the job (the job's `result_ref` is the history `seq` it created), so
+  no request is held open for a heavy operation. Destructive operations need `confirm_destructive` (`409
+  operation_conflict`, detail `operation.confirm_required`); EVERY target, including `extra_targets`, is
+  checked to belong to the user (`404` otherwise); validation errors are JSON pointers relative to the
+  Operation; a change that would not fit the 200,000-cell undo cap fails with `operation_conflict` + detail
+  `too_large_for_history` and changes nothing. Progress: none (the executor protocol has no progress hook; CC-13).
+- **Real engine** (`GRIDORA_ENGINE=real`, `packages/engine` installed): `create_engine(config, blobs)` with a
+  content-addressed, owner-agnostic file `BlobStore`; engine errors (recognised by `code/reason/public_message`,
+  no import of the engine outside `composition/wiring.py`) are translated to `DomainError` with the engine's
+  stable reason as detail code; `too_large_for_history` is always top-level `operation_conflict`.
+  The same HTTP tests (upload, window, edit, undo/redo, concurrency, rebuild) run on the **stub and the
+  real engine**; one more reads a real corpus XLSX, edits, undoes and rebuilds it.
+
+### Real engine: what running it end to end found
+- **The real engine gives new random sheet ids every time it imports the same file** (`uuid4()` per import).
+  History deltas, URLs and clients refer to the FIRST ids, so after a restart/eviction every read and replay
+  broke (the rebuild test failed exactly there). The API now keeps a public<->engine sheet-id map per working
+  copy (by sheet position) and translates on every call; deltas are stored with public ids. This also removes
+  the need for Agent 1 to make ids stable (ask withdrawn; stable ids would still be welcome).
+- Known: sheet dimensions only grow in v1 (an edit past the end grows them; undo does not shrink them); the
+  history is capped at 5,000 entries until saving can compact it; deltas are stored as JSONB (no blob
+  spill-over yet); `export_xlsx`/`recalculate` are not implemented by the real engine yet (typed
+  `operation_conflict` / `engine.not_implemented`, not a 500).
+
 ### What does not work yet
-- No cell edits, history, undo/redo, save, export, operations, tables or charts (PR 10 onward).
-  A rebuilt working copy is the stored file only; **history replay is not implemented yet** (no edits
-  exist yet, so nothing is lost).
+- No save/versions, export, Data Tables, charts or saved tools yet. No `pipelines/run`.
 - Import time limit stops *waiting*; the worker thread itself cannot be killed (ADR-011, Phase 4).
 - With the stub engine, XLSX uploads are stored but their import job fails with
   `unsupported_workbook`. `POST .../files` returns `job_id: null` until the

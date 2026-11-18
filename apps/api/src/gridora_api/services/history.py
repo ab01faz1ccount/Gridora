@@ -105,7 +105,7 @@ async def active_deltas_since(db: AsyncSession, row: WorkbookRow) -> list[tuple[
     return [(int(seq), DELTA.validate_python(d)) for seq, d in rows]
 
 
-def _check_base(base_seq: int | None, head: int) -> None:
+def check_base(base_seq: int | None, head: int) -> None:
     if base_seq is not None and base_seq != head:
         raise DomainError(
             "version_conflict",
@@ -117,7 +117,7 @@ def _check_base(base_seq: int | None, head: int) -> None:
         )
 
 
-def _entry_out(h: HistoryRow) -> HistoryEntry:
+def entry_out(h: HistoryRow) -> HistoryEntry:
     return HistoryEntry(
         id=str(h.id),
         document_id=str(h.document_id),
@@ -141,7 +141,7 @@ def _sheet_of(delta: Delta, fallback: str) -> str:
     return sid if isinstance(sid, str) else fallback
 
 
-async def _commit_or_drop(
+async def commit_or_drop(
     db: AsyncSession, copies: WorkingCopies, doc_id: uuid.UUID, ok_after_engine: bool = True
 ) -> None:
     try:
@@ -178,7 +178,7 @@ async def apply_edits(
             ],
         )
     head = await head_seq(db, row.id)
-    _check_base(req.base_seq, head)
+    check_base(req.base_seq, head)
     total = (
         await db.execute(
             select(func.count()).select_from(HistoryRow).where(HistoryRow.document_id == row.id)
@@ -218,10 +218,10 @@ async def apply_edits(
         params={"count": len(req.edits)},
     )
     h = await record_entry(db, copies, row, op, delta, "history.cell_edit")
-    _grow_dimensions(row, sheet_id, r_hi + 1, c_hi + 1)
-    await _commit_or_drop(db, copies, row.id)
+    grow_dimensions(row, sheet_id, r_hi + 1, c_hi + 1)
+    await commit_or_drop(db, copies, row.id)
     return CellsChangedResult(
-        history_entry=_entry_out(h), sheet_id=sheet_id, cells=_cells_of(delta, after=True)
+        history_entry=entry_out(h), sheet_id=sheet_id, cells=_cells_of(delta, after=True)
     )
 
 
@@ -258,7 +258,7 @@ async def record_entry(
     return h
 
 
-def _grow_dimensions(row: WorkbookRow, sheet_id: str, rows: int, cols: int) -> None:
+def grow_dimensions(row: WorkbookRow, sheet_id: str, rows: int, cols: int) -> None:
     """Sheet dimensions only grow in v1 (an edit past the end; undo does not shrink)."""
     meta: dict[str, Any] = dict(row.meta_json)
     sheets = [dict(s) for s in meta.get("sheets", [])]
@@ -282,7 +282,7 @@ async def _step(
     base_seq: int | None,
 ) -> CellsChangedResult:
     head = await head_seq(db, row.id)
-    _check_base(base_seq, head)
+    check_base(base_seq, head)
     if undo:
         stmt = (
             select(HistoryRow)
@@ -312,10 +312,10 @@ async def _step(
     except BaseException:
         copies.drop(str(row.id))
         raise
-    await _commit_or_drop(db, copies, row.id)
+    await commit_or_drop(db, copies, row.id)
     sheet = _sheet_of(delta, next(iter(entry.sheet_map), ""))
     return CellsChangedResult(
-        history_entry=_entry_out(h), sheet_id=sheet, cells=_cells_of(delta, after=not undo)
+        history_entry=entry_out(h), sheet_id=sheet, cells=_cells_of(delta, after=not undo)
     )
 
 
@@ -351,7 +351,7 @@ async def list_entries(
     rows = (await db.execute(stmt.order_by(HistoryRow.seq.desc()).limit(limit + 1))).scalars().all()
     more = len(rows) > limit
     page = rows[:limit]
-    return [_entry_out(h) for h in page], (str(page[-1].seq) if more and page else None)
+    return [entry_out(h) for h in page], (str(page[-1].seq) if more and page else None)
 
 
 def meta_workbook(row: WorkbookRow) -> Workbook:

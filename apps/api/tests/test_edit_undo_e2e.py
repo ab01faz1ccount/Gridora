@@ -4,7 +4,6 @@ engines. The 'real' variant is skipped when packages/engine is not installed (an
 from __future__ import annotations
 
 import concurrent.futures
-from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -12,77 +11,9 @@ import pytest
 from fastapi import FastAPI
 from gridora_contracts.models import CellsChangedResult, HistoryEntry
 
-from gridora_api.main import create_app
-
-from .conftest import PASSWORD, ScanningClient, Session, fast_settings, forbidden_fragments
-from .helpers import import_csv, wait_job
-
-CSV = "نام,تعداد,شهر\nعلی,3,تهران\nرضا,4.5,شیراز\n".encode()
-NUM = lambda n: {"k": "num", "n": n}  # noqa: E731
-STR = lambda s: {"k": "str", "s": s}  # noqa: E731
-
-
-@pytest.fixture(params=["stub", "real"])
-def kind(request: pytest.FixtureRequest) -> str:
-    if request.param == "real":
-        pytest.importorskip("gridora_engine", reason="packages/engine is not installed")
-    return str(request.param)
-
-
-@pytest.fixture
-def eapp(tmp_path: Path, kind: str) -> FastAPI:
-    return create_app(
-        fast_settings(tmp_path / kind, engine=kind, dataops=kind if kind == "stub" else "stub")
-    )
-
-
-@pytest.fixture
-def user(
-    eapp: FastAPI, tmp_path: Path, kind: str, make_user: Callable[..., str]
-) -> Iterator[Session]:
-    make_user("erin")
-    c = ScanningClient(eapp, base_url="https://testserver", raise_server_exceptions=False)
-    c.forbidden = forbidden_fragments(fast_settings(tmp_path / kind))
-    c.__enter__()
-    r = c.post("/api/v1/auth/login", json={"username": "erin", "password": PASSWORD})
-    yield Session(c, "erin", r.json()["data"]["csrf_token"])
-    c.__exit__(None, None, None)
-
-
-class Doc:
-    """Small helper around one imported workbook."""
-
-    def __init__(self, s: Session, kind: str, data: bytes = CSV, name: str = "t.csv") -> None:
-        self.s, self.kind = s, kind
-        ws = s.post("/api/v1/workspaces", json={"name": "w"}).json()["data"]["id"]
-        self.ids = import_csv(s, ws, name, data)
-        self.wb, self.sheet = self.ids["wb"], self.ids["sheet"]
-
-    def cells(self, rows: int = 20, cols: int = 10) -> dict[tuple[int, int], Any]:
-        r = self.s.get(
-            f"/api/v1/workbooks/{self.wb}/sheets/{self.sheet}/cells?r0=0&c0=0&rows={rows}&cols={cols}"
-        )
-        assert r.status_code == 200, r.text
-        return {(c["r"], c["c"]): c.get("v") for c in r.json()["data"]["cells"]}
-
-    def edit(self, edits: list[dict[str, Any]], base_seq: int = 0) -> Any:
-        return self.s.patch(
-            f"/api/v1/workbooks/{self.wb}/sheets/{self.sheet}/cells",
-            json={"base_seq": base_seq, "edits": edits},
-        )
-
-    def history(self, q: str = "") -> Any:
-        return self.s.get(f"/api/v1/documents/{self.wb}/history{q}")
-
-    def undo(self, q: str = "") -> Any:
-        return self.s.post(f"/api/v1/documents/{self.wb}/undo{q}")
-
-    def redo(self, q: str = "") -> Any:
-        return self.s.post(f"/api/v1/documents/{self.wb}/redo{q}")
-
-
-def set_cell(r: int, c: int, value: dict[str, Any] | None) -> dict[str, Any]:
-    return {"r": r, "c": c, **({"value": value} if value else {})}
+from .conftest import ScanningClient, Session
+from .e2e_kit import NUM, STR, Doc, set_cell
+from .helpers import wait_job
 
 
 # ------------------------------------------------------------------- the slice ----

@@ -49,4 +49,29 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("POST", "/api/v1/documents/{id}/redo"): lambda c, ids: c.post(
         f"/api/v1/documents/{ids['wb']}/redo"
     ),
+    ("POST", "/api/v1/documents/{id}/operations/preview"): lambda c, ids: c.post(
+        f"/api/v1/documents/{ids['wb']}/operations/preview",
+        json={
+            "type": "sort",
+            "params": {"columns": [{"column": 0}]},
+            "target": {
+                "kind": "sheet_range",
+                "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 1, "c1": 1},
+            },
+        },
+    ),
+    ("POST", "/api/v1/documents/{id}/operations"): lambda c, ids: c.post(
+        f"/api/v1/documents/{ids['wb']}/operations",
+        json={
+            "base_seq": 0,
+            "operation": {
+                "type": "sort",
+                "params": {"columns": [{"column": 0}]},
+                "target": {
+                    "kind": "sheet_range",
+                    "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 1, "c1": 1},
+                },
+            },
+        },
+    ),
 }
