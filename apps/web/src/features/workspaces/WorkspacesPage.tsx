@@ -7,6 +7,7 @@ import {
   useRenameWorkspace,
   useWorkspaces,
 } from "@/api/hooks";
+import { navigate } from "@/app/router";
 import { Button } from "@/components/Button";
 import { Dialog } from "@/components/Dialog";
 import { TextField } from "@/components/TextField";
@@ -84,6 +85,9 @@ export function WorkspacesPage() {
                 </div>
               </div>
               <div className="actions">
+                <Button variant="primary" onClick={() => navigate(`/workspaces/${w.id}`)}>
+                  {t("workspaces.open")}
+                </Button>
                 <Button onClick={() => { setRenaming(w); setRenameValue(w.name); }}>
                   {t("workspaces.rename")}
                 </Button>

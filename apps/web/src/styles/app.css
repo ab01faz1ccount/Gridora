@@ -163,3 +163,37 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .sheet-tab { font: inherit; cursor: pointer; padding-block: 4px; padding-inline: 14px; color: var(--text);
   background: var(--bg); border: 1px solid var(--border); border-block-start: 0; border-radius: 0 0 6px 6px; }
 .sheet-tab-active { background: var(--surface); font-weight: 700; }
+
+/* ---- import ----------------------------------------------------------------------------- */
+.dropzone { display: grid; justify-items: center; gap: 6px; padding: 28px 16px; margin-block-end: var(--gap);
+  border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface); text-align: center; }
+.dropzone-over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.dropzone-title { margin: 0; font-weight: 700; }
+.import-list { list-style: none; margin: 0 0 var(--gap); padding: 0; display: grid; gap: var(--gap); }
+.import-card { display: grid; gap: 6px; }
+.import-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap); }
+.import-failed { border-color: var(--danger); }
+.import-card progress { inline-size: 100%; }
+.panel { display: grid; gap: var(--gap); align-content: start; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); }
+.panel-head h2 { margin: 0; }
+.compat-group h3 { margin: 0 0 4px; font-size: 1rem; }
+.compat-group ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 8px; }
+.compat-unsupported h3 { color: var(--danger); }
+.compat-meta { font-size: 0.8rem; }
+
+/* ---- workbook shell regions (top bar, formula bar, grid, side panel, sheet tabs, status bar) ---- */
+.content-wide { max-inline-size: none; padding-block: 8px; padding-inline: 12px; }
+.wbs { display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto auto;
+  block-size: calc(100vh - 70px); min-block-size: 360px; gap: 6px; }
+.wbs-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wbs-name { margin: 0; font-size: 1.1rem; }
+.wbs-formula { display: flex; align-items: center; gap: 6px; }
+.wbs-addr { min-inline-size: 64px; padding-block: 4px; padding-inline: 8px; text-align: center; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); font-variant-numeric: tabular-nums; }
+.wbs-value { flex: 1; min-inline-size: 0; }
+.wbs-grid.gv-host { block-size: auto; min-block-size: 0; }
+.wbs-panel { position: fixed; inset-block: 0; inset-inline-start: 0; inline-size: min(380px, 100vw); z-index: 20;
+  background: var(--surface); border-inline-end: 1px solid var(--border); padding: 16px; overflow: auto; }
+.wbs-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); }
+.wbs-status { min-block-size: 22px; font-size: 0.85rem; color: var(--muted); }

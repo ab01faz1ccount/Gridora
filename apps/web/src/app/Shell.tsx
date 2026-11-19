@@ -5,7 +5,7 @@ import { useT } from "@/i18n";
 import { usePrefs, type Calendar, type Digits } from "@/state/prefs";
 import { useUi } from "@/state/ui";
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   const t = useT();
   const prefs = usePrefs();
   const session = useSession();
@@ -50,7 +50,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </>
         ) : null}
       </header>
-      <main className="content">{children}</main>
+      <main className={wide ? "content content-wide" : "content"}>{children}</main>
     </>
   );
 }
