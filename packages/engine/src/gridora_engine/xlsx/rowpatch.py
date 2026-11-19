@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from xml.parsers import expat
 
 from ..errors import import_failed
+from ..model.edits import key_of
 from ..model.values import BOOL, ERR, ERR_CODES, NUM, STR, StringTable
 from ..model.workbook import SheetState
 from ..package import xmlsafe
@@ -145,6 +146,21 @@ def sheet_chunks(
         r, c = key >> 14, key & 0x3FFF
         tag, val, style = sheet.store.get(r, c)
         by_row.setdefault(r, {})[c] = cell_xml(r, c, tag, val, style, sheet.formulas.get(key), strings)
+    rects = sheet.bulk_rects  # rectangles written in bulk: every cell inside is regenerated
+    rect_rows: set[int] = set()
+    for r0, _c0, r1, _c1 in rects:
+        rect_rows.update(range(r0, r1 + 1))
+
+    def cells_of_row(r: int) -> dict[int, bytes | None]:
+        cols = dict(by_row.get(r, {}))
+        for r0, c0, r1, c1 in rects:
+            if r0 <= r <= r1:
+                for c in range(c0, c1 + 1):
+                    if c not in cols:
+                        tag, val, style = sheet.store.get(r, c)
+                        cols[c] = cell_xml(r, c, tag, val, style, sheet.formulas.get(key_of(r, c)), strings)
+        return cols
+
     self_closing = src.close_end == src.data_end
     prefix = bytes(mm[: src.sheetdata_start]) + b"<sheetData>" if self_closing else bytes(mm[: src.data_start])
     if new_dimension is not None:
@@ -152,7 +168,8 @@ def sheet_chunks(
     yield prefix
     nums = src.row_nums
     cursor = src.data_start
-    for r in sorted(by_row):
+    for r in sorted(set(by_row) | rect_rows):
+        row_cells = cells_of_row(r)
         idx = bisect.bisect_left(nums, r)
         pos = src.row_starts[idx] if idx < len(nums) else src.data_end
         pos = max(pos, cursor)
@@ -161,10 +178,10 @@ def sheet_chunks(
         cursor = pos
         if idx < len(nums) and nums[idx] == r:
             end = src.row_end(idx)
-            row_xml = rebuild_row(bytes(mm[src.row_starts[idx] : end]), by_row[r])
+            row_xml = rebuild_row(bytes(mm[src.row_starts[idx] : end]), row_cells)
             cursor = end
         else:
-            row_xml = new_row(r, by_row[r])
+            row_xml = new_row(r, row_cells)
         check_fragment(row_xml)
         yield row_xml
     for a in range(cursor, src.data_end, _COPY):

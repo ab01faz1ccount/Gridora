@@ -45,6 +45,9 @@ class SheetState:
     # imported content of each: key -> (tag, val, style, formula text or None).
     dirty: set[int] = field(default_factory=set)
     orig: dict[int, tuple[int, float, int, str | None]] = field(default_factory=dict)
+    # Rectangles written in bulk (range snapshots): the exporter regenerates every cell inside them.
+    bulk_rects: list[tuple[int, int, int, int]] = field(default_factory=list)  # r0, c0, r1, c1
+    bulk_formulas_changed: bool = False
 
     def ensure(self, row_lo: int, row_hi: int) -> None:
         if self.lazy is not None:

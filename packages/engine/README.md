@@ -2,7 +2,7 @@
 
 Owner: Agent 1. Brief: [agents/AGENT_1_ENGINE.md](../../agents/AGENT_1_ENGINE.md). Plan: [PLAN.md](PLAN.md).
 
-**Status (E5b-1): CSV, XLSX read (lazy), value edits with undo/redo, XLSX/CSV export, columnar read/write, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
+**Status (E5b-2): CSV, XLSX read (lazy), value edits with undo/redo, XLSX/CSV export, columnar read/write with range snapshots, hostile-safe package layer.** Entry point: `gridora_engine.create_engine(config)`.
 
 What works (tested in `tests/`):
 - `import_csv`: encoding detection (BOM, strict UTF-8, Windows-1256 guess, Windows-1252 fallback;
@@ -110,8 +110,17 @@ Columnar access (`ColumnarEngine`, contract 0.4.1; `isinstance(engine, ColumnarE
   cached value reads as empty. The range area is bounded by `max_cells`.
 - `write_range_columnar(wb, rng, data)`: values only; every cell of the range ends up equal to `data` (`None` clears); only **changed** cells
   are in the returned `CellPatchDelta`; same rules as edits (shared/array formula cells refused, ordinary formulas overwritten and recorded in
-  `before`, dates need a date format); all-or-nothing; above `max_patch_cells` changed cells it raises `operation_conflict` /
-  `too_large_for_history` (the snapshot delta arrives with E5b-2).
+  `before`, dates need a date format); all-or-nothing. Up to `max_patch_cells` changed cells the result is a `CellPatchDelta`.
+  **Above it, with a `BlobStore` (`create_engine(config, blobs)`), the result is a `RangeSnapshotDelta`** (ADR-014): the exact
+  content of the rectangle before and after (values, style ids, formula text) is stored as two blobs and the delta holds only
+  their refs and `cell_count` (= changed cells). Without a blob store: `operation_conflict` / `too_large_for_history`.
+- `apply_delta` handles `range_snapshot` in both directions; the blobs are decoded, bounds-checked and applied to the store
+  with bulk array writes, all columns or none. The blob format (profile R, `model/snapshot.py`) is deterministic, versioned
+  (`GRSB`, version 1), zlib-compressed, SHA-256-checked and never executes anything; the decoder validates sizes against
+  `ResourceLimits` before allocating and decompresses with a byte budget. A missing, damaged, oversized or newer blob fails with
+  `internal_error` / `snapshot.unavailable` | `snapshot.corrupt` | `snapshot.unsupported_version` and **changes nothing**
+  (undo never half-applies). A failing blob store on write: `snapshot.store_failed`, nothing changed.
+- Export regenerates every cell inside bulk-written rectangles (rows/cells outside stay byte-equal to the file).
 
 What does not work yet (raises `EngineNotImplementedError`): `recalculate`. `FormattingEngine`/`StructureEngine` not implemented.
 

@@ -126,6 +126,48 @@ class SheetStore:
             styles[o : o + k] = ch.styles[i0 : i0 + k]
         return tags, vals, styles
 
+    def write_column(
+        self, c: int, r0: int, tags: bytes, vals: array[float], styles: array[int]
+    ) -> None:
+        """Overwrite rows r0..r0+len(tags)-1 of column c from arrays. The budgets are checked for the
+        whole column BEFORE anything changes, so a failure leaves the store untouched."""
+        n = len(tags)
+        r1 = r0 + n - 1
+        base = c * _KEY_ROWS
+        plan: list[tuple[int, int, int, int, Chunk | None]] = []
+        delta_cells = new_chunks = 0
+        for bi in range(r0 >> CHUNK_SHIFT, (r1 >> CHUNK_SHIFT) + 1):
+            lo = max(r0, bi << CHUNK_SHIFT)
+            hi = min(r1, ((bi + 1) << CHUNK_SHIFT) - 1)
+            i0, k, o = lo & CHUNK_MASK, hi - lo + 1, lo - r0
+            ch = self.chunks.get(base + bi)
+            new = tags[o : o + k]
+            nonempty_new = k - new.count(0)
+            if ch is None:
+                if nonempty_new == 0 and not any(styles[o : o + k]):
+                    continue
+                new_chunks += 1
+            else:
+                delta_cells -= k - ch.tags[i0 : i0 + k].count(0)
+            delta_cells += nonempty_new
+            plan.append((bi, i0, k, o, ch))
+        b = self._budget
+        if b.cells + delta_cells > b.max_cells or b.bytes_used + new_chunks * CHUNK_BYTES > b.max_bytes:
+            raise unsupported_workbook(
+                "limits.cell_count_exceeded" if b.cells + delta_cells > b.max_cells else "limits.store_bytes_exceeded",
+                "The workbook would exceed the allowed size.",
+            )
+        for bi, i0, k, o, ch in plan:
+            if ch is None:
+                ch = self.chunks[base + bi] = Chunk()
+                b.bytes_used += CHUNK_BYTES
+            ch.tags[i0 : i0 + k] = tags[o : o + k]
+            ch.vals[i0 : i0 + k] = vals[o : o + k]
+            ch.styles[i0 : i0 + k] = styles[o : o + k]
+        b.cells += delta_cells
+        self._cells += delta_cells
+        self._bounds_dirty = True  # recomputed lazily by used_size()
+
     def used_size(self) -> tuple[int, int]:
         """(row_count, col_count) of the used range; (0, 0) for an empty sheet."""
         if self._bounds_dirty:

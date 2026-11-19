@@ -274,3 +274,28 @@ Reading it honestly: the cost of a first whole-sheet operation is the parse (6.8
 The write path is per-cell Python (~2 us/cell) and is capped at 200,000 changed cells until E5b-2; a bulk path for
 large writes belongs to the snapshot work. Real files: `tests/corpus/test_corpus_columnar.py` compares the columnar
 read with `get_cells`, cell by cell, on every sheet (first 5000 rows) of every readable corpus file.
+
+## E5b-2 — range snapshot deltas (blob codec + bulk apply), 100k x 20 XLSX
+
+Command: `python benchmarks/bench_snapshot_100k.py` (in-memory fake `BlobStore`). Single run, 1 CPU. The range is
+19 columns x 100,000 rows (1.8 M cells); the numeric columns are changed (+1), 775,960 cells actually differ.
+
+| Operation | Result |
+|---|---|
+| `read_range_columnar` (includes parsing the sheet) | 9.94 s |
+| `write_range_columnar` -> `range_snapshot` (build arrays, encode before + after, store, apply) | 4.92 s |
+| Blob size (before / after), zlib level 6 | 9.1 MB / 9.1 MB for 1.8 M cells (raw columns: 19.8 MB) |
+| The delta itself (what the history table stores) | 251 bytes of JSON |
+| Undo / redo (`apply_delta`, bulk array writes) | 0.65 s / 0.56 s |
+| `export_xlsx` after the bulk write (all 100,000 rows rebuilt) | 22.5 s; max RSS 349 MB for the whole script |
+
+Reading it honestly:
+- The cap on history entries is lifted only because the blob store absorbs the size: 9.1 MB per side here;
+  random numbers compress poorly (3-8 MB was my estimate; real columns with repeated values will do better,
+  unique strings worse). Retention and disk budget are Agent 0's / Agent 3's call.
+- Export after a bulk write is the slow part (22.5 s): every cell of the rectangle is regenerated (`cell_xml`) and every
+  rebuilt row is re-parsed twice (cell offsets, then the well-formedness check). That is a job, not a request;
+  it is exactly what progress/cancel (CC-13) is for. No optimization was attempted.
+- Bulk writes track dirtiness as rectangles (`bulk_rects`), not per cell, so undoing a bulk write does **not** make
+  the sheet byte-identical to the file again (the rectangle stays dirty and is regenerated with equal content);
+  per-cell edits still do.

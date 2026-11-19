@@ -35,7 +35,7 @@ from .errors import (
 )
 from .limits import ResourceLimits
 from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
-from .model.columnar import read_columnar, write_columnar
+from .model.columnar import apply_range_snapshot, read_columnar, write_columnar
 from .model.edits import Snap, apply_all, key_of
 from .model.workbook import SheetState, WorkbookState
 from .xlsx.exporter import export_xlsx_file
@@ -156,6 +156,10 @@ class GridoraEngine:
         return CellPatchDelta(sheet_id=sheet_id, before=before, after=after)
 
     def apply_delta(self, wb: WorkbookHandle, delta: Delta, *, inverse: bool) -> None:
+        if delta.kind == "range_snapshot":
+            state, sheet = self._sheet(wb, delta.sheet_id)
+            apply_range_snapshot(state, sheet, delta, inverse, self.limits, self.blobs)
+            return
         if delta.kind != "cell_patch":
             raise validation_failed("delta.unsupported_kind", "This kind of change is not supported yet.")
         state, sheet = self._sheet(wb, delta.sheet_id)
@@ -179,7 +183,7 @@ class GridoraEngine:
 
     def write_range_columnar(self, wb: WorkbookHandle, rng: Range, data: ColumnarRange) -> Delta:
         state, sheet = self._sheet(wb, rng.sheet_id)
-        return write_columnar(state, sheet, rng, data, self.limits)
+        return write_columnar(state, sheet, rng, data, self.limits, self.blobs)
 
     # -- helpers ----------------------------------------------------------------------------
     def _sheet(self, wb: WorkbookHandle, sheet_id: str) -> tuple[WorkbookState, SheetState]:

@@ -47,14 +47,14 @@ def export_xlsx_file(state: WorkbookState, path: Path, limits: ResourceLimits) -
     assert isinstance(model, PackageModel)
     parts = [replace(p) for p in model.parts]
     by_name = {p.name: p for p in parts}
-    edited = [s for s in state.sheets if s.dirty]
+    edited = [s for s in state.sheets if s.dirty or s.bulk_rects]
     inline = 0
     for sheet in edited:
         part = by_name[sheet.part_name]
         src = _source_of(sheet)
         part.state = "dirty"
         part.producer = _producer(src, sheet, state)
-        inline += sum(1 for k in sheet.dirty if sheet.store.get(k >> 14, k & 0x3FFF)[0] == 2 and (k not in sheet.formulas))
+        inline += _inline_strings(sheet)
     if edited:
         if inline:
             _add(hits, "xlsx.inline_strings", inline)
@@ -117,8 +117,26 @@ def _formula_cells(sheet: SheetState) -> int:
     return max(src.formula_count if src is not None else 0, len(sheet.formulas))
 
 
+def _inline_strings(sheet: SheetState) -> int:
+    """Edited text cells written as inline strings (per-cell edits plus bulk rectangles)."""
+    n = 0
+    for k in sheet.dirty:
+        r, c = k >> 14, k & 0x3FFF
+        if k not in sheet.formulas and sheet.store.get(r, c)[0] == 2 and not any(
+            a <= r <= b and x <= c <= y for a, x, b, y in sheet.bulk_rects
+        ):
+            n += 1
+    for r0, c0, r1, c1 in sheet.bulk_rects:
+        for c in range(c0, c1 + 1):
+            tags, _v, _s = sheet.store.column_arrays(c, r0, r1)
+            n += tags.count(2)
+    return n
+
+
 def _formulas_changed(edited: list[SheetState]) -> bool:
     for s in edited:
+        if s.bulk_formulas_changed:
+            return True
         for k in s.dirty:
             if s.orig[k][3] != s.formulas.get(k):
                 return True

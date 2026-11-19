@@ -84,7 +84,8 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 | E5 value edits, deltas, undo/redo, replay determinism, 200,000-cell cap | implemented, branch `agent1/e5-edits` (stacked on E4) |
 | E6 XLSX export by row patching, report of stale formula results, corpus round trip | implemented, branch `agent1/e6-export` |
 | E5b-1 columnar read/write | implemented, branch `agent1/e5b1-columnar` |
-| E5b-2 range snapshot delta + blob codec | next (ADR-015); then CC-13 once Agent 0 answers; **E7 formulas stay blocked on ADR-003** |
+| E5b-2 range snapshot delta + blob codec | implemented, branch `agent1/e5b2-snapshot` |
+| CC-13 (progress/cancel) | proposal only (section 0.8); waiting for Agent 0. **E7 formulas stay blocked on ADR-003** |
 
 ---
 
