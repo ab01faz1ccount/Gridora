@@ -40,6 +40,9 @@ let onUnauthenticated: (() => void) | null = null;
 export function setCsrfToken(token: string | null): void {
   csrfToken = token;
 }
+export function getCsrfToken(): string | null {
+  return csrfToken;
+}
 export function setImplementationListener(fn: ((i: Implementation) => void) | null): void {
   onImplementation = fn;
 }
