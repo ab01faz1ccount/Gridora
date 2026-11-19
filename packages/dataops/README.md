@@ -2,7 +2,7 @@
 
 Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.md). Plan: [PLAN.md](PLAN.md). Operation list: [docs/OPERATIONS_CATALOG.md](../../docs/OPERATIONS_CATALOG.md). Form vocabulary: [docs/PARAMS_SCHEMA.md](docs/PARAMS_SCHEMA.md).
 
-**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); 380 tests (the whole suite also runs through the columnar double); benchmarks in `BENCHMARKS.md`. Contract version: 0.4.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
+**Status: M0 to M5 implemented and merged (15 operations, Data Tables, pipelines, Tools, chart data); about 490 tests (the whole suite also runs through the columnar double); benchmarks in `BENCHMARKS.md`. Contract version: 0.4.0.** Phase 2 review orders applied (README corrected, CI sequence run locally, conformance test added).
 
 ## What works (each item is covered by a test in `tests/`)
 - `create_executor(config)` returns a `DataOpsExecutor` that satisfies the contract's `OperationExecutor` protocol (`isinstance` check).
@@ -52,6 +52,8 @@ Owner: Agent 2. Brief: [agents/AGENT_2_DATAOPS.md](../../agents/AGENT_2_DATAOPS.
 - `pivot` is capped at 200 new columns; `join` refuses more than 5,000,000 matching pairs; charts cap at 5,000 categories; unpivot of mixed types converts everything to text (warning).
 - Decimal columns are stored as Decimal(38,10) (verified with polars 2.1.0 only). Floating-point sums use Polars' parallel aggregation, so the last bits of very large float sums may differ between machines.
 - Tables are read fully into memory for an operation (not tested larger than memory). No DuckDB (ADR-012).
+
+**For the UI (Review 5)**: `search_operations(query, types)` ranks operations by Persian task phrases (`ops.<type>.keywords`; every operation also has an executable `ops.<type>.example`); `executor.preview_with_effect(op, ctx, limit)` returns the preview plus an `EffectSummary` (rows removed, cells emptied, formulas converted, new table, `confirm_recommended`) and `effect_lines` / `apply_label` / `done_label` write the Persian sentences. Docs: [INTEGRATION.md](INTEGRATION.md) (what the API must provide; its code block is run by a test), [docs/SUGGESTIONS.md](docs/SUGGESTIONS.md) (design only), [docs/COPY_REVIEW.md](docs/COPY_REVIEW.md).
 
 **Errors for the API**: `OperationResult.errors` / `DataOpsError.code` use the dataops codes; `gridora_dataops.errors.envelope(code)` gives `(top-level contract code, detail code)`, e.g. `too_large_for_history` -> `("operation_conflict", "too_large_for_history")` (ADR-015). An error raised by the context itself (the API's own history-cap error) propagates unchanged from `apply`; in a pipeline earlier steps are rolled back first.
 
