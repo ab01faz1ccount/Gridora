@@ -214,3 +214,15 @@ def test_full_calc_on_load_flag_is_reported(eng, tmp_path):
     assert "xlsx.full_calc_on_load" in codes(rep)
     _h, _wb, rep = eng.import_xlsx(make_xlsx(tmp_path / "g.xlsx", sheet_doc("")))
     assert "xlsx.full_calc_on_load" not in codes(rep)
+
+
+def test_sheet_ids_are_stable_across_imports_of_the_same_file(eng, tmp_path):
+    """Agent 3 (real-engine e2e): history, URLs and replays refer to sheet ids, so a re-import must give the same ones."""
+    p = write_zip(tmp_path / "s.xlsx", xlsx_parts())
+    _h1, wb1, _ = eng.import_xlsx(p, file_id="file-A")
+    _h2, wb2, _ = create_engine({}).import_xlsx(p, file_id="file-A")
+    assert [s.id for s in wb1.sheets] == [s.id for s in wb2.sheets]
+    assert len({s.id for s in wb1.sheets}) == len(wb1.sheets)  # unique within the workbook
+    _h3, wb3, _ = eng.import_xlsx(p, file_id="file-B")
+    assert not ({s.id for s in wb1.sheets} & {s.id for s in wb3.sheets})  # different file -> different ids
+    assert wb1.id != wb2.id  # working copies themselves still differ (several can be open at once)

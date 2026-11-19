@@ -21,6 +21,7 @@ _SHEET_REF = re.compile(
     r"(?:'((?:[^']|'')+)'|([^'!,()]+))!\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?"
 )
 Box = tuple[int, int, int, int]  # r0, c0, r1, c1
+Edits = tuple[list[tuple[int, int]], list[Box]]  # edited cells, bulk-written rectangles
 
 
 def _box(a: str, b: str | None) -> Box | None:
@@ -32,16 +33,19 @@ def _box(a: str, b: str | None) -> Box | None:
     return min(r0, r1), min(c0, c1), max(r0, r1), max(c0, c1)
 
 
-def _hit(edits: list[tuple[int, int]], box: Box) -> bool:
+def _hit(edits: Edits, box: Box) -> bool:
+    cells, rects = edits
     r0, c0, r1, c1 = box
-    return any(r0 <= r <= r1 and c0 <= c <= c1 for r, c in edits)
+    if any(r0 <= r <= r1 and c0 <= c <= c1 for r, c in cells):
+        return True
+    return any(not (b < r0 or a > r1 or y < c0 or x > c1) for a, x, b, y in rects)
 
 
 def assess(model: PackageModel, state: WorkbookState) -> dict[str, Hit]:
-    edits: dict[str, list[tuple[int, int]]] = {}
+    edits: dict[str, Edits] = {}
     for s in state.sheets:
-        if s.dirty:
-            edits[s.name] = [(k >> 14, k & 0x3FFF) for k in s.dirty]
+        if s.dirty or s.bulk_rects:
+            edits[s.name] = ([(k >> 14, k & 0x3FFF) for k in s.dirty], list(s.bulk_rects))
     hits: dict[str, Hit] = {}
     if not edits:
         return hits

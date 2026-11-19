@@ -107,3 +107,87 @@ def test_replay_determinism(tmp_path, make):
     for d in deltas:  # and redo everything
         fresh.apply_delta(h2, d.model_copy(update={"sheet_id": sheet2.id}), inverse=False)
     assert fingerprint(fresh, h2) == fps[-1]
+
+
+class SharedBlobs:
+    """A fake content-addressed BlobStore shared by the live and the replaying engine."""
+
+    def __init__(self):
+        self.data: dict[str, bytes] = {}
+
+    def put(self, data: bytes) -> str:
+        ref = hashlib.sha256(data).hexdigest()[:20]
+        self.data[ref] = data
+        return ref
+
+    def get(self, ref: str) -> bytes:
+        return self.data[ref]
+
+
+def random_range_write(rnd: random.Random, rows: int):
+    r0, c0 = rnd.randint(0, rows - 1), rnd.choice([0, 1, 3])
+    r1, c1 = min(r0 + rnd.randint(3, 40), rows + 20), c0 + rnd.randint(1, 3)
+    n = r1 - r0 + 1
+    cols = []
+    for _ in range(c1 - c0 + 1):
+        kind = rnd.choice(["num", "str", "bool", "mixed"])
+        if kind == "num":
+            cols.append(("num", [rnd.choice([None, rnd.random(), -2.5, 1e9]) for _ in range(n)]))
+        elif kind == "str":
+            cols.append(("str", [rnd.choice([None, "علی", "ی", "x" * 30, ""]) for _ in range(n)]))
+        elif kind == "bool":
+            cols.append(("bool", [rnd.choice([None, True, False]) for _ in range(n)]))
+        else:
+            cols.append(("mixed", [rnd.choice([None, {"k": "num", "n": 4.0}, {"k": "str", "s": "m"}, {"k": "err", "e": "#N/A"}]) for _ in range(n)]))
+    return (r0, c0, r1, c1), cols
+
+
+@pytest.mark.parametrize("make", [xlsx_source, csv_source])
+def test_replay_determinism_with_range_snapshots(tmp_path, make):
+    from gridora_contracts.models import (
+        ColumnarColumn,
+        ColumnarRange,
+        Delta,
+        Range,
+        RangeSnapshotDelta,
+    )
+    from pydantic import TypeAdapter
+
+    src = make(tmp_path)
+    blobs = SharedBlobs()
+    rnd = random.Random(20261115)
+    live = create_engine({"limits": {"max_patch_cells": 25}}, blobs)
+    h, sheet = open_source(live, src)
+    fps = [fingerprint(live, h)]
+    deltas: list[Delta] = []
+    adapter = TypeAdapter(Delta)
+    kinds = set()
+    for i in range(30):
+        if i % 3 == 0:
+            d = live.apply_cell_edits(h, sheet.id, random_edits(rnd, 700))
+        else:
+            (r0, c0, r1, c1), cols = random_range_write(rnd, 700)
+            rng = Range(sheet_id=sheet.id, r0=r0, c0=c0, r1=r1, c1=c1)
+            d = live.write_range_columnar(h, rng, ColumnarRange(range=rng, columns=[ColumnarColumn(kind=k, values=v) for k, v in cols]))
+        kinds.add(d.kind)
+        deltas.append(adapter.validate_json(adapter.dump_json(d)))  # as stored by the API
+        fps.append(fingerprint(live, h))
+    assert kinds == {"cell_patch", "range_snapshot"} and len(set(fps)) > 10
+    assert any(isinstance(d, RangeSnapshotDelta) for d in deltas)
+
+    def replay(engine, handle, sheet_id, ds, inverse):
+        for d in ds:
+            engine.apply_delta(handle, d.model_copy(update={"sheet_id": sheet_id}), inverse=inverse)
+
+    k = 13
+    fresh = create_engine({"limits": {"max_patch_cells": 25}}, blobs)
+    h2, sheet2 = open_source(fresh, src)
+    assert fingerprint(fresh, h2) == fps[0]
+    replay(fresh, h2, sheet2.id, deltas[:k], False)
+    assert fingerprint(fresh, h2) == fps[k]
+    replay(fresh, h2, sheet2.id, deltas[k:], False)
+    assert fingerprint(fresh, h2) == fps[-1]  # equals the live workbook
+    replay(fresh, h2, sheet2.id, list(reversed(deltas)), True)
+    assert fingerprint(fresh, h2) == fps[0]  # full undo
+    replay(fresh, h2, sheet2.id, deltas, False)
+    assert fingerprint(fresh, h2) == fps[-1]  # full redo

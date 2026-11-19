@@ -9,7 +9,7 @@ from ..compat.report import build_report
 from ..errors import file_too_large, import_failed
 from ..limits import Deadline, ResourceLimits
 from ..model.sheet import SheetStore, StoreBudget
-from ..model.workbook import SheetState, WorkbookState
+from ..model.workbook import SheetState, WorkbookState, stable_sheet_id
 from .detect import check_delimiter, decode, detect_delimiter
 from .reader import load_into
 
@@ -37,7 +37,7 @@ def import_csv_file(
     )
     store = SheetStore(budget)
     stats = load_into(store, state.strings, text, delimiter, options.infer_types, limits, deadline)
-    state.sheets.append(SheetState(id=str(uuid.uuid4()), name="Sheet1", index=0, store=store))
+    state.sheets.append(SheetState(id=stable_sheet_id(state.file_id, 0, "Sheet1"), name="Sheet1", index=0, store=store))
     state.compat = build_report(
         "import",
         {

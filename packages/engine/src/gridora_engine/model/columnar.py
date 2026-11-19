@@ -3,6 +3,7 @@ object per cell. Same value/formula semantics as get_cells / apply_cell_edits.""
 from __future__ import annotations
 
 import math
+from array import array
 from typing import Any
 
 from gridora_contracts.models import (
@@ -11,13 +12,21 @@ from gridora_contracts.models import (
     ColumnarColumn,
     ColumnarRange,
     Range,
+    RangeSnapshotDelta,
 )
+from gridora_contracts.protocols import BlobStore
 
-from ..errors import bad_request, operation_conflict_too_large, validation_failed
+from ..errors import (
+    GridoraEngineError,
+    bad_request,
+    operation_conflict_too_large,
+    validation_failed,
+)
 from ..limits import ResourceLimits
 from .cellview import read_cell
 from .dates import serial_to_iso
-from .edits import Snap, apply_all, key_of, snapshot
+from .edits import Snap, apply_all, snapshot
+from .snapshot import Cols, apply_arrays, decode_range, encode_arrays, encode_range, to_arrays
 from .values import BOOL, ERR, ERR_CODES, NOVAL, NUM, STR
 from .workbook import SheetState, WorkbookState
 
@@ -139,8 +148,9 @@ def _cell_value(state: WorkbookState, kind: str, v: Any, style: int, limits: Res
 
 
 def write_columnar(
-    state: WorkbookState, sheet: SheetState, rng: Range, data: ColumnarRange, limits: ResourceLimits
-) -> CellPatchDelta:
+    state: WorkbookState, sheet: SheetState, rng: Range, data: ColumnarRange,
+    limits: ResourceLimits, blobs: BlobStore | None = None,
+) -> CellPatchDelta | RangeSnapshotDelta:
     rows, cols = check_range(rng, limits)
     if data.range != rng or len(data.columns) != cols or any(len(col.values) != rows for col in data.columns):
         raise bad_request("columnar.shape_mismatch", "The data does not match the range.")
@@ -155,24 +165,86 @@ def write_columnar(
     for r0, c0, r1, c1 in sheet.array_ranges:
         if not (r1 < rng.r0 or r0 > rng.r1 or c1 < rng.c0 or c0 > rng.c1):
             raise validation_failed("edit.protected_formula_cell", "The range overlaps an array formula and cannot be edited yet.")
-    changes: list[tuple[int, int, Snap]] = []
+    # Build the new content as column arrays (validates everything before any change).
+    new_cols: Cols = []
+    changed_per_col: list[list[int] | None] = []
+    changed_total = 0
+    keep = limits.max_patch_cells
+    form_rows: dict[int, set[int]] = {}
+    for k in sheet.formulas:
+        if rng.r0 <= (k >> 14) <= rng.r1 and rng.c0 <= (k & 0x3FFF) <= rng.c1:
+            form_rows.setdefault((k & 0x3FFF) - rng.c0, set()).add((k >> 14) - rng.r0)
     for ci, col in enumerate(data.columns):
-        c = rng.c0 + ci
-        tags, vals, styles = sheet.store.column_arrays(c, rng.r0, rng.r1)
+        tags, vals, styles = sheet.store.column_arrays(rng.c0 + ci, rng.r0, rng.r1)
+        n_tags = bytearray(rows)
+        n_vals: array[float] = array("d", bytes(8 * rows))
+        n_styles: array[int] = array("H", styles)
+        forms_here = form_rows.get(ci, set())
+        positions: list[int] | None = []
         for ri, v in enumerate(col.values):
-            r = rng.r0 + ri
             tag, val, style = _cell_value(state, col.kind, v, styles[ri], limits)
-            key = key_of(r, c)
-            text = sheet.formulas.get(key)
-            if (tag, val if tag else 0.0, style) == (tags[ri] if tags[ri] != NOVAL else 0, vals[ri] if tags[ri] else 0.0, styles[ri]) and text is None:
-                continue  # unchanged cell: not part of the delta
-            changes.append((r, c, (tag, val, style, None)))
-            if len(changes) > limits.max_patch_cells:
-                raise operation_conflict_too_large()
-    before: list[Cell] = [read_cell(state, sheet, r, c) for r, c, _s in changes]
-    apply_all(sheet, changes)
-    after = [read_cell(state, sheet, r, c) for r, c, _s in changes]
-    return CellPatchDelta(sheet_id=rng.sheet_id, before=before, after=after)
+            n_tags[ri] = tag
+            n_vals[ri] = val
+            n_styles[ri] = style
+            old_tag = tags[ri]
+            same = (tag, val if tag else 0.0, style) == (
+                0 if old_tag == NOVAL else old_tag, vals[ri] if old_tag and old_tag != NOVAL else 0.0, styles[ri]
+            )
+            if not same or ri in forms_here:
+                changed_total += 1
+                if positions is not None:
+                    positions.append(ri)
+                    if changed_total > keep:
+                        positions = None  # too many to list; counting continues
+        new_cols.append((bytes(n_tags), n_vals, n_styles))
+        changed_per_col.append(positions)
+    if changed_total <= keep:
+        changes: list[tuple[int, int, Snap]] = []
+        for ci, positions in enumerate(changed_per_col):
+            assert positions is not None
+            nt, nv, ns = new_cols[ci]
+            for ri in positions:
+                changes.append((rng.r0 + ri, rng.c0 + ci, (nt[ri], nv[ri], ns[ri], None)))
+        before: list[Cell] = [read_cell(state, sheet, r, c) for r, c, _s in changes]
+        apply_all(sheet, changes)
+        after = [read_cell(state, sheet, r, c) for r, c, _s in changes]
+        return CellPatchDelta(sheet_id=rng.sheet_id, before=before, after=after)
+    if blobs is None:
+        raise operation_conflict_too_large()
+    # Range snapshot (ADR-014): before and after content go to the blob store; the delta holds refs.
+    before_blob = encode_range(state, sheet, rng.r0, rng.c0, rng.r1, rng.c1)
+    after_blob = encode_arrays(state, rows, new_cols, [])
+    try:
+        before_ref = blobs.put(before_blob)
+        after_ref = blobs.put(after_blob)
+    except Exception:  # noqa: BLE001 - any store failure must become a typed error
+        raise GridoraEngineError("internal_error", "snapshot.store_failed", "The change could not be stored.") from None
+    apply_arrays(sheet, rng.r0, rng.c0, new_cols, [])
+    return RangeSnapshotDelta(
+        sheet_id=rng.sheet_id, range=rng, before_ref=before_ref, after_ref=after_ref, cell_count=changed_total
+    )
 
 
-__all__ = ["read_columnar", "snapshot", "write_columnar"]
+def apply_range_snapshot(
+    state: WorkbookState, sheet: SheetState, delta: RangeSnapshotDelta, inverse: bool,
+    limits: ResourceLimits, blobs: BlobStore | None,
+) -> None:
+    rng = delta.range
+    rows, cols = check_range(rng, limits)
+    if blobs is None:
+        raise GridoraEngineError("internal_error", "snapshot.unavailable", "The stored change is not available.")
+    ref = delta.before_ref if inverse else delta.after_ref
+    try:
+        blob = blobs.get(ref)
+    except Exception:  # noqa: BLE001 - missing or unreadable blob
+        raise GridoraEngineError("internal_error", "snapshot.unavailable", "The stored change is not available.") from None
+    dec = decode_range(blob, limits, rows, cols)
+    sheet.ensure(rng.r0, rng.r1 + 1)
+    lazy = sheet.lazy
+    src = getattr(lazy, "source", None)
+    if lazy is not None and src is not None and (src.array_count or src.shared_count):
+        lazy.materialize_all()
+    apply_arrays(sheet, rng.r0, rng.c0, to_arrays(state, dec), dec.formulas)
+
+
+__all__ = ["apply_range_snapshot", "read_columnar", "snapshot", "write_columnar"]
