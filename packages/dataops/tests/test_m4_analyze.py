@@ -81,6 +81,15 @@ def test_pivot_sum_with_fill_and_null_header() -> None:
     assert "(خالی)" in nulls.columns
 
 
+def test_pivot_sum_leaves_a_missing_combination_empty_not_zero() -> None:
+    out = pv(index=["city"], columns="kind", values="qty", fn="sum")
+    assert out.rows() == [("تهران", 1, 3), ("کرج", 5, 2), ("قم", 4, None), (None, 6, None)]
+    zero = pv(SALES.with_columns(pl.when(pl.col("city") == "قم").then(0).otherwise(pl.col("qty")).alias("qty")),
+              index=["city"], columns="kind", values="qty", fn="sum")
+    assert ("قم", 0, None) in zero.rows()  # a real sum of zero stays 0
+    assert pv(index=["city"], columns="kind", values="qty", fn="count").rows()[2] == ("قم", 1, 0)  # a count of nothing is 0
+
+
 def test_pivot_rejects_bad_inputs() -> None:
     with pytest.raises(DataOpsError) as e:
         pv(index=["city"], columns="kind", values="kind", fn="sum")

@@ -51,6 +51,11 @@ class PivotOp(OperationSpec):
                                f"(limit {MAX_PIVOT_COLUMNS})", path=pointer("params", "columns"))
         out = work.pivot(on=params.columns, index=params.index, values=params.values,
                          aggregate_function=_FN[params.fn], maintain_order=True, sort_columns=False)
+        if params.fn == "sum":  # Polars gives 0 for a missing combination; an empty cell says "no data", 0 says "zero"
+            seen = work.pivot(on=params.columns, index=params.index, values=params.values, aggregate_function="len",
+                              maintain_order=True, sort_columns=False)
+            out = out.with_columns([pl.when(seen[c] == 0).then(None).otherwise(out[c]).alias(c)
+                                    for c in out.columns if c not in params.index])
         taken = set(params.index)
         renames = {}
         for c in out.columns:
