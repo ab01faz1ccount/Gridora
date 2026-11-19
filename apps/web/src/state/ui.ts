@@ -7,7 +7,11 @@ export interface Toast {
   text: string;
 }
 
+export type PanelKind = "report" | "history" | null;
+
 interface UiState {
+  panel: PanelKind;
+  setPanel: (p: PanelKind) => void;
   implementation: Implementation;
   setImplementation: (i: Implementation) => void;
   toasts: Toast[];
@@ -18,6 +22,8 @@ interface UiState {
 let nextId = 1;
 
 export const useUi = create<UiState>((set) => ({
+  panel: null,
+  setPanel: (panel) => set({ panel }),
   implementation: {},
   setImplementation: (i) => set({ implementation: i }),
   toasts: [],

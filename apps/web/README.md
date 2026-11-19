@@ -3,7 +3,7 @@
 Owner: Agent 3. Plan: [`../PLAN.md`](../PLAN.md). Contracts: imported from `../../contracts/typescript`
 through the `@contracts` alias (never copied).
 
-## Status: In progress (PR 6 skeleton + PR 7 grid)
+## Status: In progress (PR 6 skeleton, PR 7 grid, PR 8 import UI + workbook shell)
 
 ### What works (each item has a test)
 - Vite + React 19 + TypeScript (strict, `noUncheckedIndexedAccess`). `npm run check` = typecheck + lint + tests.
@@ -59,6 +59,26 @@ engine) + PostgreSQL; scripts in `e2e/`, not asserted by CI):
 A screenshot of the RTL grid is in `e2e/screenshots/`. These are measurements on one slow machine, not budgets.
 Frame times are dominated by React re-rendering ~300 cells per scroll step; they are fine here but have not been
 tuned, and 60 fps is **not** claimed.
+
+### Import UI and workbook shell (PR 8, docs/UX_SPEC.md F1)
+- Workspace page `/workspaces/<id>`: drop zone (+ file chooser), file list, one card per import. Upload uses XHR
+  (progress, cancel, CSRF); `.xls` and files over 100 MB are refused **before** sending; the job is polled (0.5 s -> 2 s),
+  "this may take a minute" after 5 s, remembered by job id so polling resumes after a reload; done -> "Opened" or
+  "Opened. N items need your attention" (items not fully supported) with Open / See report.
+- Failures give plain Persian advice, never a code: legacy `.xls`, encrypted, strict OOXML, macro extension, stub-only CSV,
+  too large, network; the "too large to undo -> convert to a Data Table" message (F4) is the exact spec sentence.
+- Compatibility report panel: groups unsupported / partial / supported, per item the code, location, "kept in file",
+  "editable"; the engine's English text is shown as given and labelled as such.
+- Workbook shell regions: top bar, formula bar (address + raw value, read-only), grid, side-panel host (report), sheet tabs, status bar
+  (count/sum/average of the selection, flagged "loaded cells only" when not everything is loaded).
+- 152 vitest tests pass; tsc strict and eslint clean.
+
+### Not done in this PR (the integrated slice is NOT complete in the UI)
+- **No cell editing, undo/redo buttons (disabled), history panel, save status, conflict banner** in the web app, although the API
+  supports edit/undo/redo/history (PR #50). Find is disabled. Cancelling a running import is impossible (no API; the card says so).
+- Not verified in a real browser: upload via the file chooser/drag and drop, progress, the new shell layout. Real-browser e2e of
+  upload -> edit -> undo on the REAL engine has not been written or run.
+- Task bar, Data Tables, charts, tools, export, keyboard help, accessibility audit: not started.
 
 ### What does not work yet
 - No upload UI, import panel, editing, history, operations, tables, charts (later PRs); the grid is read-only and reached only by URL for now. Frozen panes, column resize, copy/paste, fill handle are not built.

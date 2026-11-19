@@ -1,4 +1,4 @@
-import type { AuthResult, Workspace } from "@contracts";
+import type { AuthResult, FileRecord, Job, Workbook, Workspace } from "@contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, setCsrfToken } from "./client";
 
@@ -80,4 +80,39 @@ export function useDeleteWorkspace() {
     mutationFn: (id: string) => api.delete<void>(`/workspaces/${id}`, { query: { confirm: true } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.workspaces }),
   });
+}
+
+export function useWorkspace(id: string) {
+  return useQuery({ queryKey: ["workspace", id], queryFn: () => api.get<Workspace>(`/workspaces/${id}`), retry: false });
+}
+
+export function useFiles(workspaceId: string) {
+  return useQuery({
+    queryKey: ["files", workspaceId],
+    queryFn: () => api.get<FileRecord[]>(`/workspaces/${workspaceId}/files`),
+  });
+}
+
+const TERMINAL = new Set(["succeeded", "failed"]);
+
+/** Polls a job with a gentle backoff (0.5 s -> 2 s) until it finishes. */
+export function useJob(jobId: string | undefined) {
+  return useQuery({
+    queryKey: ["job", jobId],
+    enabled: Boolean(jobId),
+    queryFn: () => api.get<Job>(`/jobs/${jobId}`),
+    refetchInterval: (q) =>
+      q.state.data && TERMINAL.has(q.state.data.status)
+        ? false
+        : Math.min(2000, 500 + 250 * q.state.dataUpdateCount),
+    retry: false,
+  });
+}
+
+export function useWorkbook(id: string) {
+  return useQuery({ queryKey: ["workbook", id], queryFn: () => api.get<Workbook>(`/workbooks/${id}`), retry: false });
+}
+
+export function openFile(fileId: string): Promise<Workbook> {
+  return api.post<Workbook>(`/files/${fileId}/open`);
 }

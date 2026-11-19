@@ -15,7 +15,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/state/prefs.ts", "src/test/**", "src/**/*.test.{ts,tsx}"],
+    files: ["src/state/prefs.ts", "src/state/imports.ts", "src/test/**", "src/**/*.test.{ts,tsx}"],
     rules: { "no-restricted-globals": "off" },
   },
 );
