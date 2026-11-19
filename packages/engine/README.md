@@ -69,6 +69,9 @@ Edits (`apply_cell_edits`, `apply_delta`; CSV and XLSX workbooks, value edits on
 - `tests/roundtrip/test_replay_determinism.py` replays deltas on a fresh engine (through JSON) and
   compares full-workbook fingerprints at every step, including full undo/redo.
 
+**Sheet ids are deterministic** (`uuid5` of file id, position and name): importing the same file again gives the same sheet ids
+(asked by Agent 3 after the real-engine e2e); working-copy (workbook/handle) ids still differ, several copies can be open.
+
 Stable error identifiers (`GridoraEngineError.code` = contract top-level code; `.reason` = detail code, via `to_detail()`):
 - `operation_conflict` / `too_large_for_history`: an edit or delta above `max_patch_cells` (default 200,000). Review 4: apps/api maps `exc.code` to the status and `exc.to_detail()` to the detail, as it already does for dataops.
 - `validation_failed` / `edit.protected_formula_cell`: the cell belongs to a shared or array formula (refused until E7). Other edit reasons: `edit.formulas_unsupported`, `edit.out_of_range`, `edit.invalid_number`, `edit.string_too_long`, `edit.date_needs_format`, `delta.out_of_range`, `delta.unsupported_kind`.

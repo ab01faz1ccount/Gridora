@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -8,6 +9,15 @@ from gridora_contracts.models import CompatibilityReport, DefinedName, Frozen, S
 from .dates import DateSystem
 from .sheet import SheetStore, StoreBudget
 from .values import StringTable
+
+# Fixed namespace: sheet ids are derived (uuid5) so importing the same file gives the same ids.
+SHEET_ID_NAMESPACE = uuid.UUID("6f1d3a52-9c4e-4b1a-8f27-2a5d7c9e0b41")
+
+
+def stable_sheet_id(file_id: str, index: int, name: str) -> str:
+    """Deterministic sheet id: same file id + position + name -> same id (history, URLs and
+    replays survive re-imports). Unique within a workbook because the position is included."""
+    return str(uuid.uuid5(SHEET_ID_NAMESPACE, f"{file_id}\x00{index}\x00{name}"))
 
 
 class Materializer(Protocol):

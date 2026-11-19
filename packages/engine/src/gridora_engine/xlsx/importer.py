@@ -12,7 +12,7 @@ from ..compat.report import Hit, build_report
 from ..errors import GridoraEngineError, import_failed, unsupported_workbook
 from ..limits import Deadline, ResourceLimits
 from ..model.sheet import SheetStore, StoreBudget
-from ..model.workbook import SheetState, StyleInfo, WorkbookState
+from ..model.workbook import SheetState, StyleInfo, WorkbookState, stable_sheet_id
 from ..package.parts import PackageModel, resolve_target
 from .cellparse import Findings, SheetCtx
 from .lazysheet import LazySheet
@@ -155,7 +155,7 @@ def _load_sheet(
     ctx = SheetCtx(ref.name, store, state.strings, sst, sst_cache, limits, findings)
     lazy = LazySheet(src, ctx, limits.deadline_seconds)
     sheet = SheetState(
-        id=str(uuid.uuid4()), name=ref.name, index=len(state.sheets), store=store,
+        id=stable_sheet_id(state.file_id, len(state.sheets), ref.name), name=ref.name, index=len(state.sheets), store=store,
         visible=ref.state, lazy=lazy, part_name=part, formulas=ctx.formulas, fkind=ctx.fkind, array_ranges=ctx.array_ranges,
     )
     try:
