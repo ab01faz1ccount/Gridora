@@ -70,7 +70,7 @@ class WorkbookEnv:
     def now_serial(self) -> float:
         if self._now is None:
             fixed = self.calc.now
-            n = fixed() if fixed is not None else datetime.now()  # noqa: DTZ005
+            n = fixed() if fixed is not None else datetime.now()
             base = ymd_to_serial(n.year, n.month, n.day, self.date1904) or 0.0
             self._now = base + (n.hour * 3600 + n.minute * 60 + n.second) / 86400
         return self._now
