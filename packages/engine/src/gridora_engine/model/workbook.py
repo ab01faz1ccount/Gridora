@@ -51,6 +51,7 @@ class SheetState:
     formulas: dict[int, str] = field(default_factory=dict)  # (r << 14) | c -> text without '='
     fkind: dict[int, int] = field(default_factory=dict)  # see xlsx.cellparse (2..5)
     array_ranges: list[tuple[int, int, int, int]] = field(default_factory=list)  # r0, c0, r1, c1
+    shared_si: dict[int, int] = field(default_factory=dict)  # cell key -> shared formula index (E7)
     # Cells whose content differs from the file as imported (used by export, E6), and the
     # imported content of each: key -> (tag, val, style, formula text or None).
     dirty: set[int] = field(default_factory=set)
@@ -88,6 +89,7 @@ class WorkbookState:
     styles: StyleInfo | None = None
     package: Any = None  # PackageModel for XLSX workbooks (kept open: parts stream from it)
     findings: list[Any] = field(default_factory=list)  # lazily discovered anomalies (E6 report)
+    calc: Any = None  # gridora_engine.calc.Calculator, created on first need (E7)
 
     def sheet(self, sheet_id: str) -> SheetState | None:
         for s in self.sheets:

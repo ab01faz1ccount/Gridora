@@ -117,7 +117,7 @@ def test_rich_text_and_shared_array_formulas(eng, tmp_path):
     h, wb, rep = eng.import_xlsx(make_xlsx(tmp_path / "r.xlsx", sheet_doc(rows), **{"xl/sharedStrings.xml": sst}))
     g = read_window(eng, h, wb.sheets[0])
     assert val(g[0, 0]) == "bold plain" and val(g[0, 1]) == "x"  # runs joined, phonetic text skipped
-    assert g[1, 0].f == "=B2*2" and g[2, 0].f is None and val(g[2, 0]) == 4.0  # child shows its cached value only
+    assert g[1, 0].f == "=B2*2" and g[2, 0].f == "=B3*2" and val(g[2, 0]) == 4.0  # the child formula is derived from the master (E7)
     assert g[3, 0].f == "=SUM(B2:B3)"
     c = codes(rep)
     assert "1 cell text" in c["xlsx.rich_text"].message

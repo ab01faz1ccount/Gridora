@@ -11,6 +11,7 @@ from typing import Any
 
 from gridora_contracts.models import (
     Cell,
+    SheetPatch,
     CellEdit,
     CellPatchDelta,
     CellWindow,
@@ -23,9 +24,12 @@ from gridora_contracts.models import (
 )
 from gridora_contracts.protocols import BlobStore, CsvOptions, WorkbookHandle
 
+from .calc import Calculator
+from .calc.calculator import fk_of, resync_rect, split_fk
 from .compat.report import build_report
 from .csvio.importer import import_csv_file
 from .csvio.writer import write_csv
+from .formula.parser import FormulaSyntaxError, parse as parse_formula
 from .errors import (
     EngineNotImplementedError,
     GridoraEngineError,
@@ -36,11 +40,13 @@ from .errors import (
 from .limits import ResourceLimits
 from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
 from .model.columnar import apply_range_snapshot, read_columnar, write_columnar
-from .model.edits import Snap, apply_all, key_of
+from .model.edits import Snap, apply_all, key_of, set_cell
+from .model.values import ERR
 from .model.workbook import SheetState, WorkbookState
 from .xlsx.exporter import export_xlsx_file
 from .xlsx.importer import import_xlsx_file
 
+_ERR_NAME = 2  # index of #NAME? in model.values.ERR_CODES
 _KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding"}
 _EXPORT_ENCODINGS = {"utf-8-sig", "utf-8", "windows-1256"}
 
@@ -65,6 +71,7 @@ class GridoraEngine:
             raise bad_request("config.bad_encoding", "Unsupported CSV export encoding.")
         self.csv_export_encoding = enc
         self._open: dict[str, WorkbookState] = {}
+        self.now = None  # tests may set a callable returning a datetime for TODAY()/NOW()
 
     # -- registry ---------------------------------------------------------------------------
     def _new_handle(self, state: WorkbookState) -> Handle:
@@ -123,42 +130,91 @@ class GridoraEngine:
         if len(edits) > limits.max_patch_cells:
             raise too_large_for_history()
         final: dict[int, CellEdit] = {}
+        ftext: dict[int, str] = {}
         for e in edits:  # validate everything first; the last edit of a cell wins
             if e.r >= limits.max_rows or e.c >= limits.max_cols:
                 raise validation_failed("edit.out_of_range", "A cell lies outside the sheet limits.")
+            if e.formula is not None and e.value is not None:
+                raise validation_failed("edit.value_and_formula", "A cell edit has either a value or a formula, not both.")
             if e.formula is not None:
-                raise validation_failed(
-                    "edit.formulas_unsupported", "Formulas cannot be entered yet."
-                )
+                text = e.formula[1:] if e.formula.startswith("=") else e.formula
+                if not text.strip() or len(text) > limits.max_field_chars:
+                    raise validation_failed("edit.formula_syntax", "The formula is empty or too long.")
+                try:
+                    parse_formula(text)
+                except FormulaSyntaxError:
+                    raise validation_failed("edit.formula_syntax", "The formula is not valid.") from None
+                ftext[key_of(e.r, e.c)] = text
             v = e.value
             if v is not None and v.k == "num" and (v.n != v.n or v.n in (float("inf"), float("-inf"))):
                 raise validation_failed("edit.invalid_number", "The number is not a finite value.")
             if v is not None and v.k == "str" and len(v.s) > limits.max_field_chars:
                 raise validation_failed("edit.string_too_long", "The text is longer than 32,767 characters.")
-            final[key_of(e.r, e.c)] = e
+            k = key_of(e.r, e.c)
+            final[k] = e
+            if e.formula is None:
+                ftext.pop(k, None)
         self._load_for_edit(sheet, [(k >> 14) for k in final])
         for k in final:
             if self._protected(sheet, k >> 14, k & 0x3FFF):
                 raise validation_failed(
                     "edit.protected_formula_cell",
-                    "This cell belongs to a shared or array formula and cannot be edited yet.",
+                    "This cell belongs to an array formula or data table and cannot be edited yet.",
                 )
-        before: list[Cell] = []
+        calc = self._calc(state) if (ftext or self._has_formulas(state)) else None
+        if calc is not None:
+            calc.ensure_built()
+            calc.unshare(sheet.index, list(final))
+        before: dict[tuple[int, int, int], Cell] = {}
         changes: list[tuple[int, int, Snap]] = []
         for k, e in final.items():
             r, c = k >> 14, k & 0x3FFF
-            before.append(read_cell(state, sheet, r, c))
+            before[(sheet.index, r, c)] = read_cell(state, sheet, r, c)
             _tag, _val, style = sheet.store.get(r, c)
             tag, val, style = internal_value(state, e.value, style)
-            changes.append((r, c, (tag, val, style, None)))
+            changes.append((r, c, (tag, val, style, ftext.get(k))))
         apply_all(sheet, changes)
-        after = [read_cell(state, sheet, r, c) for r, c, _s in changes]
-        return CellPatchDelta(sheet_id=sheet_id, before=before, after=after)
+        extra: list[tuple[int, int, int, Snap]] = []
+        if calc is not None:
+            for k in final:
+                calc.set_formula(sheet.index, k, ftext.get(k))
+            seeds = [(sheet.index, k >> 14, k & 0x3FFF) for k in final]
+            fks = [(sheet.index << 40) | k for k in ftext]
+            for fk in fks:  # an unknown function evaluates to #NAME? like Excel (it stays frozen afterwards)
+                if fk in calc.frozen:
+                    s_, r_, c_ = split_fk(fk)
+                    _t, _v, st = sheet.store.get(r_, c_)
+                    set_cell(sheet, r_, c_, (ERR, float(_ERR_NAME), st, sheet.formulas.get(fk & ((1 << 40) - 1))))
+            extra = calc.recalc(seeds, fks)
+        return self._build_patch(state, sheet, before, extra)
+
+    def _build_patch(
+        self, state: WorkbookState, sheet: SheetState, before: dict[tuple[int, int, int], Cell],
+        extra: list[tuple[int, int, int, Snap]],
+    ) -> CellPatchDelta:
+        for s_, r_, c_, snap in extra:
+            if (s_, r_, c_) not in before:
+                tag, val, style, _text = snap
+                other = state.sheets[s_]
+                before[(s_, r_, c_)] = make_cell(state, other, r_, c_, tag, val, style)
+        per: dict[int, tuple[list[Cell], list[Cell]]] = {}
+        for (s_, r_, c_), b in before.items():
+            bl, al = per.setdefault(s_, ([], []))
+            bl.append(b)
+            al.append(read_cell(state, state.sheets[s_], r_, c_))
+        own_b, own_a = per.pop(sheet.index, ([], []))
+        others = [
+            SheetPatch(sheet_id=state.sheets[s_].id, before=bl, after=al) for s_, (bl, al) in sorted(per.items())
+        ]
+        return CellPatchDelta(sheet_id=sheet.id, before=own_b, after=own_a, others=others)
 
     def apply_delta(self, wb: WorkbookHandle, delta: Delta, *, inverse: bool) -> None:
         if delta.kind == "range_snapshot":
             state, sheet = self._sheet(wb, delta.sheet_id)
+            self._before_bulk(state)
             apply_range_snapshot(state, sheet, delta, inverse, self.limits, self.blobs)
+            rg = delta.range
+            self._after_bulk(state, sheet, rg.r0, rg.c0, rg.r1, rg.c1)
             return
         if delta.kind != "cell_patch":
             raise validation_failed("delta.unsupported_kind", "This kind of change is not supported yet.")
@@ -175,6 +231,19 @@ class GridoraEngine:
             tag, val, style, text = cell_to_internal(state, cell)
             changes.append((cell.r, cell.c, (tag, val, style, text)))
         apply_all(sheet, changes)
+        self._sync_calc(state, sheet, [(c.r, c.c) for c in cells])
+        for other in delta.others:
+            osheet = state.sheet(other.sheet_id)
+            if osheet is None:
+                raise validation_failed("delta.out_of_range", "The change refers to a sheet that does not exist.")
+            ocells = other.before if inverse else other.after
+            self._load_for_edit(osheet, [c.r for c in ocells])
+            ochanges = []
+            for cell in ocells:
+                tag, val, style, text = cell_to_internal(state, cell)
+                ochanges.append((cell.r, cell.c, (tag, val, style, text)))
+            apply_all(osheet, ochanges)
+            self._sync_calc(state, osheet, [(c.r, c.c) for c in ocells])
 
     # -- ColumnarEngine (contract 0.4.1) ------------------------------------------------------
     def read_range_columnar(self, wb: WorkbookHandle, rng: Range) -> ColumnarRange:
@@ -183,7 +252,15 @@ class GridoraEngine:
 
     def write_range_columnar(self, wb: WorkbookHandle, rng: Range, data: ColumnarRange) -> Delta:
         state, sheet = self._sheet(wb, rng.sheet_id)
-        return write_columnar(state, sheet, rng, data, self.limits, self.blobs)
+        self._before_bulk(state)
+        if state.calc is not None and state.calc.built:
+            shared = [k for k, kind in sheet.fkind.items()
+                      if kind in (2, 3) and rng.r0 <= (k >> 14) <= rng.r1 and rng.c0 <= (k & 0x3FFF) <= rng.c1]
+            if shared:
+                state.calc.unshare(sheet.index, shared)
+        delta = write_columnar(state, sheet, rng, data, self.limits, self.blobs)
+        self._after_bulk(state, sheet, rng.r0, rng.c0, rng.r1, rng.c1)
+        return delta
 
     # -- helpers ----------------------------------------------------------------------------
     def _sheet(self, wb: WorkbookHandle, sheet_id: str) -> tuple[WorkbookState, SheetState]:
@@ -210,12 +287,63 @@ class GridoraEngine:
 
     @staticmethod
     def _protected(sheet: SheetState, r: int, c: int) -> bool:
-        if (r << 14) | c in sheet.fkind:
+        if sheet.fkind.get((r << 14) | c, 0) >= 4:  # array formula / data table (shared groups are un-shared)
             return True
         return any(r0 <= r <= r1 and c0 <= c <= c1 for r0, c0, r1, c1 in sheet.array_ranges)
 
     def recalculate(self, wb: WorkbookHandle) -> None:
-        raise EngineNotImplementedError("recalculate")
+        state = self._state(wb)
+        if not self._has_formulas(state):
+            return
+        self._calc(state).recalc(full=True)
+
+    # -- calculation helpers (E7) -------------------------------------------------------------
+    def _calc(self, state: WorkbookState) -> Calculator:
+        if state.calc is None:
+            state.calc = Calculator(state, self.now)
+        return state.calc
+
+    @staticmethod
+    def _has_formulas(state: WorkbookState) -> bool:
+        if state.calc is not None and state.calc.built:
+            return state.calc.has_formulas()
+        for s in state.sheets:
+            if s.formulas or any(k >= 2 for k in s.fkind.values()):
+                return True
+            src = getattr(s.lazy, "source", None)
+            if src is not None and src.formula_count:
+                return True
+        return False
+
+    def _sync_calc(self, state: WorkbookState, sheet: SheetState, cells: list[tuple[int, int]]) -> None:
+        """Keep the dependency graph in step with formula texts that a delta restored (no recalculation)."""
+        calc = state.calc
+        if calc is None or not calc.built:
+            if not any(sheet.formulas.get((r << 14) | c) for r, c in cells):
+                return
+            calc = self._calc(state)
+            calc.ensure_built()  # reads the current formula texts, including the restored ones
+            return
+        for r, c in cells:
+            key = (r << 14) | c
+            calc.set_formula(sheet.index, key, sheet.formulas.get(key))
+
+    def _before_bulk(self, state: WorkbookState) -> None:
+        """Load every formula sheet completely BEFORE a bulk write: a later full parse of a lazy sheet
+        would overwrite the bulk-written rectangle (only per-cell edits survive a re-parse)."""
+        if self._has_formulas(state):
+            self._calc(state).ensure_built()
+
+    def _after_bulk(self, state: WorkbookState, sheet: SheetState, r0: int, c0: int, r1: int, c1: int) -> None:
+        """A bulk write (range snapshot / columnar) replaced values and formulas in a rectangle:
+        re-register its formulas and recompute everything that depends on it. The recomputed
+        dependents are derived data: they are not part of the range delta, and undo recomputes them again."""
+        if not self._has_formulas(state):
+            return
+        calc = self._calc(state)
+        calc.ensure_built()
+        resync_rect(calc, sheet.index, r0, c0, r1, c1)
+        calc.recalc(seed_rects=[(sheet.index, r0, c0, r1, c1)])
 
     def export_xlsx(self, wb: WorkbookHandle, path: Path) -> CompatibilityReport:
         return export_xlsx_file(self._state(wb), path, self.limits)

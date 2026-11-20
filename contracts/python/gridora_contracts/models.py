@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
-CONTRACT_VERSION = "0.4.1"
+CONTRACT_VERSION = "0.5.0"
 MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
 MAX_WINDOW_COLS = 100
 
@@ -257,11 +257,20 @@ class OperationDescriptor(_Base):
     supports_preview: bool
 
 
+class SheetPatch(_Base):
+    """v0.5.0 (ADR-016): cells of ANOTHER sheet changed by recalculation of cross-sheet formulas."""
+
+    sheet_id: str
+    before: list[Cell]
+    after: list[Cell]
+
+
 class CellPatchDelta(_Base):
     kind: Literal["cell_patch"] = "cell_patch"
     sheet_id: str
     before: list[Cell]
     after: list[Cell]
+    others: list[SheetPatch] = Field(default_factory=list)  # v0.5.0; empty unless formulas cross sheets
 
 
 class TableVersionDelta(_Base):
@@ -467,12 +476,18 @@ class OperationRequest(_Base):
     confirm_destructive: bool = False
 
 
+class SheetCells(_Base):
+    sheet_id: str
+    cells: list[Cell]
+
+
 class CellsChangedResult(_Base):
     """Response of PATCH cells / undo / redo / operations on sheets."""
 
     history_entry: "HistoryEntry"
     sheet_id: str
     cells: list[Cell]  # changed cells INCLUDING recalculated dependents (== delta.after)
+    others: list["SheetCells"] = Field(default_factory=list)  # v0.5.0: same, for other sheets (== delta.others[*].after)
 
 
 # ------------------------------------------------------------------ api ----

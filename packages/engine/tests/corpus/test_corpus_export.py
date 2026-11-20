@@ -60,10 +60,21 @@ def edit_and_export(path: Path, out: Path):
             r, c = rnd.randrange(max(min(s.row_count, 5000), 1)), rnd.randrange(max(s.col_count, 1))
             value = NumValue(n=1.25) if rnd.random() < 0.5 else StrValue(s="سلام & <x> _x000D_")
             try:
-                eng.apply_cell_edits(h, s.id, [CellEdit(r=r, c=c, value=value)])
-                edited_rows.setdefault(eng._open[h.id].sheets[i].part_name, set()).add(r + 1)
+                d = eng.apply_cell_edits(h, s.id, [CellEdit(r=r, c=c, value=value)])
+                sheets = eng._open[h.id].sheets
+                edited_rows.setdefault(sheets[i].part_name, set()).add(r + 1)
+                # recalculated dependents (E7) are part of the delta and legitimately rewrite their rows
+                for cell in d.after:
+                    edited_rows[sheets[i].part_name].add(cell.r + 1)
+                for other in d.others:
+                    part = next(x.part_name for x in sheets if x.id == other.sheet_id)
+                    edited_rows.setdefault(part, set()).update(cell.r + 1 for cell in other.after)
             except GridoraEngineError as e:
                 assert e.reason == "edit.protected_formula_cell"  # the only allowed refusal
+    # un-sharing a shared formula group (E7) rewrites every row of the group: those rows are dirty too
+    for sh in eng._open[h.id].sheets:
+        if sh.dirty:
+            edited_rows.setdefault(sh.part_name, set()).update((k >> 14) + 1 for k in sh.dirty)
     report = eng.export_xlsx(h, out)
     return eng, h, edited_rows, report
 

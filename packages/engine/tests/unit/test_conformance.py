@@ -25,10 +25,11 @@ def test_optional_extensions_are_not_claimed_yet():
     assert not isinstance(e, StructureEngine)
 
 
-def test_unimplemented_methods_raise_typed_error():
+def test_recalculate_unknown_handle_is_a_typed_error():
     e = create_engine({})
-    with pytest.raises(EngineNotImplementedError):
+    with pytest.raises(GridoraEngineError) as ei:
         e.recalculate(Handle("x"))
+    assert ei.value.reason == "handle.unknown"
 
 
 def test_close_unknown_handle_is_noop():

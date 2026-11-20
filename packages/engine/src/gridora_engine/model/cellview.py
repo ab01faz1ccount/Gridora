@@ -5,6 +5,7 @@ from gridora_contracts.models import Cell, CellValue, DateValue
 
 from ..errors import validation_failed
 from .dates import iso_to_serial, serial_to_iso
+from .shared import child_text
 from .values import BOOL, ERR, ERR_CODES, NOVAL, NUM, STR, to_contract_value
 from .workbook import SheetState, WorkbookState
 
@@ -25,7 +26,10 @@ def make_cell(
                 v = DateValue.model_construct(k="date", iso=iso)
         if style < len(styles.xf_numfmt) and styles.xf_numfmt[style]:
             fmt = str(styles.xf_numfmt[style])
-    text = sheet.formulas.get((r << 14) | c) if sheet.formulas else None
+    key = (r << 14) | c
+    text = sheet.formulas.get(key) if sheet.formulas else None
+    if text is None and sheet.fkind and sheet.fkind.get(key) == 3:
+        text = child_text(sheet, key)
     return Cell.model_construct(
         r=r, c=c, v=v, f=None if text is None else "=" + text, s=style or None, t=fmt
     )

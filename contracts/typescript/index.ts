@@ -3,7 +3,7 @@
 // Rows/cols are 0-based. IDs are UUID strings. Timestamps are ISO-8601 UTC.
 
 export const SCHEMA_VERSION = 1;
-export const CONTRACT_VERSION = "0.4.1";
+export const CONTRACT_VERSION = "0.5.0";
 export const MAX_WINDOW_ROWS = 1000;
 export const MAX_WINDOW_COLS = 100;
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -76,8 +76,12 @@ export interface OperationDescriptor {
   destructive: boolean; supports_preview: boolean;
 }
 
+/** v0.5.0 (ADR-016): cells of another sheet changed by cross-sheet recalculation. */
+export interface SheetPatch { sheet_id: string; before: Cell[]; after: Cell[] }
+export interface SheetCells { sheet_id: string; cells: Cell[] }
+
 export type Delta =
-  | { kind: "cell_patch"; sheet_id: string; before: Cell[]; after: Cell[] }
+  | { kind: "cell_patch"; sheet_id: string; before: Cell[]; after: Cell[]; others?: SheetPatch[] }
   | { kind: "table_version"; table_id: string; from_version: number; to_version: number }
   | { kind: "range_snapshot"; sheet_id: string; range: Range; before_ref: string; after_ref: string; cell_count: number }
   | { kind: "sheet_structure"; sheet_id: string; change: Record<string, unknown> };
@@ -136,7 +140,7 @@ export interface User { id: string; username: string; role: "user" | "admin" }
 export interface AuthResult { user: User; csrf_token: string }
 export interface CellEditRequest { base_seq: number; edits: CellEdit[] }
 export interface OperationRequest { base_seq: number; operation: Operation; confirm_destructive: boolean }
-export interface CellsChangedResult { history_entry: HistoryEntry; sheet_id: string; cells: Cell[] }
+export interface CellsChangedResult { history_entry: HistoryEntry; sheet_id: string; cells: Cell[]; others?: SheetCells[] }
 
 export type ColumnKind = "empty" | "num" | "str" | "bool" | "date" | "mixed";
 export interface ColumnarColumn { kind: ColumnKind; values: unknown[] }
