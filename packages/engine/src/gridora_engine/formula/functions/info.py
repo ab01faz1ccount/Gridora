@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from .. import xlerrors as E
-from ..parser import Ref
 from ..values import Arr, RangeVal, XlRaise, to_num
 from ..xlerrors import XlError
 from .helpers import scalar

@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
 
-from .refs import MAX_COLS, MAX_ROWS, CELL_RE, col_to_index, parse_cell
-from .xlerrors import BY_CODE
+from .refs import CELL_RE, MAX_COLS, MAX_ROWS, col_to_index, parse_cell
 
 
 class FormulaSyntaxError(ValueError):
@@ -70,30 +70,30 @@ class StructRef:
 @dataclass(slots=True)
 class Func:
     name: str
-    args: list["Node"]
+    args: list[Node]
 
 
 @dataclass(slots=True)
 class Unary:
     op: str
-    x: "Node"
+    x: Node
 
 
 @dataclass(slots=True)
 class Percent:
-    x: "Node"
+    x: Node
 
 
 @dataclass(slots=True)
 class Binary:
     op: str
-    a: "Node"
-    b: "Node"
+    a: Node
+    b: Node
 
 
 @dataclass(slots=True)
 class ArrayLit:
-    rows: list[list["Node"]]
+    rows: list[list[Node]]
 
 
 @dataclass(slots=True)
@@ -113,7 +113,7 @@ _BOUND = r"(?![\w\.\(!\[])"
 REF_RE = re.compile(rf"(?P<sheet>{_SHEET})?(?P<area>{_AREA}){_BOUND}")
 NUM_RE = re.compile(r"(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
 IDENT_RE = re.compile(r"[^\W\d][\w\.]*|\\[\w\.]*")
-ERR_RE = re.compile(r"#(?:DIV/0!|N/A|NAME\?|NULL!|NUM!|REF!|VALUE!|SPILL!|CALC!|GETTING_DATA)", re.I)
+ERR_RE = re.compile(r"#(?:DIV/0!|N/A|NAME\?|NULL!|NUM!|REF!|VALUE!|SPILL!|CALC!|GETTING_DATA)", re.IGNORECASE)
 OPS = ("<>", "<=", ">=", "=", "<", ">", "+", "-", "*", "/", "^", "&", ":", "%")
 
 
@@ -123,7 +123,7 @@ class Tok:
     text: str
     pos: int
     end: int = 0
-    value: object = None
+    value: Any = None
 
 
 def tokenize(src: str) -> list[Tok]:
@@ -237,7 +237,7 @@ def _unescape(s: str) -> str:
 _KEYWORDS = {"#ALL": "ALL", "#DATA": "DATA", "#HEADERS": "HEADERS", "#TOTALS": "TOTALS", "#THIS ROW": "THIS_ROW"}
 
 
-def parse_struct(table: str | None, text: str) -> "StructRef":
+def parse_struct(table: str | None, text: str) -> StructRef:
     inner = text[1:-1]
     items: list[str] = []
     cols: list[str] = []
@@ -332,14 +332,14 @@ def make_ref(sheet_text: str | None, area: str) -> Ref:
         if c0 > c1:
             c0, c1 = c1, c0
         return Ref(sheet, 0, c0, MAX_ROWS - 1, c1, True, bool(ma.group(1)), True, bool(mb.group(1)), full_col=True)
-    ra, rb = re.fullmatch(r"(\$?)(\d+)", a), re.fullmatch(r"(\$?)(\d+)", b)
-    if ra and rb:
-        r0, r1 = int(ra.group(2)) - 1, int(rb.group(2)) - 1
+    rwa, rwb = re.fullmatch(r"(\$?)(\d+)", a), re.fullmatch(r"(\$?)(\d+)", b)
+    if rwa and rwb:
+        r0, r1 = int(rwa.group(2)) - 1, int(rwb.group(2)) - 1
         if r0 < 0 or r1 < 0 or r0 >= MAX_ROWS or r1 >= MAX_ROWS:
             raise FormulaSyntaxError("row out of range")
         if r0 > r1:
             r0, r1 = r1, r0
-        return Ref(sheet, r0, 0, r1, MAX_COLS - 1, bool(ra.group(1)), True, bool(rb.group(1)), True, full_row=True)
+        return Ref(sheet, r0, 0, r1, MAX_COLS - 1, bool(rwa.group(1)), True, bool(rwb.group(1)), True, full_row=True)
     raise FormulaSyntaxError("bad range reference")
 
 
@@ -401,18 +401,18 @@ class _Parser:
         t = self.next()
         k = t.kind
         if k == "num":
-            return Num(t.value)  # type: ignore[arg-type]
+            return Num(t.value)
         if k == "str":
-            return Str(t.value)  # type: ignore[arg-type]
+            return Str(t.value)
         if k == "bool":
-            return Bool(t.value)  # type: ignore[arg-type]
+            return Bool(t.value)
         if k == "err":
-            return Err(t.value)  # type: ignore[arg-type]
+            return Err(t.value)
         if k == "ref":
-            sheet, area = t.value  # type: ignore[misc]
+            sheet, area = t.value
             return make_ref(sheet, area)
         if k == "struct":
-            tb, br = t.value  # type: ignore[misc]
+            tb, br = t.value
             return parse_struct(tb, br)
         if k == "name":
             return Name(t.text)
@@ -431,8 +431,7 @@ class _Parser:
     def call(self, t: Tok) -> Node:
         name = t.text.upper()
         for pre in ("_XLFN.", "_XLWS."):
-            if name.startswith(pre):
-                name = name[len(pre):]
+            name = name.removeprefix(pre)
         self.expect("(")
         args: list[Node] = []
         if self.tok.kind == ")":
@@ -458,10 +457,10 @@ class _Parser:
                 inner = self.next()
                 if inner.kind != "num":
                     raise FormulaSyntaxError("bad array constant")
-                rows[-1].append(Num(-inner.value if t.text == "-" else inner.value))  # type: ignore[operator]
+                rows[-1].append(Num(-inner.value if t.text == "-" else inner.value))
             elif t.kind in ("num", "str", "bool", "err"):
                 self.next()
-                rows[-1].append({"num": Num, "str": Str, "bool": Bool, "err": Err}[t.kind](t.value))  # type: ignore[operator]
+                rows[-1].append({"num": Num, "str": Str, "bool": Bool, "err": Err}[t.kind](t.value))
             else:
                 raise FormulaSyntaxError("bad array constant")
             nxt = self.next()
@@ -514,7 +513,7 @@ def translate(text: str, d_row: int, d_col: int) -> str:
     for t in tokenize(text):
         if t.kind != "ref":
             continue
-        sheet_text, area = t.value  # type: ignore[misc]
+        sheet_text, area = t.value
         out.append(text[last : t.pos])
         out.append((sheet_text or "") + _shift_area(area, d_row, d_col))
         last = t.end
@@ -527,7 +526,7 @@ def _shift_area(area: str, dr: int, dc: int) -> str:
     shifted = [_shift_part(p, dr, dc) for p in parts]
     if any(s is None for s in shifted):
         return "#REF!"
-    return ":".join(shifted)  # type: ignore[arg-type]
+    return ":".join(shifted)
 
 
 def _shift_part(p: str, dr: int, dc: int) -> str | None:

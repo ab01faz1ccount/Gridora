@@ -5,8 +5,14 @@ from typing import Any
 
 from .. import xlerrors as E
 from ..numfmt import format_value
-from ..values import Arr, RangeVal, XlRaise, check, is_matrix, num_to_text, parse_number, to_bool, to_num, to_str
-from ..xlerrors import XlError
+from ..values import (
+    Arr,
+    XlRaise,
+    check,
+    parse_number,
+    to_num,
+    to_str,
+)
 from .helpers import boolean, integer, iter_cells, num, opt_num, scalar, text, wildcard_to_regex
 from .registry import fn
 
@@ -126,7 +132,7 @@ def f_search(ctx: Any, needle: Any, hay: Any, start: Any = None) -> float:
     s = int(opt_num(ctx, start, 1))
     if s < 1 or s > len(h) + 1:
         raise XlRaise(E.VALUE)
-    m = re.compile(wildcard_to_regex(n), re.I | re.S).search(h, s - 1)
+    m = re.compile(wildcard_to_regex(n), re.IGNORECASE | re.DOTALL).search(h, s - 1)
     if not m:
         raise XlRaise(E.VALUE)
     return float(m.start() + 1)

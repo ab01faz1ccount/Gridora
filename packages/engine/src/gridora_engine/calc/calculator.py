@@ -17,10 +17,18 @@ from ..formula import xlerrors as E
 from ..formula.evaluator import evaluate_formula
 from ..formula.functions import REGISTRY
 from ..formula.parser import (
-    Binary, Func, FormulaSyntaxError, Name, Node, Ref, StructRef, parse, substitute, translate, walk,
+    FormulaSyntaxError,
+    Func,
+    Name,
+    Node,
+    Ref,
+    StructRef,
+    parse,
+    substitute,
+    walk,
 )
 from ..model.edits import Snap, set_cell, snapshot
-from ..model.shared import child_text, group_members, master_map
+from ..model.shared import child_text, group_members
 from ..model.values import BOOL, ERR, ERR_CODES, NUM, STR
 from ..model.workbook import WorkbookState
 from .env import WorkbookEnv
@@ -293,9 +301,7 @@ class Calculator:
         for s, r0, c0, r1, c1 in self.refs.get(fk, ()):
             if r0 == r1 and c0 == c1:
                 p = pos.get((s, r0, c0))
-                if p is not None and p != fk:
-                    yield p
-                elif p == fk:
+                if p is not None and p != fk or p == fk:
                     yield p
                 continue
             sc = aff_cols.get(s)
@@ -428,7 +434,7 @@ class Calculator:
                 sheet.shared_si.pop(k, None)
                 if t is not None:
                     set_cell(sheet, k >> 14, k & 0x3FFF, (tag, val, style, t))
-            sheet._shared_cache = None  # type: ignore[attr-defined]
+            sheet._shared_cache = None
 
     # -- reporting ------------------------------------------------------------------------------------
     def findings(self) -> dict[str, Any]:
@@ -453,7 +459,7 @@ def _unsupported(ast: Node) -> str | None:
     return None
 
 
-def resync_rect(calc: "Calculator", si: int, r0: int, c0: int, r1: int, c1: int) -> None:
+def resync_rect(calc: Calculator, si: int, r0: int, c0: int, r1: int, c1: int) -> None:
     """Re-register every formula inside a rectangle after a bulk write replaced its contents."""
     sheet = calc.state.sheets[si]
     for fk in [fk for fk in (*calc.asts, *calc.frozen) if fk >> 40 == si]:

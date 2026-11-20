@@ -5,7 +5,7 @@ from typing import Any
 from .. import xlerrors as E
 from ..values import Arr, RangeVal, XlRaise, check, compare, is_matrix, to_bool
 from ..xlerrors import XlError
-from .helpers import boolean, iter_cells
+from .helpers import boolean
 from .registry import fn
 
 

@@ -7,11 +7,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from gridora_contracts.models import (
     Cell,
-    SheetPatch,
     CellEdit,
     CellPatchDelta,
     CellWindow,
@@ -19,24 +18,25 @@ from gridora_contracts.models import (
     CompatibilityReport,
     Delta,
     Range,
+    SheetPatch,
     Window,
     Workbook,
 )
 from gridora_contracts.protocols import BlobStore, CsvOptions, WorkbookHandle
 
 from .calc import Calculator
-from .calc.calculator import fk_of, resync_rect, split_fk
+from .calc.calculator import resync_rect, split_fk
 from .compat.report import build_report
 from .csvio.importer import import_csv_file
 from .csvio.writer import write_csv
-from .formula.parser import FormulaSyntaxError, parse as parse_formula
 from .errors import (
-    EngineNotImplementedError,
     GridoraEngineError,
     bad_request,
     too_large_for_history,
     validation_failed,
 )
+from .formula.parser import FormulaSyntaxError
+from .formula.parser import parse as parse_formula
 from .limits import ResourceLimits
 from .model.cellview import cell_to_internal, internal_value, make_cell, read_cell
 from .model.columnar import apply_range_snapshot, read_columnar, write_columnar
@@ -137,7 +137,7 @@ class GridoraEngine:
             if e.formula is not None and e.value is not None:
                 raise validation_failed("edit.value_and_formula", "A cell edit has either a value or a formula, not both.")
             if e.formula is not None:
-                text = e.formula[1:] if e.formula.startswith("=") else e.formula
+                text = e.formula.removeprefix("=")
                 if not text.strip() or len(text) > limits.max_field_chars:
                     raise validation_failed("edit.formula_syntax", "The formula is empty or too long.")
                 try:
@@ -182,7 +182,7 @@ class GridoraEngine:
             fks = [(sheet.index << 40) | k for k in ftext]
             for fk in fks:  # an unknown function evaluates to #NAME? like Excel (it stays frozen afterwards)
                 if fk in calc.frozen:
-                    s_, r_, c_ = split_fk(fk)
+                    _s, r_, c_ = split_fk(fk)
                     _t, _v, st = sheet.store.get(r_, c_)
                     set_cell(sheet, r_, c_, (ERR, float(_ERR_NAME), st, sheet.formulas.get(fk & ((1 << 40) - 1))))
             extra = calc.recalc(seeds, fks)
@@ -301,12 +301,12 @@ class GridoraEngine:
     def _calc(self, state: WorkbookState) -> Calculator:
         if state.calc is None:
             state.calc = Calculator(state, self.now)
-        return state.calc
+        return cast(Calculator, state.calc)
 
     @staticmethod
     def _has_formulas(state: WorkbookState) -> bool:
         if state.calc is not None and state.calc.built:
-            return state.calc.has_formulas()
+            return bool(state.calc.has_formulas())
         for s in state.sheets:
             if s.formulas or any(k >= 2 for k in s.fkind.values()):
                 return True

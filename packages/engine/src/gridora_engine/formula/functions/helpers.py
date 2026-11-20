@@ -8,7 +8,16 @@ from typing import Any
 
 from .. import xlerrors as E
 from ..values import (
-    Arr, RangeVal, Scalar, XlRaise, check, is_matrix, to_bool, to_int, to_num, to_str,
+    Arr,
+    RangeVal,
+    Scalar,
+    XlRaise,
+    check,
+    is_matrix,
+    to_bool,
+    to_int,
+    to_num,
+    to_str,
 )
 from ..xlerrors import XlError
 
@@ -82,7 +91,7 @@ def round_half_up(x: float, digits: int) -> float:
     q = Decimal(1).scaleb(-digits)
     try:
         return float(d.quantize(q, rounding=ROUND_HALF_UP))
-    except Exception:
+    except Exception:  # noqa: BLE001
         # huge digits / exponent overflow: value is already exact at that precision
         return x
 

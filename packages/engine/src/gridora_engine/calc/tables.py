@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 
 from ..formula.parser import Err, Ref, StructRef
-from ..formula.refs import MAX_COLS, parse_cell
+from ..formula.refs import parse_cell
 from ..model.workbook import WorkbookState
 
 _ATTR = re.compile(rb'(\w+)="([^"]*)"')
@@ -42,7 +42,7 @@ def load_tables(state: WorkbookState) -> dict[str, TableDef]:
     for si, s in enumerate(state.sheets):
         try:
             rels = list(model.relationships(s.part_name))
-        except Exception:  # pragma: no cover - damaged rels: no tables for this sheet
+        except Exception:  # noqa: BLE001, S112  # pragma: no cover - damaged rels
             continue
         for rel in rels:
             if rel.external or rel.type.rsplit("/", 1)[-1] != "table":
@@ -53,7 +53,7 @@ def load_tables(state: WorkbookState) -> dict[str, TableDef]:
                 if part is None or model.zin.by_name[tp].file_size > _MAX_PART:
                     continue
                 data = model.read(tp)
-            except Exception:  # pragma: no cover
+            except Exception:  # noqa: BLE001, S112  # pragma: no cover
                 continue
             t = _parse_table(si, data)
             if t is not None:

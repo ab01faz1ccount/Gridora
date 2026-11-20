@@ -5,7 +5,7 @@ import random
 from typing import Any
 
 from .. import xlerrors as E
-from ..values import Arr, RangeVal, XlRaise, check, finite, is_matrix, to_int, to_num
+from ..values import Arr, RangeVal, XlRaise, check, finite, to_int
 from ..xlerrors import XlError
 from .helpers import integer, matrix_rows, num, numbers, opt_num, round_half_up
 from .registry import fn

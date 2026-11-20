@@ -5,7 +5,19 @@ from typing import Any
 
 from .. import xlerrors as E
 from ..refs import cell_text
-from ..values import Arr, RangeVal, Scalar, XlRaise, check, compare, is_matrix, to_bool, to_int, to_num, to_str
+from ..values import (
+    Arr,
+    RangeVal,
+    Scalar,
+    XlRaise,
+    check,
+    compare,
+    is_matrix,
+    to_bool,
+    to_int,
+    to_num,
+    to_str,
+)
 from ..xlerrors import XlError
 from .helpers import boolean, integer, matrix_rows, opt_num, scalar, text, wildcard_to_regex
 from .registry import fn
@@ -38,7 +50,7 @@ def _vector(a: Any) -> list[Scalar]:
 
 def _exact_matcher(look: Scalar):
     if isinstance(look, str) and ("*" in look or "?" in look or "~" in look):
-        rx = re.compile(wildcard_to_regex(look), re.I | re.S)
+        rx = re.compile(wildcard_to_regex(look), re.IGNORECASE | re.DOTALL)
         return lambda v: isinstance(v, str) and rx.fullmatch(v) is not None
     return lambda v: _cmp_same(look, v) == 0
 
@@ -254,7 +266,7 @@ def f_address(ctx: Any, row: Any, col: Any, absn: Any = None, a1: Any = None, sh
 def _xfind(ctx: Any, look: Scalar, values: list[Scalar], mode: int, search: int) -> int:
     idxs = range(len(values)) if search >= 0 else range(len(values) - 1, -1, -1)
     if mode == 2:
-        rx = re.compile(wildcard_to_regex(to_str(look)), re.I | re.S)
+        rx = re.compile(wildcard_to_regex(to_str(look)), re.IGNORECASE | re.DOTALL)
         for i in idxs:
             x = values[i]
             if isinstance(x, str) and rx.fullmatch(x):
@@ -270,9 +282,10 @@ def _xfind(ctx: Any, look: Scalar, values: list[Scalar], mode: int, search: int)
         c = _cmp_same(values[i], look)
         if c is None:
             continue
-        if (mode == -1 and c < 0) or (mode == 1 and c > 0):
-            if best is None or (compare(values[i], best) > 0 if mode == -1 else compare(values[i], best) < 0):
-                best, best_i = values[i], i
+        if ((mode == -1 and c < 0) or (mode == 1 and c > 0)) and (
+            best is None or (compare(values[i], best) > 0 if mode == -1 else compare(values[i], best) < 0)
+        ):
+            best, best_i = values[i], i
     return best_i
 
 

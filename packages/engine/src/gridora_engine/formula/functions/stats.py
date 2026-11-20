@@ -7,9 +7,16 @@ from collections.abc import Callable
 from typing import Any
 
 from .. import xlerrors as E
-from ..values import Arr, RangeVal, Scalar, XlRaise, check, compare, finite, is_matrix, parse_number, to_bool, to_num
+from ..values import (
+    RangeVal,
+    Scalar,
+    XlRaise,
+    is_matrix,
+    parse_number,
+    to_bool,
+)
 from ..xlerrors import XlError
-from .helpers import integer, matrix_rows, num, numbers, opt_num, scalar, wildcard_to_regex
+from .helpers import matrix_rows, num, numbers, opt_num, scalar, wildcard_to_regex
 from .registry import fn
 
 
@@ -76,9 +83,7 @@ def f_count(ctx: Any, *args: Any) -> float:
             n += sum(1 for x in a.iter_values() if isinstance(x, (int, float)) and not isinstance(x, bool))
         elif isinstance(a, XlError) or a is None:
             continue
-        elif isinstance(a, bool) or isinstance(a, (int, float)):
-            n += 1
-        elif isinstance(a, str) and parse_number(a) is not None:
+        elif isinstance(a, (bool, int, float)) or isinstance(a, str) and parse_number(a) is not None:
             n += 1
     return float(n)
 
@@ -460,7 +465,7 @@ def make_matcher(criteria: Scalar) -> Callable[[Scalar], bool]:
         if op == "<>":
             return lambda v: not (v is None or v == "")
     if "*" in s or "?" in s:
-        rx = re.compile(wildcard_to_regex(s), re.I | re.S)
+        rx = re.compile(wildcard_to_regex(s), re.IGNORECASE | re.DOTALL)
         if op == "=":
             return lambda v: isinstance(v, str) and rx.fullmatch(v) is not None
         if op == "<>":

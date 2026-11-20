@@ -1,4 +1,3 @@
-from .registry import REGISTRY, FuncSpec, fn  # noqa: F401
-
 # Importing the modules registers their functions.
-from . import logical, mathfn, info, stats, datefn, text, lookup, financial  # noqa: F401,E402
+from . import datefn, financial, info, logical, lookup, mathfn, stats, text  # noqa: F401
+from .registry import REGISTRY, FuncSpec, fn  # noqa: F401

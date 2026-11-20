@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING, Any
 from ..formula import xlerrors as E
 from ..formula.dates import ymd_to_serial
 from ..model.values import BOOL, ERR, ERR_CODES, NUM, STR
-from ..model.workbook import SheetState, WorkbookState
+from ..model.workbook import WorkbookState
 
 if TYPE_CHECKING:  # pragma: no cover
     from .calculator import Calculator
 
 
 class WorkbookEnv:
-    def __init__(self, state: WorkbookState, calc: "Calculator") -> None:
+    def __init__(self, state: WorkbookState, calc: Calculator) -> None:
         self.state = state
         self.calc = calc
         self.date1904 = state.date_system == "1904"
@@ -70,7 +70,7 @@ class WorkbookEnv:
     def now_serial(self) -> float:
         if self._now is None:
             fixed = self.calc.now
-            n = fixed() if fixed is not None else datetime.now()
+            n = fixed() if fixed is not None else datetime.now()  # noqa: DTZ005
             base = ymd_to_serial(n.year, n.month, n.day, self.date1904) or 0.0
             self._now = base + (n.hour * 3600 + n.minute * 60 + n.second) / 86400
         return self._now

@@ -5,7 +5,7 @@ from gridora_contracts.protocols import FormattingEngine, StructureEngine, Workb
 
 from gridora_engine import create_engine
 from gridora_engine.engine import GridoraEngine, Handle
-from gridora_engine.errors import EngineNotImplementedError, GridoraEngineError
+from gridora_engine.errors import GridoraEngineError
 
 
 def test_create_engine_satisfies_protocol():

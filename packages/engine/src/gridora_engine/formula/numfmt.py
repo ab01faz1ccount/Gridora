@@ -5,8 +5,7 @@ import math
 import re
 from decimal import ROUND_HALF_UP, Decimal
 
-from .dates import split_time, serial_to_ymd, weekday
-from .values import num_to_text
+from .dates import serial_to_ymd, split_time, weekday
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
           "October", "November", "December"]
@@ -34,7 +33,7 @@ def split_sections(code: str) -> list[str]:
 
 def is_date_code(section: str) -> bool:
     s = re.sub(r'"[^"]*"|\\.|\[[^\]]*\]', "", section)
-    return bool(re.search(r"[ydhsmYDHSM]", s)) and not re.search(r"^\s*general\s*$", s, re.I)
+    return bool(re.search(r"[ydhsmYDHSM]", s)) and not re.search(r"^\s*general\s*$", s, re.IGNORECASE)
 
 
 def general_text(v: float) -> str:
@@ -74,12 +73,12 @@ def format_value(v: float, code: str, date1904: bool = False) -> str:
 
 # -- numbers ----------------------------------------------------------------------------------------
 def _format_number(v: float, sec: str, explicit_neg: bool) -> str:
-    sec = re.sub(r"\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow|Color\d+)\]", "", sec, flags=re.I)
+    sec = re.sub(r"\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow|Color\d+)\]", "", sec, flags=re.IGNORECASE)
     toks = [m for m in _TOKEN.finditer(sec)]
     pct = sum(1 for m in toks if m.group("ch") == "%")
     has_sci = any(m.group("sci") for m in toks)
     neg = v < 0
-    dx = Decimal(repr(abs(v))) * (Decimal(100) ** pct) if v == v and not math.isinf(v) else Decimal(0)
+    dx = Decimal(repr(abs(v))) * (Decimal(100) ** pct) if not math.isnan(v) and not math.isinf(v) else Decimal(0)
     # find the numeric pattern span (digit placeholders, '.', ',')
     pat = []
     for m in toks:
@@ -156,9 +155,7 @@ def _assemble_literal(toks, digits: str, negative: bool, simple: bool) -> str:
             out.append(m.group("esc"))
         elif m.group("sp") is not None:
             out.append(" ")
-        elif m.group("fill") is not None or m.group("br") is not None:
-            continue
-        elif m.group("sci"):
+        elif m.group("fill") is not None or m.group("br") is not None or m.group("sci"):
             continue
         elif ch is not None and (ch in "0#?.," or (simple and ch in "0#?.,")):
             if not placed:
@@ -176,9 +173,9 @@ def _assemble_literal(toks, digits: str, negative: bool, simple: bool) -> str:
 
 # -- dates ------------------------------------------------------------------------------------------------
 def _format_date(v: float, sec: str, date1904: bool) -> str:
-    sec = re.sub(r"\[\$[^\]]*\]|\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow)\]", "", sec, flags=re.I)
+    sec = re.sub(r"\[\$[^\]]*\]|\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow)\]", "", sec, flags=re.IGNORECASE)
     toks = list(_TOKEN.finditer(sec))
-    elapsed = any(m.group("br") and re.fullmatch(r"[hmsHMS]+", m.group("br")) for m in toks)
+    any(m.group("br") and re.fullmatch(r"[hmsHMS]+", m.group("br")) for m in toks)
     y, mo, d = serial_to_ymd(v, date1904)
     hh, mi, ss = split_time(v)
     ampm = any(m.group("ampm") for m in toks)
@@ -196,11 +193,11 @@ def _format_date(v: float, sec: str, date1904: bool) -> str:
         elif m.group("br") is not None:
             b = m.group("br")
             if re.fullmatch(r"[hH]+", b):
-                out.append(str(int(math.floor(v * 24))).zfill(len(b)))
+                out.append(str(math.floor(v * 24)).zfill(len(b)))
             elif re.fullmatch(r"[mM]+", b):
-                out.append(str(int(math.floor(v * 1440))).zfill(len(b)))
+                out.append(str(math.floor(v * 1440)).zfill(len(b)))
             elif re.fullmatch(r"[sS]+", b):
-                out.append(str(int(round(v * 86400))).zfill(len(b)))
+                out.append(str(round(v * 86400)).zfill(len(b)))
         elif m.group("ampm"):
             a = m.group("ampm")
             pm = hh >= 12

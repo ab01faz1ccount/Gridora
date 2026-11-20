@@ -53,7 +53,7 @@ class Arr:
 class RangeVal:
     """A rectangle of a sheet, read lazily through the environment."""
 
-    __slots__ = ("env", "sheet", "r0", "c0", "r1", "c1", "nominal_rows", "nominal_cols")
+    __slots__ = ("c0", "c1", "env", "nominal_cols", "nominal_rows", "r0", "r1", "sheet")
 
     def __init__(self, env: Any, sheet: int, r0: int, c0: int, r1: int, c1: int,
                  nominal_rows: int | None = None, nominal_cols: int | None = None) -> None:
@@ -224,7 +224,7 @@ def compare(a: Scalar, b: Scalar) -> int:
     if ra != rb:
         return -1 if ra < rb else 1
     if ra == 1:
-        x, y = a.lower(), b.lower()  # type: ignore[union-attr]
+        x, y = a.lower(), b.lower()
     else:
         x, y = float(a), float(b)
     return -1 if x < y else (1 if x > y else 0)

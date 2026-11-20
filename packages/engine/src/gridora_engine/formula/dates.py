@@ -53,7 +53,6 @@ def weekday(serial: float, date1904: bool = False) -> int:
     day = math.floor(serial)
     if not date1904 and day < 60:
         day += 1  # the phantom day shifts everything before March 1900
-    base = 7 if date1904 else 0  # 1900-01-00 is Saturday
     # serial 1 (1900-01-01) is a Sunday in Excel's world
     return (day - 1 + (0 if not date1904 else 5)) % 7 + 1
 

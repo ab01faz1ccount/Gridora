@@ -8,11 +8,31 @@ from typing import Any, Protocol
 from . import xlerrors as E
 from .functions import REGISTRY
 from .parser import (
-    ArrayLit, Binary, Bool, Err, Func, Missing, Name, Node, Num, Percent, Ref, Str, Unary,
-    FormulaSyntaxError, parse,
+    ArrayLit,
+    Binary,
+    Bool,
+    Err,
+    FormulaSyntaxError,
+    Func,
+    Missing,
+    Name,
+    Node,
+    Num,
+    Percent,
+    Ref,
+    Str,
+    Unary,
+    parse,
 )
 from .values import (
-    Arr, RangeVal, Scalar, XlRaise, compare, finite, is_matrix, num_to_text, to_num, to_str,
+    Arr,
+    RangeVal,
+    Scalar,
+    XlRaise,
+    compare,
+    finite,
+    to_num,
+    to_str,
 )
 from .xlerrors import BY_CODE, XlError
 

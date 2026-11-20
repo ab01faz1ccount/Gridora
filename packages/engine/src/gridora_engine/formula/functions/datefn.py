@@ -6,10 +6,17 @@ from datetime import date
 from typing import Any
 
 from .. import xlerrors as E
-from ..dates import add_months, days_in_month, is_leap, serial_to_ymd, split_time, weekday, ymd_to_serial
+from ..dates import (
+    add_months,
+    days_in_month,
+    is_leap,
+    serial_to_ymd,
+    split_time,
+    weekday,
+    ymd_to_serial,
+)
 from ..values import XlRaise, check, to_num
-from ..xlerrors import XlError
-from .helpers import integer, num, numbers, opt_num, scalar, text
+from .helpers import integer, opt_num, scalar, text
 from .registry import fn
 
 
@@ -32,7 +39,7 @@ def _serial_arg(ctx: Any, a: Any) -> float:
 
 _ISO = re.compile(r"^\s*(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*$")
 _MDY = re.compile(r"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$")
-_TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?\s*$", re.I)
+_TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?\s*$", re.IGNORECASE)
 
 
 def parse_date_text(s: str, date1904: bool = False) -> float | None:
@@ -182,7 +189,7 @@ def f_edate(ctx: Any, a: Any, m: Any) -> float:
 @fn("EOMONTH", 2, 2)
 def f_eomonth(ctx: Any, a: Any, m: Any) -> float:
     s = _serial_arg(ctx, a)
-    y, mo, d = serial_to_ymd(s, _d1904(ctx))
+    y, mo, _d = serial_to_ymd(s, _d1904(ctx))
     ny, nm, _ = add_months(y, mo, 1, integer(ctx, m))
     r = ymd_to_serial(ny, nm, days_in_month(ny, nm), _d1904(ctx))
     if r is None:
@@ -338,7 +345,7 @@ def _workday(ctx, a, days, h, weekend, sun_first) -> float:
 @fn("WEEKNUM", 1, 2)
 def f_weeknum(ctx: Any, a: Any, t: Any = None) -> float:
     s = _serial_arg(ctx, a)
-    y, m, d = serial_to_ymd(s, _d1904(ctx))
+    y, _m, _d = serial_to_ymd(s, _d1904(ctx))
     kind = int(opt_num(ctx, t, 1))
     jan1 = ymd_to_serial(y, 1, 1, _d1904(ctx))
     assert jan1 is not None

@@ -88,8 +88,9 @@ def test_cross_sheet_dependents_reported_in_others_and_undone(tmp_path):
 
 
 def _two_sheet(tmp_path):
-    from support import xlsx_parts  # default parts already hold two sheets
     import zipfile
+
+    from support import xlsx_parts  # default parts already hold two sheets
     p = tmp_path / "two.xlsx"
     with zipfile.ZipFile(p, "w") as z:
         for k, v in xlsx_parts().items():

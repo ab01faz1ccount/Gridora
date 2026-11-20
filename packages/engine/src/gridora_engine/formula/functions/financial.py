@@ -4,7 +4,7 @@ import math
 from typing import Any
 
 from .. import xlerrors as E
-from ..values import XlRaise, to_num
+from ..values import XlRaise
 from .helpers import matrix_rows, num, numbers, opt_num
 from .registry import fn
 
