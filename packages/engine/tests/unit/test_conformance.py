@@ -5,7 +5,7 @@ from gridora_contracts.protocols import FormattingEngine, StructureEngine, Workb
 
 from gridora_engine import create_engine
 from gridora_engine.engine import GridoraEngine, Handle
-from gridora_engine.errors import EngineNotImplementedError, GridoraEngineError
+from gridora_engine.errors import GridoraEngineError
 
 
 def test_create_engine_satisfies_protocol():
@@ -25,10 +25,11 @@ def test_optional_extensions_are_not_claimed_yet():
     assert not isinstance(e, StructureEngine)
 
 
-def test_unimplemented_methods_raise_typed_error():
+def test_recalculate_unknown_handle_is_a_typed_error():
     e = create_engine({})
-    with pytest.raises(EngineNotImplementedError):
+    with pytest.raises(GridoraEngineError) as ei:
         e.recalculate(Handle("x"))
+    assert ei.value.reason == "handle.unknown"
 
 
 def test_close_unknown_handle_is_noop():

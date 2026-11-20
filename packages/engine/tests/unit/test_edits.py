@@ -82,7 +82,8 @@ def test_duplicate_coordinates_last_wins_and_before_is_the_original(tmp_path):
 
 @pytest.mark.parametrize(
     "edit,why",
-    [(CellEdit(r=0, c=0, formula="=1+1"), "edit.formulas_unsupported"),
+    [(CellEdit(r=0, c=0, formula="=1+"), "edit.formula_syntax"),
+     (CellEdit(r=0, c=0, formula="=1+1", value=NumValue(n=1.0)), "edit.value_and_formula"),
      (num(1_048_576, 0, 1), "edit.out_of_range"), (num(0, 16_384, 1), "edit.out_of_range"),
      (num(0, 0, float("nan")), "edit.invalid_number"), (num(0, 0, float("inf")), "edit.invalid_number"),
      (txt(0, 0, "x" * 40_000), "edit.string_too_long"),
@@ -164,7 +165,7 @@ def test_xlsx_formula_cell_overwritten_by_value_is_restored_by_undo(tmp_path):
     assert eng._open[h.id].sheets[0].dirty == set()  # identical to the file again
 
 
-def test_cells_of_shared_and_array_formulas_cannot_be_edited_yet(tmp_path):
+def test_array_formula_cells_cannot_be_edited_yet_but_shared_groups_can(tmp_path):
     rows = ('<row r="1"><c r="A1"><f t="shared" ref="A1:A3" si="0">B1*2</f><v>2</v></c><c r="B1"><v>1</v></c></row>'
             '<row r="2"><c r="A2"><f t="shared" si="0"/><v>4</v></c></row>'
             '<row r="3"><c r="D3"><f t="array" ref="D3:D5">SUM(B1:B2)</f><v>9</v></c></row>'
@@ -172,8 +173,10 @@ def test_cells_of_shared_and_array_formulas_cannot_be_edited_yet(tmp_path):
     eng = create_engine({})
     h, wb, _ = eng.import_xlsx(xlsx(tmp_path, rows))
     s = wb.sheets[0]
-    for r, c in [(0, 0), (1, 0), (2, 3), (4, 3)]:  # master, child, array master, array member
+    for r, c in [(2, 3), (4, 3)]:  # array master, array member
         assert reason(lambda r=r, c=c: eng.apply_cell_edits(h, s.id, [num(r, c, 1)])) == "edit.protected_formula_cell"
+    d = eng.apply_cell_edits(h, s.id, [num(1, 0, 99)])  # a shared child: the group is un-shared, the master survives
+    assert d.after[0].v.n == 99.0 and read_f(eng, h, s, 0, 0) == "=B1*2"
     eng.apply_cell_edits(h, s.id, [num(0, 1, 5), num(4, 4, 2)])  # B1 and E5 are ordinary cells
 
 
@@ -228,3 +231,10 @@ def test_delta_survives_json_round_trip_like_the_api_history(tmp_path):
     d2 = CellPatchDelta.model_validate_json(d.model_dump_json())
     eng.apply_delta(h, d2, inverse=True)
     assert snap(eng, h, s) == original
+
+
+def read_f(eng, h, s, r, c):
+    from gridora_contracts.models import Window
+
+    w = eng.get_cells(h, s.id, Window(row0=r, col0=c, rows=1, cols=1))
+    return w.cells[0].f if w.cells else None

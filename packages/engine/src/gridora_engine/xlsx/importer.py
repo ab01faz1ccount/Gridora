@@ -156,7 +156,7 @@ def _load_sheet(
     lazy = LazySheet(src, ctx, limits.deadline_seconds)
     sheet = SheetState(
         id=stable_sheet_id(state.file_id, len(state.sheets), ref.name), name=ref.name, index=len(state.sheets), store=store,
-        visible=ref.state, lazy=lazy, part_name=part, formulas=ctx.formulas, fkind=ctx.fkind, array_ranges=ctx.array_ranges,
+        visible=ref.state, lazy=lazy, part_name=part, formulas=ctx.formulas, fkind=ctx.fkind, array_ranges=ctx.array_ranges, shared_si=ctx.shared_si,
     )
     try:
         if lazy.eager:

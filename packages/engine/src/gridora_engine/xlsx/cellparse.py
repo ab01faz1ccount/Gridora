@@ -68,11 +68,13 @@ class SheetCtx:
     formulas: dict[int, str] = field(default_factory=dict)  # (r<<14)|c -> text without '='
     fkind: dict[int, int] = field(default_factory=dict)
     array_ranges: list[tuple[int, int, int, int]] = field(default_factory=list)
+    shared_si: dict[int, int] = field(default_factory=dict)  # (r<<14)|c -> shared formula index
 
     def reset_cells(self) -> None:
         self.formulas.clear()
         self.fkind.clear()
         self.array_ranges.clear()
+        self.shared_si.clear()
 
 
 _LN: dict[str, str] = {}
@@ -195,6 +197,10 @@ class CellParser:
         if self._has_f:
             kind = self._fattrs.get("t", "normal")
             if kind == "shared":
+                try:
+                    ctx.shared_si[key] = int(self._fattrs.get("si", ""))
+                except ValueError:
+                    pass
                 if self._ftext:
                     ctx.formulas[key] = self._ftext
                     ctx.fkind[key] = SHARED_MASTER

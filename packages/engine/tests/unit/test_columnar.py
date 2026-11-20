@@ -204,7 +204,9 @@ def test_write_overwrites_ordinary_formulas_and_refuses_protected_cells(tmp_path
     rng = rng_of(s, 0, 0, 0, 1)
     d = eng.write_range_columnar(h, rng, write_data(rng, ("num", [5.0]), ("num", [7.0])))
     assert d.before[1].f == "=A1*2" and read_window(eng, h, s)[0, 1].f is None
-    for bad in [(0, 3, 0, 3), (1, 3, 1, 3), (2, 5, 2, 5), (0, 0, 3, 5)]:
+    rs = rng_of(s, 0, 3, 1, 3)  # shared group D1:D2 is un-shared by the write (E7) and then overwritten
+    eng.write_range_columnar(h, rs, write_data(rs, ("num", [1.0, 2.0])))
+    for bad in [(2, 5, 2, 5), (0, 0, 3, 5)]:  # array formula cell, range overlapping the array range
         r = rng_of(s, *bad)
         cols = [("num", [1.0] * (bad[2] - bad[0] + 1))] * (bad[3] - bad[1] + 1)
         assert reason(lambda r=r, cols=cols: eng.write_range_columnar(h, r, write_data(r, *cols))) == "edit.protected_formula_cell"
