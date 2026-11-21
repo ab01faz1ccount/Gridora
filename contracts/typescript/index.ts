@@ -49,6 +49,7 @@ export type CalendarMode = "jalali" | "gregorian" | "hijri";
 /** v0.6.0: a column holding dates (detection only; nothing is converted). */
 export interface DateColumn { col: number; kind: "serial" | "text"; calendar: CalendarMode; header_row: boolean; dates: number; total: number }
 export interface DateColumns { sheet_id: string; columns: DateColumn[] }
+export interface ExportRequest { format: "xlsx" | "csv"; sheet_id?: string }
 export interface SetCalendarRequest { calendar: CalendarMode }
 
 export type DType = "int64" | "float64" | "bool" | "string" | "date" | "datetime" | "decimal";
@@ -61,7 +62,7 @@ export interface DataTable {
 
 export interface Workspace { id: string; owner_id: string; name: string; created_at: string }
 export interface FileRecord {
-  id: string; workspace_id: string; owner_id: string; kind: "workbook" | "table" | "original";
+  id: string; workspace_id: string; owner_id: string; kind: "workbook" | "table" | "original" | "export";
   display_name: string; size_bytes: number; sha256: string; created_at: string; parent_id?: string;
 }
 

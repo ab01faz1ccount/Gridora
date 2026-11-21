@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from gridora_contracts.models import OperationRequest
+from gridora_contracts.models import ExportRequest, OperationRequest
 
 from ..core.errors import DomainError
 from ..db.models import JobRow, StoredFile
 from ..db.repos.owned import get_owned
+from ..services import exports as exports_service
 from ..services import operations as operations_service
 from ..services import workbooks as wb_service
 
@@ -42,5 +43,21 @@ def make_operation_handler(app_state: Any):  # type: ignore[no-untyped-def]
             app_state, job.owner_id, job.payload["doc_id"], req
         )
         return str(result.history_entry.seq)  # the job's result is the history entry it created
+
+    return handle
+
+
+def make_export_handler(app_state: Any):  # type: ignore[no-untyped-def]
+    async def handle(job: JobRow) -> str | None:
+        req = ExportRequest.model_validate(job.payload["request"])
+        file_id, report = await exports_service.run_export(
+            app_state, job.owner_id, job.payload["doc_id"], req
+        )
+        async with app_state.sessionmaker() as db:  # keep the export report next to the job
+            j = await db.get(JobRow, job.id)
+            if j is not None:
+                j.payload = {**j.payload, "report": report}
+                await db.commit()
+        return file_id  # the job's result is the stored file (GET /files/{id}/download)
 
     return handle

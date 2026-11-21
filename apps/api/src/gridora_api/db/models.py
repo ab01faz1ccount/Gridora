@@ -94,7 +94,9 @@ class Workspace(Base):
 
 class StoredFile(Base):
     __tablename__ = "files"
-    __table_args__ = (CheckConstraint("kind in ('workbook','table','original')", name="kind"),)
+    __table_args__ = (
+        CheckConstraint("kind in ('workbook','table','original','export')", name="kind"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(

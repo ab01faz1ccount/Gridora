@@ -11,6 +11,9 @@ from gridora_contracts.models import (
     DateColumn,
     DateColumns,
     ErrorDetail,
+    ExportRequest,
+    FileRecord,
+    Job,
     SetCalendarRequest,
     Window,
     Workbook,
@@ -19,13 +22,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
 from ...core.errors import DomainError
-from ...db.models import StoredFile, WorkbookRow
+from ...db.models import JobRow, StoredFile, WorkbookRow
 from ...db.repos.owned import get_owned
 from ...db.session import get_db
+from ...services import exports as exports_service
 from ...services import history as history_service
 from ...services import workbooks as wb_service
 from ...services.auth import AuthContext
 from ..deps import auth
+from .jobs import job_out
+from .workspaces import file_out
 
 router = APIRouter(tags=["workbooks"])
 Ctx = Annotated[AuthContext, Depends(auth)]
@@ -176,3 +182,32 @@ async def set_calendar(
     row.meta_json = meta  # reassign: SQLAlchemy does not see in-place JSON mutation
     await history_service.commit_or_drop(db, st.copies, row.id)
     return ok(request, wb_service.workbook_meta(row))
+
+
+@router.post("/workbooks/{id}/save", response_model=Envelope[FileRecord])
+async def save_workbook(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[FileRecord]:
+    """Writes the working copy as a new xlsx version (the previous one stays; history up to now is
+    baked into it). The workbook reopens from the newest version."""
+    rec = await exports_service.save_version(db, request.app.state, ctx.user.id, id)
+    return ok(request, file_out(rec))
+
+
+@router.post("/workbooks/{id}/export", status_code=202, response_model=Envelope[Job])
+async def export_workbook(
+    id: str, body: ExportRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[Job]:
+    """Always a job: poll GET /jobs/{id}; the result is a file (GET /files/{id}/download) and the
+    export report is at GET /jobs/{id}/compatibility."""
+    st = request.app.state
+    row = await get_owned(db, WorkbookRow, ctx.user.id, id)
+    sheet_ids = {s.id for s in wb_service.workbook_meta(row).sheets}
+    if body.format == "csv" and body.sheet_id not in sheet_ids:
+        raise DomainError("validation_failed", "A csv export needs a valid sheet_id.")
+    job_id = await st.runner.submit(
+        db, ctx.user.id, "export", {"doc_id": id, "request": body.model_dump(mode="json")}
+    )
+    await db.commit()
+    job = await db.get(JobRow, job_id)
+    if job is None:
+        raise DomainError("internal_error")
+    return ok(request, job_out(job))

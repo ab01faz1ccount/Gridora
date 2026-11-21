@@ -46,6 +46,15 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("PUT", "/api/v1/workbooks/{id}/calendar"): lambda c, ids: c.put(
         f"/api/v1/workbooks/{ids['wb']}/calendar", json={"calendar": "hijri"}
     ),
+    ("POST", "/api/v1/workbooks/{id}/save"): lambda c, ids: c.post(
+        f"/api/v1/workbooks/{ids['wb']}/save"
+    ),
+    ("POST", "/api/v1/workbooks/{id}/export"): lambda c, ids: c.post(
+        f"/api/v1/workbooks/{ids['wb']}/export", json={"format": "xlsx"}
+    ),
+    ("GET", "/api/v1/jobs/{id}/compatibility"): lambda c, ids: c.get(
+        f"/api/v1/jobs/{ids['job']}/compatibility"
+    ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"
     ),

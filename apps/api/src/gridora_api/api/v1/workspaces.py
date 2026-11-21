@@ -58,7 +58,7 @@ def file_out(f: StoredFile) -> FileRecord:
         id=str(f.id),
         workspace_id=str(f.workspace_id),
         owner_id=str(f.owner_id),
-        kind=cast(Literal["workbook", "table", "original"], f.kind),
+        kind=cast(Literal["workbook", "table", "original", "export"], f.kind),
         display_name=f.display_name,
         size_bytes=f.size_bytes,
         sha256=f.sha256,
