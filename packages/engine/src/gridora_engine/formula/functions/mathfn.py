@@ -438,6 +438,8 @@ def f_mmult(ctx: Any, a: Any, b: Any) -> Arr:
     x, y = _mat(a), _mat(b)
     if len(x[0]) != len(y):
         raise XlRaise(E.VALUE)
+    if len(x) * len(y) * len(y[0]) > 4_000_000:
+        raise XlRaise(E.VALUE)  # guard against minutes-long pure-Python products
     return Arr([[sum(x[i][k] * y[k][j] for k in range(len(y))) for j in range(len(y[0]))] for i in range(len(x))])
 
 
