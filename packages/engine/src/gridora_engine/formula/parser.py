@@ -194,7 +194,7 @@ def tokenize(src: str) -> list[Tok]:
             elif text.upper() in ("TRUE", "FALSE"):
                 toks.append(Tok("bool", text, i, j, text.upper() == "TRUE"))
             else:
-                toks.append(Tok("name", text, i, j))
+                toks.append(Tok("name", text.removeprefix("_xlpm.") if text.lower().startswith("_xlpm.") else text, i, j))
             i = j
             continue
         if ch in "(),;{}":
@@ -580,3 +580,31 @@ def substitute(node: Node, fn) -> Node:
     if isinstance(node, ArrayLit):
         return ArrayLit([[substitute(c, fn) for c in row] for row in node.rows])
     return node
+
+
+# Functions Excel stores with a prefix in the file (they did not exist in Excel 2007).
+_XLFN = frozenset(["ACOT", "ACOTH", "AGGREGATE", "ARABIC", "BASE", "BETA.DIST", "BETA.INV", "BINOM.DIST", "BINOM.INV", "BITAND", "BITLSHIFT", "BITOR", "BITRSHIFT", "BITXOR", "CEILING.MATH", "CEILING.PRECISE", "CHISQ.DIST", "CHISQ.DIST.RT", "CHISQ.INV", "CHISQ.INV.RT", "CHISQ.TEST", "COMBINA", "CONCAT", "CONFIDENCE.NORM", "CONFIDENCE.T", "COT", "COTH", "COVARIANCE.P", "COVARIANCE.S", "CSC", "CSCH", "DAYS", "DECIMAL", "ERF.PRECISE", "ERFC.PRECISE", "EXPON.DIST", "F.DIST", "F.DIST.RT", "F.INV", "F.INV.RT", "F.TEST", "FLOOR.MATH", "FLOOR.PRECISE", "FORECAST.LINEAR", "FORMULATEXT", "GAMMA", "GAMMA.DIST", "GAMMA.INV", "GAMMALN.PRECISE", "GAUSS", "HYPGEOM.DIST", "IFNA", "IFS", "ISFORMULA", "ISOWEEKNUM", "LOGNORM.DIST", "LOGNORM.INV", "MAXIFS", "MINIFS", "MODE.MULT", "MODE.SNGL", "MUNIT", "NEGBINOM.DIST", "NETWORKDAYS.INTL", "NORM.DIST", "NORM.INV", "NORM.S.DIST", "NORM.S.INV", "NUMBERVALUE", "PDURATION", "PERCENTILE.EXC", "PERCENTILE.INC", "PERCENTRANK.EXC", "PERCENTRANK.INC", "PERMUTATIONA", "PHI", "POISSON.DIST", "QUARTILE.EXC", "QUARTILE.INC", "RANK.AVG", "RANK.EQ", "RRI", "SEC", "SECH", "SHEET", "SHEETS", "SKEW.P", "STDEV.P", "STDEV.S", "SWITCH", "T.DIST", "T.DIST.2T", "T.DIST.RT", "T.INV", "T.INV.2T", "T.TEST", "TEXTJOIN", "UNICHAR", "UNICODE", "VAR.P", "VAR.S", "WEIBULL.DIST", "WORKDAY.INTL", "XOR", "Z.TEST", "XLOOKUP", "XMATCH", "UNIQUE", "SEQUENCE", "RANDARRAY", "LET", "LAMBDA", "VSTACK", "HSTACK", "TAKE", "DROP", "CHOOSECOLS", "CHOOSEROWS", "EXPAND", "TOCOL", "TOROW", "WRAPCOLS", "WRAPROWS", "TEXTSPLIT", "TEXTBEFORE", "TEXTAFTER", "MAP", "REDUCE", "SCAN", "BYROW", "BYCOL", "MAKEARRAY", "SORTBY", "ARRAYTOTEXT", "VALUETOTEXT", "ISOMITTED"])
+_XLWS = frozenset({"FILTER", "SORT"})
+
+
+def to_file_formula(text: str) -> str:
+    """Formula text as Excel stores it: newer functions get their `_xlfn.` (or `_xlfn._xlws.`) prefix.
+
+    Text that does not tokenize is returned unchanged; names already prefixed are left alone."""
+    try:
+        toks = tokenize(text)
+    except FormulaSyntaxError:
+        return text
+    out: list[str] = []
+    last = 0
+    for t in toks:
+        if t.kind != "func":
+            continue
+        name = t.text.upper()
+        pre = "_xlfn._xlws." if name in _XLWS else "_xlfn." if name in _XLFN else ""
+        if pre:
+            out.append(text[last:t.pos])
+            out.append(pre + text[t.pos: t.pos + len(t.text)])
+            last = t.pos + len(t.text)
+    out.append(text[last:])
+    return "".join(out)

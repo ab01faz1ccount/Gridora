@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 
 from ..formula import xlerrors as E
-from ..formula.evaluator import evaluate_formula
+from ..formula.evaluator import evaluate_array_formula, evaluate_formula
 from ..formula.functions import REGISTRY
 from ..formula.parser import (
     FormulaSyntaxError,
@@ -27,6 +27,7 @@ from ..formula.parser import (
     substitute,
     walk,
 )
+from ..formula.values import Arr
 from ..model.edits import Snap, set_cell, snapshot
 from ..model.shared import child_text, group_members
 from ..model.values import BOOL, ERR, ERR_CODES, NUM, STR
@@ -50,14 +51,17 @@ def split_fk(fk: int) -> tuple[int, int, int]:
 
 
 class Calculator:
-    def __init__(self, state: WorkbookState, now: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, state: WorkbookState, now: Callable[[], datetime] | None = None,
+                 calendar: str = "gregorian") -> None:
         self.state = state
         self.now = now
+        self.calendar = calendar
         self.env = WorkbookEnv(state, self)
         self.built = False
         self.asts: dict[int, Node] = {}
         self.refs: dict[int, list[Rect]] = {}
         self.frozen: dict[int, str] = {}
+        self.array_rect: dict[int, tuple[int, int, int, int]] = {}  # array-formula anchor -> its range
         self.volatile: set[int] = set()
         self.cell_deps: dict[tuple[int, int, int], set[int]] = {}
         self.rect_users: dict[Rect, set[int]] = {}
@@ -89,8 +93,20 @@ class Calculator:
                         self.set_formula(si, key, t)
                 elif kind in (ARRAY, DATA_TABLE):
                     fk = fk_of(si, key >> 14, key & 0x3FFF)
-                    self.frozen[fk] = "array_formula" if kind == ARRAY else "data_table"
+                    rect = self._array_rect_of(sheet, key) if kind == ARRAY else None
+                    if rect is not None and fk in self.asts and fk not in self.frozen:
+                        self.array_rect[fk] = rect  # evaluated as a matrix into its range
+                    else:
+                        self.frozen[fk] = "array_formula" if kind == ARRAY else "data_table"
         # cells of an array range other than the anchor hold plain cached values (nothing to freeze)
+
+    @staticmethod
+    def _array_rect_of(sheet: Any, key: int) -> tuple[int, int, int, int] | None:
+        r, c = key >> 14, key & 0x3FFF
+        for r0, c0, r1, c1 in sheet.array_ranges:
+            if (r0, c0) == (r, c) and (r1 - r0 + 1) * (c1 - c0 + 1) <= 250_000:
+                return r0, c0, r1, c1
+        return None
 
     def has_formulas(self) -> bool:
         if self.built:
@@ -262,6 +278,15 @@ class Calculator:
         while stack:
             fk = stack.pop()
             s, r, c = split_fk(fk)
+            ar = self.array_rect.get(fk)
+            if ar is not None:
+                for rr in range(ar[0], ar[2] + 1):
+                    for cc in range(ar[1], ar[3] + 1):
+                        if (rr, cc) != (r, c):
+                            for d in self.dependents_of_cell(s, rr, cc):
+                                if d not in affected:
+                                    affected.add(d)
+                                    stack.append(d)
             for d in self.dependents_of_cell(s, r, c):
                 if d not in affected:
                     affected.add(d)
@@ -280,6 +305,11 @@ class Calculator:
         changes: list[tuple[int, int, int, Snap]] = []
         seen: set[int] = set()
         for fk in order:
+            if fk in self.array_rect:
+                if fk not in seen:
+                    seen.add(fk)
+                    changes.extend(self._evaluate_array(fk))
+                continue
             ch = self._evaluate_cell(fk)
             if ch is not None and fk not in seen:
                 seen.add(fk)
@@ -325,6 +355,13 @@ class Calculator:
             s, r, c = split_fk(fk)
             pos[(s, r, c)] = fk
             rows_by_col.setdefault((s, c), []).append((r, fk))
+            ar = self.array_rect.get(fk)
+            if ar is not None:
+                for rr in range(ar[0], ar[2] + 1):
+                    for cc in range(ar[1], ar[3] + 1):
+                        if (rr, cc) != (r, c):
+                            pos[(s, rr, cc)] = fk
+                            rows_by_col.setdefault((s, cc), []).append((rr, fk))
         for lst in rows_by_col.values():
             lst.sort()
         aff_cols: dict[int, list[int]] = {}
@@ -398,6 +435,37 @@ class Calculator:
         before = snapshot(sheet, r, c)
         set_cell(sheet, r, c, (tag, val, style, sheet.formulas.get(key)))
         return s, r, c, before
+
+    def _evaluate_array(self, fk: int) -> list[tuple[int, int, int, Snap]]:
+        """Evaluate an array formula as a matrix and write it over its range (smaller results pad with #N/A,
+        a scalar result fills the whole range)."""
+        s, r, c = split_fk(fk)
+        r0, c0, r1, c1 = self.array_rect[fk]
+        res = evaluate_array_formula(self.asts[fk], self.env, s, r, c)
+        sheet = self.state.sheets[s]
+        rows = res.rows if isinstance(res, Arr) else None
+        out: list[tuple[int, int, int, Snap]] = []
+        for rr in range(r0, r1 + 1):
+            for cc in range(c0, c1 + 1):
+                if rows is None:
+                    v: Any = res
+                elif len(rows) == 1 and len(rows[0]) == 1:
+                    v = rows[0][0]
+                else:
+                    i, j = rr - r0, cc - c0
+                    if len(rows) == 1:
+                        i = 0
+                    if rows and len(rows[0]) == 1:
+                        j = 0
+                    v = rows[i][j] if i < len(rows) and j < len(rows[i]) else E.NA
+                tag, val = self._to_internal(v)
+                old_tag, old_val, style = sheet.store.get(rr, cc)
+                if old_tag == tag and old_val == val:
+                    continue
+                before = snapshot(sheet, rr, cc)
+                set_cell(sheet, rr, cc, (tag, val, style, sheet.formulas.get((rr << 14) | cc)))
+                out.append((s, rr, cc, before))
+        return out
 
     def _to_internal(self, v: Any) -> tuple[int, float]:
         if v is None:

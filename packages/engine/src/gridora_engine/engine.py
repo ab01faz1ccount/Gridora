@@ -47,7 +47,7 @@ from .xlsx.exporter import export_xlsx_file
 from .xlsx.importer import import_xlsx_file
 
 _ERR_NAME = 2  # index of #NAME? in model.values.ERR_CODES
-_KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding"}
+_KNOWN_CONFIG = {"limits", "csv_neutralize_formulas", "csv_export_encoding", "calendar"}
 _EXPORT_ENCODINGS = {"utf-8-sig", "utf-8", "windows-1256"}
 
 
@@ -70,6 +70,10 @@ class GridoraEngine:
         if enc not in _EXPORT_ENCODINGS:
             raise bad_request("config.bad_encoding", "Unsupported CSV export encoding.")
         self.csv_export_encoding = enc
+        cal = str(config.get("calendar", "jalali")).lower()
+        if cal not in ("jalali", "gregorian", "hijri"):
+            raise bad_request("config.bad_calendar", "calendar must be jalali, gregorian or hijri.")
+        self.calendar = cal  # how formulas read/write (year, month, day); storage is always the Excel serial
         self._open: dict[str, WorkbookState] = {}
         self.now = None  # tests may set a callable returning a datetime for TODAY()/NOW()
 
@@ -297,10 +301,28 @@ class GridoraEngine:
             return
         self._calc(state).recalc(full=True)
 
+    def detect_date_columns(self, wb: WorkbookHandle, sheet_id: str) -> list[dict[str, Any]]:
+        """Columns that hold dates (real dates or date-looking text). Not part of the contract yet."""
+        from .model.datecols import detect_date_columns
+
+        state, sheet = self._sheet(wb, sheet_id)
+        return [{"col": d.col, "kind": d.kind, "calendar": d.calendar, "header_row": d.header_row,
+                 "dates": d.dates, "total": d.total} for d in detect_date_columns(state, sheet)]
+
+    def set_calendar(self, wb: WorkbookHandle, calendar: str) -> None:
+        """Switch the calendar date functions use for this workbook and recalculate (not part of the contract yet)."""
+        cal = str(calendar).lower()
+        if cal not in ("jalali", "gregorian", "hijri"):
+            raise bad_request("config.bad_calendar", "calendar must be jalali, gregorian or hijri.")
+        state = self._state(wb)
+        self._calc(state).env.calendar = cal
+        state.calc.calendar = cal
+        self.recalculate(wb)
+
     # -- calculation helpers (E7) -------------------------------------------------------------
     def _calc(self, state: WorkbookState) -> Calculator:
         if state.calc is None:
-            state.calc = Calculator(state, self.now)
+            state.calc = Calculator(state, self.now, self.calendar)
         return cast(Calculator, state.calc)
 
     @staticmethod

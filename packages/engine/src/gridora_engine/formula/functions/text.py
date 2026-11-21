@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from .. import xlerrors as E
+from ..calendars import normalize
 from ..numfmt import format_value
 from ..values import (
     Arr,
@@ -17,12 +18,12 @@ from .helpers import boolean, integer, iter_cells, num, opt_num, scalar, text, w
 from .registry import fn
 
 
-@fn("LEN", 1, 1)
+@fn("LEN", 1, 1, aliases=("LENB",))
 def f_len(ctx: Any, a: Any) -> float:
     return float(len(text(ctx, a)))
 
 
-@fn("LEFT", 1, 2)
+@fn("LEFT", 1, 2, aliases=("LEFTB",))
 def f_left(ctx: Any, a: Any, n: Any = None) -> str:
     k = int(opt_num(ctx, n, 1))
     if k < 0:
@@ -30,7 +31,7 @@ def f_left(ctx: Any, a: Any, n: Any = None) -> str:
     return text(ctx, a)[:k]
 
 
-@fn("RIGHT", 1, 2)
+@fn("RIGHT", 1, 2, aliases=("RIGHTB",))
 def f_right(ctx: Any, a: Any, n: Any = None) -> str:
     k = int(opt_num(ctx, n, 1))
     if k < 0:
@@ -39,7 +40,7 @@ def f_right(ctx: Any, a: Any, n: Any = None) -> str:
     return s[max(len(s) - k, 0):] if k else ""
 
 
-@fn("MID", 3, 3)
+@fn("MID", 3, 3, aliases=("MIDB",))
 def f_mid(ctx: Any, a: Any, start: Any, n: Any) -> str:
     s, k = integer(ctx, start), integer(ctx, n)
     if s < 1 or k < 0:
@@ -114,7 +115,7 @@ def f_exact(ctx: Any, a: Any, b: Any) -> bool:
     return text(ctx, a) == text(ctx, b)
 
 
-@fn("FIND", 2, 3)
+@fn("FIND", 2, 3, aliases=("FINDB",))
 def f_find(ctx: Any, needle: Any, hay: Any, start: Any = None) -> float:
     n, h = text(ctx, needle), text(ctx, hay)
     s = int(opt_num(ctx, start, 1))
@@ -126,7 +127,7 @@ def f_find(ctx: Any, needle: Any, hay: Any, start: Any = None) -> float:
     return float(i + 1)
 
 
-@fn("SEARCH", 2, 3)
+@fn("SEARCH", 2, 3, aliases=("SEARCHB",))
 def f_search(ctx: Any, needle: Any, hay: Any, start: Any = None) -> float:
     n, h = text(ctx, needle), text(ctx, hay)
     s = int(opt_num(ctx, start, 1))
@@ -156,7 +157,7 @@ def f_substitute(ctx: Any, a: Any, old: Any, new: Any, inst: Any = None) -> str:
     return s[:idx] + n + s[idx + len(o) :]
 
 
-@fn("REPLACE", 4, 4)
+@fn("REPLACE", 4, 4, aliases=("REPLACEB",))
 def f_replace(ctx: Any, a: Any, start: Any, n: Any, new: Any) -> str:
     s = text(ctx, a)
     i, k = integer(ctx, start), integer(ctx, n)
@@ -173,7 +174,7 @@ def f_value(ctx: Any, a: Any) -> float:
         if n is None:
             from .datefn import parse_date_text
 
-            d = parse_date_text(v, bool(ctx.env.date1904))
+            d = parse_date_text(v, bool(ctx.env.date1904), normalize(getattr(ctx.env, "calendar", "gregorian")))
             if d is None:
                 raise XlRaise(E.VALUE)
             return d
@@ -211,7 +212,7 @@ def f_text(ctx: Any, a: Any, fmt: Any) -> str:
         v = n
     if isinstance(v, bool):
         return "TRUE" if v else "FALSE"
-    return format_value(to_num(v), code, bool(ctx.env.date1904))
+    return format_value(to_num(v), code, bool(ctx.env.date1904), normalize(getattr(ctx.env, "calendar", "gregorian")))
 
 
 @fn("FIXED", 1, 3)

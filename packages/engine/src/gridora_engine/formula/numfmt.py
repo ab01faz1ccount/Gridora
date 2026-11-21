@@ -5,7 +5,8 @@ import math
 import re
 from decimal import ROUND_HALF_UP, Decimal
 
-from .dates import serial_to_ymd, split_time, weekday
+from .calendars import PERSIAN_DAYS, month_names
+from .dates import serial_to_cal, split_time, weekday
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
           "October", "November", "December"]
@@ -56,7 +57,7 @@ def general_text(v: float) -> str:
     return sign + s
 
 
-def format_value(v: float, code: str, date1904: bool = False) -> str:
+def format_value(v: float, code: str, date1904: bool = False, cal: str = "gregorian") -> str:
     if code.strip().lower() in ("", "general"):
         return general_text(v)
     secs = split_sections(code)
@@ -67,7 +68,7 @@ def format_value(v: float, code: str, date1904: bool = False) -> str:
     elif v == 0 and len(secs) > 2:
         sec = secs[2]
     if is_date_code(sec):
-        return _format_date(v, sec, date1904)
+        return _format_date(v, sec, date1904, cal)
     return _format_number(-v if (neg_section or (v < 0 and len(secs) > 1)) and neg_section else v, sec, neg_section)
 
 
@@ -116,32 +117,197 @@ def _format_number(v: float, sec: str, explicit_neg: bool) -> str:
         es = ("-" if exp < 0 else ("+" if sci_sign == "+" else "")) + str(abs(exp)).zfill(sci_exp_digits)
         out_digits = mant + "E" + es
         return _assemble_literal(toks, out_digits, neg and not explicit_neg, simple=True)
+    if any(m.group("ch") == "/" for m in toks) and _fraction_layout(toks) is not None:
+        return _format_fraction(d, toks, neg and not explicit_neg)
     rounded = d.quantize(Decimal(1).scaleb(-nfrac), rounding=ROUND_HALF_UP)
-    s = f"{rounded:f}"
-    s_int, _, s_frac = s.partition(".")
-    s_int = s_int.lstrip("0") if len(int_digits.replace("#", "")) == 0 or True else s_int
-    min_int = int_digits.count("0")
-    s_int = s_int.rjust(min_int, "0")
-    # '?' pads with spaces
-    q = int_digits.count("?")
-    if q:
-        s_int = s_int.rjust(len(s_int) + 0, " ")
-    if grouping and s_int:
-        s_int = f"{int(s_int):,}" if s_int.strip().isdigit() else s_int
-    if nfrac:
-        # trim optional trailing '#' fraction digits
-        req = frac_part.replace(",", "")
-        keep = len(req)
-        while keep > 0 and req[keep - 1] == "#" and s_frac[keep - 1 : keep] == "0":
-            keep -= 1
-        s_frac = s_frac[:keep]
-    digits = s_int + ("." + s_frac if s_frac else "")
-    if not int_digits and not s_frac:
-        digits = ""
-    if digits.startswith(".") is False and s_int == "" and not nfrac and int_digits:
-        digits = ""
+    s_int, _, s_frac = f"{rounded:f}".partition(".")
+    s_int = s_int.lstrip("0")
     is_zero = rounded == 0
-    return _assemble_literal(toks, digits, neg and not is_zero and not explicit_neg, simple=False)
+    out = _layout(toks, s_int, s_frac, grouping)
+    return ("-" + out) if (neg and not is_zero and not explicit_neg) else out
+
+
+def _is_ph(m: re.Match[str]) -> bool:
+    ch = m.group("ch")
+    return ch is not None and ch in "0#?"
+
+
+def _layout(toks: list[re.Match[str]], s_int: str, s_frac: str, grouping: bool) -> str:
+    """Place digits into the 0/#/? placeholders; literals stay where they are written."""
+    # trailing commas (scale) and grouping commas never print
+    dot = next((i for i, m in enumerate(toks) if m.group("ch") == "."), None)
+    int_idx = [i for i, m in enumerate(toks) if _is_ph(m) and (dot is None or i < dot)]
+    frac_idx = [i for i, m in enumerate(toks) if _is_ph(m) and dot is not None and i > dot]
+    piece: dict[int, str] = {}
+    # integer part: right to left, overflow goes to the leftmost placeholder
+    digits = list(s_int)
+    for pos, i in enumerate(reversed(int_idx)):
+        kind = toks[i].group("ch")
+        if digits:
+            piece[i] = digits.pop()
+        else:
+            piece[i] = "0" if kind == "0" else (" " if kind == "?" else "")
+    prefix = "".join(digits)
+    if int_idx:
+        piece[int_idx[0]] = prefix + piece[int_idx[0]]
+    elif prefix:
+        piece[dot if dot is not None else 0] = prefix  # no integer placeholder: digits go in front of the point
+    if grouping:
+        joined = [(i, piece[i]) for i in int_idx]
+        stream = "".join(p for _, p in joined)
+        digs = [c for c in stream if c.isdigit()]
+        if len(digs) > 3:
+            count = 0
+            # insert a comma before every group of three digits counted from the right
+            rev: list[str] = []
+            for i, p in reversed(joined):
+                chars: list[str] = []
+                for c in reversed(p):
+                    if c.isdigit():
+                        if count and count % 3 == 0:
+                            chars.append(",")
+                        count += 1
+                    chars.append(c)
+                rev.append("".join(reversed(chars)))
+            for (i, _), val in zip(reversed(joined), rev, strict=True):
+                piece[i] = val
+    # fraction digits, left to right; trailing optional placeholders drop zeros
+    fd = list(s_frac.ljust(len(frac_idx), "0"))
+    last_sig = max((k for k, c in enumerate(fd) if c != "0"), default=-1)
+    for k, i in enumerate(frac_idx):
+        kind = toks[i].group("ch")
+        if kind == "0" or k <= last_sig:
+            piece[i] = fd[k]
+        else:
+            piece[i] = " " if kind == "?" else ""
+    out: list[str] = []
+    for i, m in enumerate(toks):
+        ch = m.group("ch")
+        if i in piece:
+            out.append(piece[i])
+        elif m.group("q") is not None:
+            out.append(m.group("q"))
+        elif m.group("esc") is not None:
+            out.append(m.group("esc"))
+        elif m.group("sp") is not None:
+            out.append(" ")
+        elif m.group("fill") is not None or m.group("br") is not None or m.group("sci"):
+            continue
+        elif ch == ".":
+            if frac_idx and any(piece[j].strip() for j in frac_idx) or any(toks[j].group("ch") == "0" for j in frac_idx):
+                out.append(".")
+            elif frac_idx:
+                out.append(" " if any(toks[j].group("ch") == "?" for j in frac_idx) else "")
+        elif ch == ",":
+            continue
+        elif ch is not None:
+            out.append(ch)
+    return "".join(out)
+
+
+def _fraction_layout(toks: list[re.Match[str]]) -> tuple[list[int], list[int], list[int], int] | None:
+    """(int placeholder idx, numerator idx, denominator idx, slash idx) of a fraction format, else None."""
+    slash = next((i for i, m in enumerate(toks) if m.group("ch") == "/"), None)
+    if slash is None:
+        return None
+    num: list[int] = []
+    i = slash - 1
+    while i >= 0 and _is_ph(toks[i]):
+        num.append(i)
+        i -= 1
+    den: list[int] = []
+    j = slash + 1
+    while j < len(toks) and (_is_ph(toks[j]) or (toks[j].group("ch") or "").isdigit()):
+        den.append(j)
+        j += 1
+    if not num or not den:
+        return None
+    num.reverse()
+    ints = [k for k in range(num[0]) if _is_ph(toks[k])]
+    return ints, num, den, slash
+
+
+def _best_fraction(x: Decimal, max_den: int, fixed: int | None) -> tuple[int, int]:
+    if fixed is not None:
+        return int((x * fixed).quantize(Decimal(1), rounding=ROUND_HALF_UP)), fixed
+    best = (int(x.quantize(Decimal(1), rounding=ROUND_HALF_UP)), 1)
+    best_err = abs(x - best[0])
+    for d in range(2, max_den + 1):
+        n = int((x * d).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        err = abs(x - Decimal(n) / Decimal(d))
+        if err < best_err:
+            best, best_err = (n, d), err
+    return best
+
+
+def _format_fraction(d: Decimal, toks: list[re.Match[str]], negative: bool) -> str:
+    ints, num, den, slash = _fraction_layout(toks)  # type: ignore[misc]
+    den_text = "".join(toks[k].group("ch") for k in den)
+    fixed = int(den_text) if den_text.isdigit() else None
+    max_den = 10 ** len(den) - 1
+    mixed = bool(ints)
+    ip = int(d) if mixed else 0
+    rest = d - ip
+    n, dd = _best_fraction(rest, max_den, fixed)
+    if mixed and n == dd:  # rounds up to a whole number
+        ip, n = ip + 1, 0
+    if not mixed:
+        n, dd = _best_fraction(d, max_den, fixed)
+    zero_frac = mixed and n == 0
+
+    def fill(idx: list[int], text: str, left: bool) -> str:
+        cells = []
+        digs = list(text)
+        for k in (reversed(idx) if left else idx):
+            kind = toks[k].group("ch")
+            if kind in "0#?" and digs:
+                cells.append(digs.pop() if left else digs.pop(0))
+            else:
+                cells.append("0" if kind == "0" else (" " if kind == "?" else ""))
+        cells = cells[::-1] if left else cells
+        extra = "".join(digs)
+        return extra + "".join(cells) if left else "".join(cells) + extra
+
+    int_text = fill(ints, str(ip) if (ip or not mixed) else "", True) if mixed else ""
+    if mixed and ip == 0:
+        int_text = fill(ints, "", True)
+        if any(toks[k].group("ch") == "0" for k in ints):
+            int_text = fill(ints, "0", True)
+    num_text = fill(num, str(n), True)
+    den_text2 = fill(den, str(dd), False) if fixed is None else den_text
+    first = ints[0] if ints else num[0]
+    out: list[str] = []
+    for i, m in enumerate(toks):
+        if i < first:
+            if m.group("q") is not None:
+                out.append(m.group("q"))
+            elif m.group("esc") is not None:
+                out.append(m.group("esc"))
+            elif m.group("sp") is not None:
+                out.append(" ")
+            elif m.group("ch") is not None and m.group("ch") not in ",":
+                out.append(m.group("ch"))
+            continue
+        if ints and i == ints[0]:
+            out.append(int_text)
+        elif i in ints or i in num[1:] or i in den[1:]:
+            continue
+        elif i == num[0]:
+            out.append(" " * (len(num_text) + 1 + len(den_text2)) if zero_frac else num_text)
+        elif i == slash:
+            out.append("" if zero_frac else "/")
+        elif i == den[0]:
+            out.append("" if zero_frac else den_text2)
+        elif m.group("q") is not None:
+            out.append(m.group("q"))
+        elif m.group("esc") is not None:
+            out.append(m.group("esc"))
+        elif m.group("sp") is not None:
+            out.append(" ")
+        elif m.group("ch") is not None and m.group("ch") not in ",.":
+            out.append(m.group("ch"))
+    s = "".join(out)
+    return ("-" + s) if negative and (ip or n) else s
 
 
 def _assemble_literal(toks, digits: str, negative: bool, simple: bool) -> str:
@@ -172,11 +338,12 @@ def _assemble_literal(toks, digits: str, negative: bool, simple: bool) -> str:
 
 
 # -- dates ------------------------------------------------------------------------------------------------
-def _format_date(v: float, sec: str, date1904: bool) -> str:
+def _format_date(v: float, sec: str, date1904: bool, cal: str = "gregorian") -> str:
     sec = re.sub(r"\[\$[^\]]*\]|\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow)\]", "", sec, flags=re.IGNORECASE)
     toks = list(_TOKEN.finditer(sec))
     any(m.group("br") and re.fullmatch(r"[hmsHMS]+", m.group("br")) for m in toks)
-    y, mo, d = serial_to_ymd(v, date1904)
+    y, mo, d = serial_to_cal(v, cal, date1904)
+    names = month_names(cal)
     hh, mi, ss = split_time(v)
     ampm = any(m.group("ampm") for m in toks)
     wd = weekday(v, date1904)
@@ -212,7 +379,7 @@ def _format_date(v: float, sec: str, date1904: bool) -> str:
             if c == "y":
                 out.append(str(y).zfill(4) if n >= 3 else str(y % 100).zfill(2))
             elif c == "d":
-                out.append(str(d) if n == 1 else str(d).zfill(2) if n == 2 else (DAYS[wd - 1][:3] if n == 3 else DAYS[wd - 1]))
+                out.append(str(d) if n == 1 else str(d).zfill(2) if n == 2 else ((PERSIAN_DAYS if names else DAYS)[wd - 1][: 3 if not names else None] if n == 3 else (PERSIAN_DAYS if names else DAYS)[wd - 1]))
             elif c == "h":
                 h = hh % 12 or 12 if ampm else hh
                 out.append(str(h).zfill(n))
@@ -226,11 +393,11 @@ def _format_date(v: float, sec: str, date1904: bool) -> str:
                 elif n == 2:
                     out.append(str(mo).zfill(2))
                 elif n == 3:
-                    out.append(MONTHS[mo - 1][:3])
+                    out.append((names or MONTHS)[mo - 1][: None if names else 3])
                 elif n == 4:
-                    out.append(MONTHS[mo - 1])
+                    out.append((names or MONTHS)[mo - 1])
                 else:
-                    out.append(MONTHS[mo - 1][0])
+                    out.append((names or MONTHS)[mo - 1][0])
         else:
             out.append(m.group("ch") or "")
     return "".join(out)

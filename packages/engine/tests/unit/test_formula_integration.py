@@ -104,3 +104,23 @@ def test_volatile_and_full_recalculate_do_not_break(tmp_path):
     assert val(eng, h, s, 1, 4) == 22.0
     eng.recalculate(h)
     assert val(eng, h, s, 1, 4) == 22.0
+
+
+def test_array_formula_is_evaluated_over_its_range_and_follows_edits(tmp_path):
+    rows = ('<row r="1"><c r="A1"><v>1</v></c><c r="B1"><f t="array" ref="B1:B3">A1:A3*2</f><v>2</v></c><c r="C1"><f>SUM(B1:B3)</f><v>12</v></c></row>'
+            '<row r="2"><c r="A2"><v>2</v></c><c r="B2"><v>4</v></c></row>'
+            '<row r="3"><c r="A3"><v>3</v></c><c r="B3"><v>6</v></c></row>')
+    eng = create_engine({})
+    h, wb, _ = eng.import_xlsx(make_xlsx(tmp_path / "a.xlsx", sheet_doc(rows, "")))
+    s = wb.sheets[0]
+    d = eng.apply_cell_edits(h, s.id, [nm(1, 0, 10)])
+    assert [val(eng, h, s, r, 1) for r in range(3)] == [2.0, 20.0, 6.0]
+    assert val(eng, h, s, 0, 2) == 28.0  # a formula over the array range follows its members
+    assert any(c.r == 1 and c.c == 1 for c in d.after)
+    eng.apply_delta(h, d, inverse=True)
+    assert [val(eng, h, s, r, 1) for r in range(3)] == [2.0, 4.0, 6.0] and val(eng, h, s, 0, 2) == 12.0
+    out = tmp_path / "out.xlsx"
+    eng.export_xlsx(h, out)
+    import zipfile
+    xml = zipfile.ZipFile(out).read("xl/worksheets/sheet1.xml").decode()
+    assert 't="array"' in xml and 'ref="B1:B3"' in xml

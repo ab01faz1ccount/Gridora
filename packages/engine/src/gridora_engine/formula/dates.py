@@ -80,3 +80,44 @@ def days_in_month(y: int, m: int) -> int:
 
 def is_leap(y: int) -> bool:
     return y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)
+
+
+# -- calendar-aware (Gregorian / Jalali / Hijri) ------------------------------------------------------
+def _ordinal(serial: float, date1904: bool) -> int:
+    day = math.floor(serial)
+    if date1904:
+        return date(1904, 1, 1).toordinal() + day
+    if day < 60:
+        return date(1899, 12, 31).toordinal() + day
+    if day == 60:
+        return date(1900, 2, 28).toordinal()
+    return date(1899, 12, 30).toordinal() + day
+
+
+def serial_to_cal(serial: float, cal: str, date1904: bool = False) -> tuple[int, int, int]:
+    if cal == "gregorian":
+        return serial_to_ymd(serial, date1904)
+    from .calendars import from_ordinal
+    return from_ordinal(cal, _ordinal(serial, date1904))
+
+
+def cal_to_serial(y: int, m: int, d: int, cal: str, date1904: bool = False) -> float | None:
+    """DATE() semantics in any calendar: month/day overflow rolls over; None when out of range."""
+    if cal == "gregorian":
+        return ymd_to_serial(y, m, d, date1904)
+    from .calendars import default_two_digit_year, to_ordinal
+    y = default_two_digit_year(cal, y)
+    y += (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    if y < 1 or y > 9999:
+        return None
+    o = to_ordinal(cal, y, m, 1) + (d - 1)
+    if date1904:
+        s = o - date(1904, 1, 1).toordinal()
+    else:
+        s = o - date(1899, 12, 30).toordinal()
+        if s < 61:
+            s = o - date(1899, 12, 31).toordinal()
+    if s < (0 if not date1904 else -1462) or s > MAX_SERIAL:
+        return None
+    return float(s)

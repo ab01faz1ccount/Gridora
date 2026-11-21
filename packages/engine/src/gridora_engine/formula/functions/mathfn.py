@@ -204,7 +204,7 @@ def f_floor(ctx: Any, a: Any, s: Any = None) -> float:
     sig = (1.0 if x >= 0 else -1.0) if s is None else num(ctx, s)
     if x > 0 and sig < 0:
         raise XlRaise(E.NUM)
-    if sig == 0:
+    if sig == 0 and x != 0:
         raise XlRaise(E.DIV0)
     return _legacy_round(x, sig, False)
 
