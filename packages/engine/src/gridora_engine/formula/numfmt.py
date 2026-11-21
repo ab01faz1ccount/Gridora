@@ -58,8 +58,7 @@ def general_text(v: float) -> str:
 
 
 def format_value(v: float, code: str, date1904: bool = False, cal: str = "gregorian") -> str:
-    if getcontext().prec < 400:
-        getcontext().prec = 400
+    getcontext().prec = max(getcontext().prec, 400)
     if code.strip().lower() in ("", "general"):
         return general_text(v)
     secs = split_sections(code)

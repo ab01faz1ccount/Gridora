@@ -59,6 +59,8 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | GET | `/workbooks/{id}` | metadata |
 | GET | `/workbooks/{id}/sheets/{sheet_id}/cells?r0&c0&rows&cols` | returns `CellWindow` (max window size enforced) |
 | PATCH | `/workbooks/{id}/sheets/{sheet_id}/cells` | body `{ edits: [{r,c,value?|formula?}] }` → one history entry |
+| GET | `/workbooks/{id}/sheets/{sheet_id}/date-columns` | v0.6.0: `DateColumns` (columns that hold dates; detection only) |
+| PUT | `/workbooks/{id}/calendar` | v0.6.0: body `{ calendar: "jalali"|"gregorian"|"hijri" }` → `Workbook`; a view option, no history entry |
 | POST | `/workbooks/{id}/save` | writes a new version; returns `FileRecord` |
 | POST | `/workbooks/{id}/export` | `{format:"xlsx"|"csv", sheet_id?}` → job; includes export `CompatibilityReport` |
 | GET | `/workbooks/{id}/compatibility` | latest report |
