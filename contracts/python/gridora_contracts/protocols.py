@@ -66,6 +66,17 @@ class WorkbookEngine(Protocol):
 
 
 @runtime_checkable
+class CalendarEngine(Protocol):
+    """Optional engine extension (v0.6.0, ADR-016). apps/api feature-detects it with isinstance()."""
+
+    def set_calendar(self, wb: WorkbookHandle, calendar: str) -> None:
+        """Switch the calendar date functions use for this workbook and recalculate. Cell values are not
+        rewritten in history; the setting is a view option that apps/api persists per workbook."""
+        ...
+    def detect_date_columns(self, wb: WorkbookHandle, sheet_id: str) -> list[dict[str, Any]]: ...
+
+
+@runtime_checkable
 class FormattingEngine(Protocol):
     """Optional engine extension (needed before the grid can look like a spreadsheet; after slice 3).
     apps/api checks isinstance(engine, FormattingEngine) and degrades gracefully otherwise."""

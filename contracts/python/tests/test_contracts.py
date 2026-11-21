@@ -139,4 +139,17 @@ def test_optional_columnar_protocols_exist():
 def test_columnar_engine_protocol_and_contract_patch_version():
     from gridora_contracts import ColumnarEngine, models
     assert ColumnarEngine is not None
-    assert models.CONTRACT_VERSION.startswith("0.5.")
+    assert models.CONTRACT_VERSION.startswith("0.6.")
+
+
+# ---- contract v0.6.0: calendars ----
+def test_calendar_models():
+    from gridora_contracts import models
+
+    base = dict(id="w", file_id="f", name="n", sheets=[])
+    assert models.Workbook(**base).calendar == "jalali"
+    assert models.Workbook(**base, calendar="hijri").calendar == "hijri"
+    with pytest.raises(PydanticValidationError):
+        models.SetCalendarRequest(calendar="mayan")
+    col = models.DateColumn(col=0, kind="text", calendar="jalali", header_row=True, dates=9, total=10)
+    assert models.DateColumns(sheet_id="s", columns=[col]).columns[0].dates == 9

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gridora_contracts.protocols import (
+    CalendarEngine,
     ColumnarEngine,
     FormattingEngine,
     OperationExecutor,
@@ -51,6 +52,10 @@ class Services:
     @property
     def structure_available(self) -> bool:
         return isinstance(self.engine, StructureEngine)
+
+    @property
+    def calendar_available(self) -> bool:
+        return isinstance(self.engine, CalendarEngine)
 
     @property
     def columnar_available(self) -> bool:

@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
-CONTRACT_VERSION = "0.5.0"
+CONTRACT_VERSION = "0.6.0"
 MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
 MAX_WINDOW_COLS = 100
 
@@ -148,6 +148,27 @@ class Workbook(_Base):
     defined_names: list[DefinedName] = []
     date_system: Literal["1900", "1904"] = "1900"
     compat: Optional[CompatibilityReport] = None
+    calendar: Literal["jalali", "gregorian", "hijri"] = "jalali"  # v0.6.0 (ADR-016): how date functions read/write dates
+
+
+class DateColumn(_Base):
+    """v0.6.0: a column that holds dates (real dates or date-looking text). Detection only; nothing is converted."""
+
+    col: int
+    kind: Literal["serial", "text"]
+    calendar: Literal["jalali", "gregorian", "hijri"]  # calendar the text is written in; "gregorian" for serials
+    header_row: bool
+    dates: int
+    total: int
+
+
+class DateColumns(_Base):
+    sheet_id: str
+    columns: list[DateColumn]
+
+
+class SetCalendarRequest(_Base):
+    calendar: Literal["jalali", "gregorian", "hijri"]
 
 
 # ---------------------------------------------------------- data tables ----
