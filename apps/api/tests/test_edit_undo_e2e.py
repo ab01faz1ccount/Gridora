@@ -107,7 +107,9 @@ def test_simultaneous_edits_with_the_same_base_only_one_wins(
 def test_a_bad_edit_in_a_batch_applies_nothing(user: Session, kind: str) -> None:
     d = Doc(user, kind)
     before = d.cells()
-    r = d.edit([set_cell(1, 1, NUM(5)), {"r": 2, "c": 2, "formula": "=1+1"}])
+    # the stub has no formulas; the real engine has, but it has Excel's sheet limits
+    bad = {"r": 2, "c": 2, "formula": "=1+1"} if kind == "stub" else set_cell(2_000_000, 0, NUM(1))
+    r = d.edit([set_cell(1, 1, NUM(5)), bad])
     assert r.status_code == 400 and r.json()["error"]["code"] == "validation_failed"
     assert d.cells() == before  # the first, valid edit was not kept
     assert d.history().json()["data"] == []
