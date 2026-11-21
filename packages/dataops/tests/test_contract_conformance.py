@@ -20,7 +20,7 @@ def _params(fn: object) -> list[inspect.Parameter]:
 
 
 def test_written_against_contract_0_4() -> None:
-    assert models.CONTRACT_VERSION.startswith(("0.4.", "0.5.")), "contracts/ changed: re-read the CHANGELOG and update dataops"
+    assert models.CONTRACT_VERSION.startswith(("0.4.", "0.5.", "0.6.")), "contracts/ changed: re-read the CHANGELOG and update dataops"
 
 
 @pytest.mark.parametrize(("proto", "impl"), [(OperationExecutor, DataOpsExecutor), (TableStore, ParquetTableStore)])

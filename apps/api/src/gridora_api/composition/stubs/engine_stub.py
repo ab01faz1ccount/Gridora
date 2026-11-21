@@ -245,6 +245,14 @@ class StubEngine:
     def recalculate(self, wb: WorkbookHandle) -> None:
         self._h(wb)  # nothing to do: formulas are not supported
 
+    # ------------------------------------------------------------ calendar ----
+    def set_calendar(self, wb: WorkbookHandle, calendar: str) -> None:
+        self._h(wb)  # the stub has no date functions: nothing to switch
+
+    def detect_date_columns(self, wb: WorkbookHandle, sheet_id: str) -> list[dict[str, Any]]:
+        self._sheet(self._h(wb), sheet_id)
+        return []
+
     # -------------------------------------------------------------- export ----
     def export_xlsx(self, wb: WorkbookHandle, path: Path) -> CompatibilityReport:
         raise DomainError(

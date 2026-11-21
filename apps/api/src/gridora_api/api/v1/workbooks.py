@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from gridora_contracts.models import (
@@ -8,6 +8,10 @@ from gridora_contracts.models import (
     CellsChangedResult,
     CellWindow,
     CompatibilityReport,
+    DateColumn,
+    DateColumns,
+    ErrorDetail,
+    SetCalendarRequest,
     Window,
     Workbook,
 )
@@ -119,3 +123,56 @@ async def edit_cells(
         db, st.services, st.copies, row, entry, sheet_id, body
     )
     return ok(request, result)
+
+
+def _need_calendar(st: Any) -> None:
+    if not st.services.calendar_available:
+        raise DomainError(
+            "operation_conflict",
+            "This engine version does not support calendars.",
+            details=[ErrorDetail(code="engine.not_implemented", message="set_calendar")],
+        )
+
+
+@router.get(
+    "/workbooks/{id}/sheets/{sheet_id}/date-columns", response_model=Envelope[DateColumns]
+)
+async def get_date_columns(
+    id: str, sheet_id: str, request: Request, ctx: Ctx, db: Db
+) -> Envelope[DateColumns]:
+    """Columns that hold dates, so the client can offer the Jalali/Gregorian/Hijri switch."""
+    st = request.app.state
+    _need_calendar(st)
+    row = await get_owned(db, WorkbookRow, ctx.user.id, id)
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    found = await st.copies.call(
+        entry, st.services.engine.detect_date_columns, entry.handle, entry.to_engine(sheet_id)
+    )
+    return ok(
+        request,
+        DateColumns(sheet_id=sheet_id, columns=[DateColumn.model_validate(d) for d in found]),
+    )
+
+
+@router.put("/workbooks/{id}/calendar", response_model=Envelope[Workbook])
+async def set_calendar(
+    id: str, body: SetCalendarRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[Workbook]:
+    """A view option, not an edit: no history entry. Dates are stored as serials either way; only
+    how date functions read and write them changes, so the client reloads its cells afterwards."""
+    st = request.app.state
+    _need_calendar(st)
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    await st.copies.call(entry, st.services.engine.set_calendar, entry.handle, body.calendar)
+    meta = dict(row.meta_json)
+    meta["calendar"] = body.calendar
+    row.meta_json = meta  # reassign: SQLAlchemy does not see in-place JSON mutation
+    await history_service.commit_or_drop(db, st.copies, row.id)
+    return ok(request, wb_service.workbook_meta(row))

@@ -23,6 +23,8 @@ OPTIONAL_METHODS = (
     "read_range_columnar",
     "write_range_columnar",
     "apply_structure_change",
+    "set_calendar",
+    "detect_date_columns",
 )
 
 

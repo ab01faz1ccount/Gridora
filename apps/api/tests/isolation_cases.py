@@ -40,6 +40,12 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
         f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/cells",
         json={"base_seq": 0, "edits": [{"r": 0, "c": 0, "value": {"k": "num", "n": 1}}]},
     ),
+    ("GET", "/api/v1/workbooks/{id}/sheets/{sheet_id}/date-columns"): lambda c, ids: c.get(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/date-columns"
+    ),
+    ("PUT", "/api/v1/workbooks/{id}/calendar"): lambda c, ids: c.put(
+        f"/api/v1/workbooks/{ids['wb']}/calendar", json={"calendar": "hijri"}
+    ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"
     ),

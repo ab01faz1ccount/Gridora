@@ -202,4 +202,5 @@ async def run_operation(
             history_entry=history_service.entry_out(h),
             sheet_id=sheet,
             cells=list(delta.after) if isinstance(delta, CellPatchDelta) else [],
+            others=history_service.others_of(delta),
         )

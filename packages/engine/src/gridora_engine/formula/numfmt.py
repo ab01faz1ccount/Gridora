@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 import re
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, getcontext
 
 from .calendars import PERSIAN_DAYS, month_names
 from .dates import serial_to_cal, split_time, weekday
@@ -58,6 +58,7 @@ def general_text(v: float) -> str:
 
 
 def format_value(v: float, code: str, date1904: bool = False, cal: str = "gregorian") -> str:
+    getcontext().prec = max(getcontext().prec, 400)
     if code.strip().lower() in ("", "general"):
         return general_text(v)
     secs = split_sections(code)
@@ -92,7 +93,9 @@ def _format_number(v: float, sec: str, explicit_neg: bool) -> str:
     scale = len(body) - len(body.rstrip(","))  # commas after the last digit placeholder scale by 1000
     body = body.rstrip(",")
     int_part, _, frac_part = body.partition(".")
-    grouping = "," in int_part
+    grouping = bool(re.search(r"[0#?],+[0#?]", int_part)) or (
+        "," in int_part.rstrip(",") and int_part.strip(",") != "" and int_part[0] != ","
+    )
     int_digits = int_part.replace(",", "")
     nfrac = len(frac_part.replace(",", ""))
     dx = dx / (Decimal(1000) ** scale)
@@ -139,6 +142,7 @@ def _layout(toks: list[re.Match[str]], s_int: str, s_frac: str, grouping: bool) 
     int_idx = [i for i, m in enumerate(toks) if _is_ph(m) and (dot is None or i < dot)]
     frac_idx = [i for i, m in enumerate(toks) if _is_ph(m) and dot is not None and i > dot]
     piece: dict[int, str] = {}
+    first_ph = next((i for i, m in enumerate(toks) if _is_ph(m)), None)
     # integer part: right to left, overflow goes to the leftmost placeholder
     digits = list(s_int)
     for pos, i in enumerate(reversed(int_idx)):
@@ -194,12 +198,10 @@ def _layout(toks: list[re.Match[str]], s_int: str, s_frac: str, grouping: bool) 
         elif m.group("fill") is not None or m.group("br") is not None or m.group("sci"):
             continue
         elif ch == ".":
-            if frac_idx and any(piece[j].strip() for j in frac_idx) or any(toks[j].group("ch") == "0" for j in frac_idx):
-                out.append(".")
-            elif frac_idx:
-                out.append(" " if any(toks[j].group("ch") == "?" for j in frac_idx) else "")
+            out.append(".")
         elif ch == ",":
-            continue
+            if first_ph is None or i < first_ph:
+                out.append(",")  # a comma before every digit placeholder is an ordinary character
         elif ch is not None:
             out.append(ch)
     return "".join(out)

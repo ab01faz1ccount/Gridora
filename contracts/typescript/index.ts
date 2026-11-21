@@ -3,7 +3,7 @@
 // Rows/cols are 0-based. IDs are UUID strings. Timestamps are ISO-8601 UTC.
 
 export const SCHEMA_VERSION = 1;
-export const CONTRACT_VERSION = "0.5.0";
+export const CONTRACT_VERSION = "0.6.0";
 export const MAX_WINDOW_ROWS = 1000;
 export const MAX_WINDOW_COLS = 100;
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -42,7 +42,14 @@ export interface Workbook {
   schema_version: number; id: string; file_id: string; name: string;
   sheets: SheetMeta[]; defined_names: DefinedName[];
   date_system: "1900" | "1904"; compat?: CompatibilityReport;
+  /** v0.6.0: how date functions read and write dates; default "jalali". */
+  calendar?: CalendarMode;
 }
+export type CalendarMode = "jalali" | "gregorian" | "hijri";
+/** v0.6.0: a column holding dates (detection only; nothing is converted). */
+export interface DateColumn { col: number; kind: "serial" | "text"; calendar: CalendarMode; header_row: boolean; dates: number; total: number }
+export interface DateColumns { sheet_id: string; columns: DateColumn[] }
+export interface SetCalendarRequest { calendar: CalendarMode }
 
 export type DType = "int64" | "float64" | "bool" | "string" | "date" | "datetime" | "decimal";
 export interface Column { name: string; dtype: DType; nullable: boolean; display_format?: string }

@@ -147,6 +147,9 @@ async def ensure_open(
             raise DomainError("import_failed", "The workbook no longer matches its stored state.")
         sheet_map = dict(zip(public_ids, engine_ids, strict=True))
         try:
+            cal = row.meta_json.get("calendar", "jalali")
+            if cal != "jalali" and services.calendar_available:  # a fresh engine starts as jalali
+                services.engine.set_calendar(handle, cal)  # type: ignore[attr-defined]
             for _seq, delta in replay:
                 services.engine.apply_delta(
                     handle, history_service.delta_with_sheet(delta, sheet_map), inverse=False
