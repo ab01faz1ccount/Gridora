@@ -109,7 +109,9 @@ async def _result_from_job(db: AsyncSession, doc_id: str, seq: int) -> CellsChan
     delta = entry.delta
     cells = list(delta.after) if isinstance(delta, CellPatchDelta) else []
     sheet = delta.sheet_id if isinstance(delta, CellPatchDelta) else ""
-    return CellsChangedResult(history_entry=entry, sheet_id=sheet, cells=cells)
+    return CellsChangedResult(
+        history_entry=entry, sheet_id=sheet, cells=cells, others=history_service.others_of(delta)
+    )
 
 
 def _error_from_job(job: JobRow) -> DomainError:

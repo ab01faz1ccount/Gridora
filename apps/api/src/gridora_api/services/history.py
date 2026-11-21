@@ -28,6 +28,7 @@ from gridora_contracts.models import (
     HistoryEntry,
     Operation,
     Range,
+    SheetCells,
     SheetRangeTarget,
     Workbook,
 )
@@ -136,6 +137,16 @@ def _cells_of(delta: Delta, *, after: bool) -> list[Cell]:
     return []
 
 
+def others_of(delta: Delta, *, after: bool = True) -> list[SheetCells]:
+    """Cells of other sheets changed by cross-sheet recalculation (contract 0.5.0)."""
+    if not isinstance(delta, CellPatchDelta):
+        return []
+    return [
+        SheetCells(sheet_id=o.sheet_id, cells=list(o.after if after else o.before))
+        for o in delta.others
+    ]
+
+
 def _sheet_of(delta: Delta, fallback: str) -> str:
     sid = getattr(delta, "sheet_id", None)
     return sid if isinstance(sid, str) else fallback
@@ -221,7 +232,8 @@ async def apply_edits(
     grow_dimensions(row, sheet_id, r_hi + 1, c_hi + 1)
     await commit_or_drop(db, copies, row.id)
     return CellsChangedResult(
-        history_entry=entry_out(h), sheet_id=sheet_id, cells=_cells_of(delta, after=True)
+        history_entry=entry_out(h), sheet_id=sheet_id, cells=_cells_of(delta, after=True),
+        others=others_of(delta),
     )
 
 
@@ -315,7 +327,8 @@ async def _step(
     await commit_or_drop(db, copies, row.id)
     sheet = _sheet_of(delta, next(iter(entry.sheet_map), ""))
     return CellsChangedResult(
-        history_entry=entry_out(h), sheet_id=sheet, cells=_cells_of(delta, after=not undo)
+        history_entry=entry_out(h), sheet_id=sheet, cells=_cells_of(delta, after=not undo),
+        others=others_of(delta, after=not undo),
     )
 
 
