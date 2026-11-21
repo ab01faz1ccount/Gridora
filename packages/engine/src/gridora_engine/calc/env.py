@@ -18,6 +18,7 @@ class WorkbookEnv:
         self.state = state
         self.calc = calc
         self.date1904 = state.date_system == "1904"
+        self.calendar = calc.calendar
         self._names: dict[str, str] = {}
         self._now: float | None = None
 

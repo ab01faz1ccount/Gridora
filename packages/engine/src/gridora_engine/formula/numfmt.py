@@ -5,7 +5,8 @@ import math
 import re
 from decimal import ROUND_HALF_UP, Decimal
 
-from .dates import serial_to_ymd, split_time, weekday
+from .calendars import PERSIAN_DAYS, month_names
+from .dates import serial_to_cal, split_time, weekday
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
           "October", "November", "December"]
@@ -56,7 +57,7 @@ def general_text(v: float) -> str:
     return sign + s
 
 
-def format_value(v: float, code: str, date1904: bool = False) -> str:
+def format_value(v: float, code: str, date1904: bool = False, cal: str = "gregorian") -> str:
     if code.strip().lower() in ("", "general"):
         return general_text(v)
     secs = split_sections(code)
@@ -67,7 +68,7 @@ def format_value(v: float, code: str, date1904: bool = False) -> str:
     elif v == 0 and len(secs) > 2:
         sec = secs[2]
     if is_date_code(sec):
-        return _format_date(v, sec, date1904)
+        return _format_date(v, sec, date1904, cal)
     return _format_number(-v if (neg_section or (v < 0 and len(secs) > 1)) and neg_section else v, sec, neg_section)
 
 
@@ -172,11 +173,12 @@ def _assemble_literal(toks, digits: str, negative: bool, simple: bool) -> str:
 
 
 # -- dates ------------------------------------------------------------------------------------------------
-def _format_date(v: float, sec: str, date1904: bool) -> str:
+def _format_date(v: float, sec: str, date1904: bool, cal: str = "gregorian") -> str:
     sec = re.sub(r"\[\$[^\]]*\]|\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow)\]", "", sec, flags=re.IGNORECASE)
     toks = list(_TOKEN.finditer(sec))
     any(m.group("br") and re.fullmatch(r"[hmsHMS]+", m.group("br")) for m in toks)
-    y, mo, d = serial_to_ymd(v, date1904)
+    y, mo, d = serial_to_cal(v, cal, date1904)
+    names = month_names(cal)
     hh, mi, ss = split_time(v)
     ampm = any(m.group("ampm") for m in toks)
     wd = weekday(v, date1904)
@@ -212,7 +214,7 @@ def _format_date(v: float, sec: str, date1904: bool) -> str:
             if c == "y":
                 out.append(str(y).zfill(4) if n >= 3 else str(y % 100).zfill(2))
             elif c == "d":
-                out.append(str(d) if n == 1 else str(d).zfill(2) if n == 2 else (DAYS[wd - 1][:3] if n == 3 else DAYS[wd - 1]))
+                out.append(str(d) if n == 1 else str(d).zfill(2) if n == 2 else ((PERSIAN_DAYS if names else DAYS)[wd - 1][: 3 if not names else None] if n == 3 else (PERSIAN_DAYS if names else DAYS)[wd - 1]))
             elif c == "h":
                 h = hh % 12 or 12 if ampm else hh
                 out.append(str(h).zfill(n))
@@ -226,11 +228,11 @@ def _format_date(v: float, sec: str, date1904: bool) -> str:
                 elif n == 2:
                     out.append(str(mo).zfill(2))
                 elif n == 3:
-                    out.append(MONTHS[mo - 1][:3])
+                    out.append((names or MONTHS)[mo - 1][: None if names else 3])
                 elif n == 4:
-                    out.append(MONTHS[mo - 1])
+                    out.append((names or MONTHS)[mo - 1])
                 else:
-                    out.append(MONTHS[mo - 1][0])
+                    out.append((names or MONTHS)[mo - 1][0])
         else:
             out.append(m.group("ch") or "")
     return "".join(out)

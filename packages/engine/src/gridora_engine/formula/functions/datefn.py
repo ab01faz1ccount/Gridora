@@ -5,11 +5,14 @@ import re
 from datetime import date
 from typing import Any
 
+from .. import calendars as CAL
 from .. import xlerrors as E
+from ..calendars import normalize
 from ..dates import (
-    add_months,
+    cal_to_serial,
     days_in_month,
     is_leap,
+    serial_to_cal,
     serial_to_ymd,
     split_time,
     weekday,
@@ -24,10 +27,14 @@ def _d1904(ctx: Any) -> bool:
     return bool(ctx.env.date1904)
 
 
+def _cal(ctx: Any) -> str:
+    return normalize(getattr(ctx.env, "calendar", "gregorian"))
+
+
 def _serial_arg(ctx: Any, a: Any) -> float:
     v = scalar(ctx, a)
     if isinstance(v, str):
-        s = parse_date_text(v, _d1904(ctx))
+        s = parse_date_text(v, _d1904(ctx), _cal(ctx))
         if s is None:
             raise XlRaise(E.VALUE)
         return s
@@ -37,25 +44,29 @@ def _serial_arg(ctx: Any, a: Any) -> float:
     return x
 
 
+_DIGITS = {**{0x06F0 + i: 0x30 + i for i in range(10)}, **{0x0660 + i: 0x30 + i for i in range(10)}}  # Persian/Arabic-Indic
 _ISO = re.compile(r"^\s*(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*$")
 _MDY = re.compile(r"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$")
 _TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?\s*$", re.IGNORECASE)
 
 
-def parse_date_text(s: str, date1904: bool = False) -> float | None:
+def parse_date_text(s: str, date1904: bool = False, cal: str = "gregorian") -> float | None:
+    s = s.translate(_DIGITS)
     m = _ISO.match(s)
     if m:
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if not (1 <= mo <= 12 and 1 <= d <= days_in_month(y, mo)):
+        # in Jalali/Hijri mode a year that is clearly Gregorian (>= 1700) is still read as Gregorian
+        c = "gregorian" if cal != "gregorian" and y >= 1700 else cal
+        if not (1 <= mo <= 12 and 1 <= d <= CAL.days_in_month(c, y, mo)):
             return None
-        ser = ymd_to_serial(y, mo, d, date1904)
+        ser = cal_to_serial(y, mo, d, c, date1904)
         if ser is None:
             return None
         if m.group(4):
             ser += (int(m.group(4)) * 3600 + int(m.group(5)) * 60 + int(m.group(6) or 0)) / 86400
         return ser
     m = _MDY.match(s)
-    if m:
+    if m and cal == "gregorian":
         mo, d, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if not (1 <= mo <= 12 and 1 <= d <= days_in_month(y, mo)):
             return None
@@ -83,7 +94,7 @@ def parse_time_text(s: str) -> float | None:
 def f_date(ctx: Any, y: Any, m: Any, d: Any) -> float:
     yy, mm, dd = integer(ctx, y), integer(ctx, m), integer(ctx, d)
     # day overflow: go through the first of the month so months roll first
-    base = ymd_to_serial(yy, mm, 1, _d1904(ctx))
+    base = cal_to_serial(yy, mm, 1, _cal(ctx), _d1904(ctx))
     if base is None:
         raise XlRaise(E.NUM)
     s = base + (dd - 1)
@@ -104,17 +115,17 @@ def f_now(ctx: Any) -> float:
 
 @fn("YEAR", 1, 1)
 def f_year(ctx: Any, a: Any) -> float:
-    return float(serial_to_ymd(_serial_arg(ctx, a), _d1904(ctx))[0])
+    return float(serial_to_cal(_serial_arg(ctx, a), _cal(ctx), _d1904(ctx))[0])
 
 
 @fn("MONTH", 1, 1)
 def f_month(ctx: Any, a: Any) -> float:
-    return float(serial_to_ymd(_serial_arg(ctx, a), _d1904(ctx))[1])
+    return float(serial_to_cal(_serial_arg(ctx, a), _cal(ctx), _d1904(ctx))[1])
 
 
 @fn("DAY", 1, 1)
 def f_day(ctx: Any, a: Any) -> float:
-    return float(serial_to_ymd(_serial_arg(ctx, a), _d1904(ctx))[2])
+    return float(serial_to_cal(_serial_arg(ctx, a), _cal(ctx), _d1904(ctx))[2])
 
 
 @fn("HOUR", 1, 1)
@@ -142,7 +153,7 @@ def f_time(ctx: Any, h: Any, m: Any, s: Any) -> float:
 
 @fn("DATEVALUE", 1, 1)
 def f_datevalue(ctx: Any, a: Any) -> float:
-    s = parse_date_text(text(ctx, a), _d1904(ctx))
+    s = parse_date_text(text(ctx, a), _d1904(ctx), _cal(ctx))
     if s is None:
         raise XlRaise(E.VALUE)
     return float(math.floor(s))
@@ -178,9 +189,10 @@ def f_weekday(ctx: Any, a: Any, t: Any = None) -> float:
 @fn("EDATE", 2, 2)
 def f_edate(ctx: Any, a: Any, m: Any) -> float:
     s = _serial_arg(ctx, a)
-    y, mo, d = serial_to_ymd(s, _d1904(ctx))
-    ny, nm, nd = add_months(y, mo, d, integer(ctx, m))
-    r = ymd_to_serial(ny, nm, nd, _d1904(ctx))
+    cal = _cal(ctx)
+    y, mo, d = serial_to_cal(s, cal, _d1904(ctx))
+    ny, nm, nd = CAL.add_months(cal, y, mo, d, integer(ctx, m))
+    r = cal_to_serial(ny, nm, nd, cal, _d1904(ctx))
     if r is None:
         raise XlRaise(E.NUM)
     return r
@@ -189,9 +201,10 @@ def f_edate(ctx: Any, a: Any, m: Any) -> float:
 @fn("EOMONTH", 2, 2)
 def f_eomonth(ctx: Any, a: Any, m: Any) -> float:
     s = _serial_arg(ctx, a)
-    y, mo, _d = serial_to_ymd(s, _d1904(ctx))
-    ny, nm, _ = add_months(y, mo, 1, integer(ctx, m))
-    r = ymd_to_serial(ny, nm, days_in_month(ny, nm), _d1904(ctx))
+    cal = _cal(ctx)
+    y, mo, _d = serial_to_cal(s, cal, _d1904(ctx))
+    ny, nm, _ = CAL.add_months(cal, y, mo, 1, integer(ctx, m))
+    r = cal_to_serial(ny, nm, CAL.days_in_month(cal, ny, nm), cal, _d1904(ctx))
     if r is None:
         raise XlRaise(E.NUM)
     return r
@@ -224,8 +237,9 @@ def f_datedif(ctx: Any, a: Any, b: Any, unit: Any) -> float:
     if s > e:
         raise XlRaise(E.NUM)
     u = text(ctx, unit).upper()
-    y1, m1, d1 = serial_to_ymd(s, _d1904(ctx))
-    y2, m2, d2 = serial_to_ymd(e, _d1904(ctx))
+    cal = _cal(ctx)
+    y1, m1, d1 = serial_to_cal(s, cal, _d1904(ctx))
+    y2, m2, d2 = serial_to_cal(e, cal, _d1904(ctx))
     months = (y2 - y1) * 12 + (m2 - m1) - (1 if d2 < d1 else 0)
     if u == "D":
         return float(e - s)
@@ -238,17 +252,13 @@ def f_datedif(ctx: Any, a: Any, b: Any, unit: Any) -> float:
             return float(d2 - d1)
         pm = m2 - 1 or 12
         py = y2 if m2 > 1 else y2 - 1
-        return float(days_in_month(py, pm) - d1 + d2)
+        return float(CAL.days_in_month(cal, py, pm) - d1 + d2)
     if u == "YM":
         return float(months % 12)
     if u == "YD":
         ay = y2 if (m2, d2) >= (m1, d1) else y2 - 1
-        try:
-            anniv = date(ay, m1, d1)
-        except ValueError:
-            anniv = date(ay, m1, 28)
-        end = date(y2, m2, d2) if d2 else date(y2, m2, 1)
-        return float((end - anniv).days)
+        anniv = CAL.to_ordinal(cal, ay, m1, min(d1, CAL.days_in_month(cal, ay, m1)))
+        return float(CAL.to_ordinal(cal, y2, m2, d2 or 1) - anniv)
     raise XlRaise(E.NUM)
 
 
@@ -397,3 +407,32 @@ def f_yearfrac(ctx: Any, a: Any, b: Any, basis: Any = None) -> float:
         total = sum(366 if is_leap(y) else 365 for y in range(y1, y2 + 1))
         return (e - s) / (total / (y2 - y1 + 1))
     raise XlRaise(E.NUM)
+
+
+# -- explicit calendar functions: work in every mode -------------------------------------------------------
+def _explicit(prefix: str, cal: str) -> None:
+    @fn(f"{prefix}YEAR", 1, 1)
+    def _y(ctx: Any, a: Any) -> float:
+        return float(serial_to_cal(math.floor(_serial_arg(ctx, a)), cal, _d1904(ctx))[0])
+
+    @fn(f"{prefix}MONTH", 1, 1)
+    def _m(ctx: Any, a: Any) -> float:
+        return float(serial_to_cal(math.floor(_serial_arg(ctx, a)), cal, _d1904(ctx))[1])
+
+    @fn(f"{prefix}DAY", 1, 1)
+    def _d(ctx: Any, a: Any) -> float:
+        return float(serial_to_cal(math.floor(_serial_arg(ctx, a)), cal, _d1904(ctx))[2])
+
+    @fn(f"{prefix}DATE", 3, 3)
+    def _date(ctx: Any, y: Any, m: Any, d: Any) -> float:
+        base = cal_to_serial(integer(ctx, y), integer(ctx, m), 1, cal, _d1904(ctx))
+        if base is None:
+            raise XlRaise(E.NUM)
+        s = base + (integer(ctx, d) - 1)
+        if s < 0 or s > 2958465:
+            raise XlRaise(E.NUM)
+        return s
+
+
+_explicit("J", "jalali")  # JYEAR JMONTH JDAY JDATE
+_explicit("H", "hijri")  # HYEAR HMONTH HDAY HDATE

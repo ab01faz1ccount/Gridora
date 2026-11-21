@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from xml.parsers import expat
 
 from ..errors import import_failed
+from ..formula.parser import to_file_formula
 from ..model.edits import key_of
 from ..model.values import BOOL, ERR, ERR_CODES, NUM, STR, StringTable
 from ..model.workbook import SheetState
@@ -35,7 +36,7 @@ def cell_xml(
 ) -> bytes | None:
     """XML of one cell, or None when the cell is empty, unstyled and has no formula."""
     attrs = f' r="{col_letters(c)}{r + 1}"' + (f' s="{style}"' if style else "")
-    f = f"<f>{xml_escape(formula)}</f>" if formula else ""
+    f = f"<f>{xml_escape(to_file_formula(formula))}</f>" if formula else ""
     if tag == NUM:
         body = f'<c{attrs}>{f}<v>{_num(val)}</v></c>'
     elif tag == STR:

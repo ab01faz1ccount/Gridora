@@ -50,9 +50,11 @@ def split_fk(fk: int) -> tuple[int, int, int]:
 
 
 class Calculator:
-    def __init__(self, state: WorkbookState, now: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, state: WorkbookState, now: Callable[[], datetime] | None = None,
+                 calendar: str = "gregorian") -> None:
         self.state = state
         self.now = now
+        self.calendar = calendar
         self.env = WorkbookEnv(state, self)
         self.built = False
         self.asts: dict[int, Node] = {}

@@ -57,11 +57,12 @@ class Ctx:
     col: int
     arr: bool = False
     depth: int = 0  # defined-name expansion depth
+    scope: dict[str, Any] | None = None  # LET / LAMBDA bindings (upper-case names)
 
     # -- used by functions ------------------------------------------------------------------------
     def ev(self, node: Node, arr: bool | None = None) -> Any:
         return evaluate(node, self if arr is None or arr == self.arr else
-                        Ctx(self.env, self.sheet, self.row, self.col, arr, self.depth))
+                        Ctx(self.env, self.sheet, self.row, self.col, arr, self.depth, self.scope))
 
     def scalar(self, v: Any) -> Scalar:
         return to_scalar(v, self)
@@ -91,6 +92,8 @@ def to_scalar(v: Any, ctx: Ctx) -> Scalar:
 
 def final_value(v: Any, ctx: Ctx) -> Scalar:
     """Value stored in the formula cell (top-left of any matrix, as before spill support)."""
+    if isinstance(v, LambdaVal):
+        return E.CALC  # a lambda that is never called cannot be shown in a cell
     if isinstance(v, RangeVal):
         return v.at(0, 0) if v.nrows and v.ncols else E.VALUE
     if isinstance(v, Arr):
@@ -179,6 +182,8 @@ def _raise(e: XlError) -> Any:
 
 def eval_name(node: Name, ctx: Ctx) -> Any:
     n = node.name.upper()
+    if ctx.scope is not None and n in ctx.scope:
+        return ctx.scope[n]
     if n in ("TRUE", "FALSE"):
         return n == "TRUE"
     if ctx.depth > 16:
@@ -190,7 +195,7 @@ def eval_name(node: Name, ctx: Ctx) -> Any:
         parsed = parse_cached(target)
         if parsed is None:
             return E.NAME
-        sub = Ctx(ctx.env, ctx.sheet, ctx.row, ctx.col, ctx.arr, ctx.depth + 1)
+        sub = Ctx(ctx.env, ctx.sheet, ctx.row, ctx.col, ctx.arr, ctx.depth + 1)  # a defined name never sees LET variables
         return evaluate(parsed, sub)
     return resolve_ref(target, ctx)
 
@@ -357,7 +362,34 @@ def eval_range_op(node: Binary, ctx: Ctx) -> Any:
 
 
 # -- function calls ------------------------------------------------------------------------------------------
+@dataclass(slots=True)
+class LambdaVal:
+    params: list[str]
+    body: Node
+    scope: dict[str, Any] | None
+
+
+def call_lambda(lam: LambdaVal, ctx: Ctx, args: list[Any]) -> Any:
+    if len(args) > len(lam.params):
+        raise XlRaise(E.VALUE)
+    scope = dict(lam.scope or {})
+    for i, p in enumerate(lam.params):
+        scope[p] = args[i] if i < len(args) else None
+    sub = Ctx(ctx.env, ctx.sheet, ctx.row, ctx.col, ctx.arr, ctx.depth + 1, scope)
+    if sub.depth > 200:
+        raise XlRaise(E.NUM)
+    return evaluate(lam.body, sub)
+
+
 def call_function(node: Func, ctx: Ctx) -> Any:
+    if ctx.scope is not None and node.name in ctx.scope:
+        fv = ctx.scope[node.name]
+        if not isinstance(fv, LambdaVal):
+            return E.VALUE
+        try:
+            return call_lambda(fv, ctx, [evaluate(a, ctx) for a in node.args])
+        except XlRaise as e:
+            return e.err
     spec = REGISTRY.get(node.name)
     if spec is None:
         return E.NAME
@@ -367,7 +399,7 @@ def call_function(node: Func, ctx: Ctx) -> Any:
     try:
         if spec.lazy:
             return spec.fn(ctx, node.args)
-        sub = ctx if (not spec.arr or ctx.arr) else Ctx(ctx.env, ctx.sheet, ctx.row, ctx.col, True, ctx.depth)
+        sub = ctx if (not spec.arr or ctx.arr) else Ctx(ctx.env, ctx.sheet, ctx.row, ctx.col, True, ctx.depth, ctx.scope)
         args = [evaluate(a, sub) for a in node.args]
         return spec.fn(sub, *args)
     except XlRaise as e:
