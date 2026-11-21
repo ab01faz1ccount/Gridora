@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from gridora_contracts.models import ApiError, Job
+from gridora_contracts.models import ApiError, CompatibilityReport, Job
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
+from ...core.errors import DomainError
 from ...db.models import JobRow
 from ...db.repos.owned import get_owned
 from ...db.session import get_db
@@ -35,3 +36,18 @@ async def get_job(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Envelope[Job]:
     return ok(request, job_out(await get_owned(db, JobRow, ctx.user.id, id)))
+
+
+@router.get("/jobs/{id}/compatibility", response_model=Envelope[CompatibilityReport])
+async def get_job_compatibility(
+    id: str,
+    request: Request,
+    ctx: Annotated[AuthContext, Depends(auth)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Envelope[CompatibilityReport]:
+    """The export report of a finished export job (what was approximated or dropped)."""
+    j = await get_owned(db, JobRow, ctx.user.id, id)
+    report = j.payload.get("report") if j.kind == "export" else None
+    if not report:
+        raise DomainError("not_found", "No compatibility report is available.")
+    return ok(request, CompatibilityReport.model_validate(report))

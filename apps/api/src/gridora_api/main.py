@@ -20,7 +20,7 @@ from .core.middleware import RequestContextMiddleware
 from .core.ratelimit import LoginLimiter
 from .core.readiness import ReadinessRegistry, storage_writable_check
 from .db.session import make_engine, make_sessionmaker
-from .jobs.handlers import make_import_handler, make_operation_handler
+from .jobs.handlers import make_export_handler, make_import_handler, make_operation_handler
 from .jobs.runner import PostgresJobRunner
 from .services import auth as auth_service
 from .services.passwords import Hasher
@@ -93,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         {
             "import": make_import_handler(app.state),
             "operation": make_operation_handler(app.state),
+            "export": make_export_handler(app.state),
         },
         poll_interval=settings.job_poll_interval_seconds,
         max_concurrent=settings.max_concurrent_jobs,

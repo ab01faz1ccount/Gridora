@@ -167,6 +167,13 @@ class DateColumns(_Base):
     columns: list[DateColumn]
 
 
+class ExportRequest(_Base):
+    """v0.6.1: POST /workbooks/{id}/export. csv needs sheet_id (one sheet per file)."""
+
+    format: Literal["xlsx", "csv"]
+    sheet_id: Optional[str] = None
+
+
 class SetCalendarRequest(_Base):
     calendar: Literal["jalali", "gregorian", "hijri"]
 
@@ -212,7 +219,7 @@ class FileRecord(_Base):
     id: str
     workspace_id: str
     owner_id: str
-    kind: Literal["workbook", "table", "original"]
+    kind: Literal["workbook", "table", "original", "export"]  # "export": v0.6.1
     display_name: str
     size_bytes: int
     sha256: str

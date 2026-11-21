@@ -49,6 +49,11 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 
 ## 4. Jobs
 
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/jobs/{id}` | job status (below) |
+| GET | `/jobs/{id}/compatibility` | v0.6.1: the export `CompatibilityReport` of a finished export job; 404 for other jobs |
+
 `GET /jobs/{id}` → `{ id, kind:"import"|"export"|"operation", status:"queued"|"running"|"succeeded"|"failed", progress?:number, result_ref?:string, error?:ApiError }`
 
 ## 5. Workbooks
@@ -61,8 +66,8 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | PATCH | `/workbooks/{id}/sheets/{sheet_id}/cells` | body `{ edits: [{r,c,value?|formula?}] }` → one history entry |
 | GET | `/workbooks/{id}/sheets/{sheet_id}/date-columns` | v0.6.0: `DateColumns` (columns that hold dates; detection only) |
 | PUT | `/workbooks/{id}/calendar` | v0.6.0: body `{ calendar: "jalali"|"gregorian"|"hijri" }` → `Workbook`; a view option, no history entry |
-| POST | `/workbooks/{id}/save` | writes a new version; returns `FileRecord` |
-| POST | `/workbooks/{id}/export` | `{format:"xlsx"|"csv", sheet_id?}` → job; includes export `CompatibilityReport` |
+| POST | `/workbooks/{id}/save` | writes a new xlsx version (kind `workbook`, parent = previous version) and bakes history in; returns `FileRecord` |
+| POST | `/workbooks/{id}/export` | `{format:"xlsx"|"csv", sheet_id?}` → 202 `Job`; `result_ref` is the file id (`GET /files/{id}/download`, kind `export`); the export `CompatibilityReport` is at `GET /jobs/{id}/compatibility`; csv needs `sheet_id` |
 | GET | `/workbooks/{id}/compatibility` | latest report |
 
 ## 6. Data Tables
