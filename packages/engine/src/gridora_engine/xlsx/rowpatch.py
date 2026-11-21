@@ -32,11 +32,13 @@ def _num(v: float) -> str:
 
 
 def cell_xml(
-    r: int, c: int, tag: int, val: float, style: int, formula: str | None, strings: StringTable
+    r: int, c: int, tag: int, val: float, style: int, formula: str | None, strings: StringTable,
+    array_ref: str | None = None,
 ) -> bytes | None:
     """XML of one cell, or None when the cell is empty, unstyled and has no formula."""
     attrs = f' r="{col_letters(c)}{r + 1}"' + (f' s="{style}"' if style else "")
-    f = f"<f>{xml_escape(to_file_formula(formula))}</f>" if formula else ""
+    fa = f' t="array" ref="{array_ref}"' if array_ref else ""
+    f = f"<f{fa}>{xml_escape(to_file_formula(formula))}</f>" if formula else ""
     if tag == NUM:
         body = f'<c{attrs}>{f}<v>{_num(val)}</v></c>'
     elif tag == STR:
@@ -136,6 +138,18 @@ def check_fragment(xml: bytes) -> None:
     xmlsafe.parse(xml, max_depth=8, namespaces=False)
 
 
+def _array_ref(sheet: SheetState, key: int) -> str | None:
+    """`A1:B2` for the anchor of an array formula (so the rewritten cell stays an array formula)."""
+    if sheet.fkind.get(key) != 4:
+        return None
+    r, c = key >> 14, key & 0x3FFF
+    for r0, c0, r1, c1 in sheet.array_ranges:
+        if (r0, c0) == (r, c):
+            a = f"{col_letters(c0)}{r0 + 1}"
+            return a if (r0, c0) == (r1, c1) else f"{a}:{col_letters(c1)}{r1 + 1}"
+    return None
+
+
 def sheet_chunks(
     src: SheetSource, sheet: SheetState, strings: StringTable, new_dimension: str | None
 ) -> Iterator[bytes]:
@@ -146,7 +160,8 @@ def sheet_chunks(
     for key in sorted(sheet.dirty):
         r, c = key >> 14, key & 0x3FFF
         tag, val, style = sheet.store.get(r, c)
-        by_row.setdefault(r, {})[c] = cell_xml(r, c, tag, val, style, sheet.formulas.get(key), strings)
+        by_row.setdefault(r, {})[c] = cell_xml(r, c, tag, val, style, sheet.formulas.get(key), strings,
+                                               _array_ref(sheet, key))
     rects = sheet.bulk_rects  # rectangles written in bulk: every cell inside is regenerated
     rect_rows: set[int] = set()
     for r0, _c0, r1, _c1 in rects:
@@ -159,7 +174,8 @@ def sheet_chunks(
                 for c in range(c0, c1 + 1):
                     if c not in cols:
                         tag, val, style = sheet.store.get(r, c)
-                        cols[c] = cell_xml(r, c, tag, val, style, sheet.formulas.get(key_of(r, c)), strings)
+                        k = key_of(r, c)
+                        cols[c] = cell_xml(r, c, tag, val, style, sheet.formulas.get(k), strings, _array_ref(sheet, k))
         return cols
 
     self_closing = src.close_end == src.data_end

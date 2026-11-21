@@ -10,6 +10,7 @@ from gridora_contracts.models import CompatibilityReport
 
 from ..compat.report import Hit, build_report
 from ..errors import unsupported_workbook
+from ..formula.parser import Func, walk
 from ..limits import ResourceLimits
 from ..model.workbook import SheetState, WorkbookState
 from ..package.parts import PackageModel, Part, resolve_target
@@ -60,10 +61,7 @@ def export_xlsx_file(state: WorkbookState, path: Path, limits: ResourceLimits) -
             _add(hits, "xlsx.inline_strings", inline)
         formulas_total = sum(_formula_cells(s) for s in state.sheets)
         if formulas_total:
-            _add(hits, "xlsx.cached_values_stale", formulas_total, None)
-            for s in state.sheets:
-                if _formula_cells(s):
-                    hits["xlsx.cached_values_stale"].locations.append(s.name)
+            _formula_findings(state, hits)
             if _set_full_calc(model, parts):
                 _add(hits, "xlsx.full_calc_on_load_set")
         if _formulas_changed(edited) and _drop_calc_chain(model, parts):
@@ -78,6 +76,32 @@ def export_xlsx_file(state: WorkbookState, path: Path, limits: ResourceLimits) -
     write_parts(model, parts, path)
     PackageModel.open(path, limits).close()  # never leave a file our own reader cannot open
     return build_report("export", hits)
+
+
+_DATE_FUNCS = frozenset({"YEAR", "MONTH", "DAY", "DATE", "EDATE", "EOMONTH", "DATEDIF", "DATEVALUE", "TEXT"})
+
+
+def _formula_findings(state: WorkbookState, hits: dict[str, Hit]) -> None:
+    calc = state.calc
+    if calc is None or not calc.built:
+        return
+    f = calc.findings()
+    cannot = set(calc.frozen) | calc.stale
+    if cannot:
+        _add(hits, "xlsx.cached_values_stale", len(cannot))
+        locs = hits["xlsx.cached_values_stale"].locations
+        for fk in sorted(cannot):
+            name = state.sheets[fk >> 40].name
+            if name not in locs and len(locs) < 50:
+                locs.append(name)
+    if f["counts"].get("unsupported_function"):
+        _add(hits, "formula.unsupported_function", f["counts"]["unsupported_function"])
+    if f["circular"]:
+        _add(hits, "formula.circular", f["circular"])
+    if calc.calendar != "gregorian":
+        n = sum(1 for ast in calc.asts.values() if any(isinstance(x, Func) and x.name in _DATE_FUNCS for x in walk(ast)))
+        if n:
+            _add(hits, "formula.calendar_mode", n)
 
 
 def _source_of(sheet: SheetState) -> SheetSource:

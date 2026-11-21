@@ -52,20 +52,19 @@ XLSX import (`import_xlsx`, read-only so far):
   in pure Python (see BENCHMARKS.md).
 
 Edits (`apply_cell_edits`, `apply_delta`; CSV and XLSX workbooks, value edits only):
-- A `CellPatchDelta` carries before/after for exactly the edited cells (CC-4 semantics; there are no
-  formula dependents to add yet). `apply_delta(inverse=True/False)` restores/re-applies cell contents
+- A `CellPatchDelta` carries before/after for the edited cells **and every recalculated dependent** (CC-4 semantics); dependents on other sheets are in `others` (contract 0.5.0). `apply_delta(inverse=True/False)` restores/re-applies cell contents
   exactly (value, formula text, style id) and never recalculates. Edits are atomic: validation first,
   rollback on any failure (e.g. a cell/memory budget hit midway).
-- Rejected with `validation_failed` and a stable `reason`: formulas (`edit.formulas_unsupported`),
+- Formula text is parsed on entry: a syntax error is `edit.formula_syntax`; a value and a formula together is `edit.value_and_formula`; an unknown function evaluates to `#NAME?`.
+- Rejected with `validation_failed` and a stable `reason`:
   coordinates outside Excel's limits, NaN/infinity, texts over 32,767 characters, more than
   `max_patch_cells` (200,000) cells (`too_large_for_history`), dates in a workbook without a date format
   (`edit.date_needs_format`; otherwise the cell keeps its date style or gets the workbook's first one),
-  and **cells that belong to shared or array formulas** (`edit.protected_formula_cell`) until E7 can
-  translate them. Overwriting an ordinary formula cell with a value is allowed and undoable.
+  and **cells inside an array formula range or a data table** (`edit.protected_formula_cell`). Members of a shared formula group can be edited (the group is rewritten as plain formulas). Overwriting an ordinary formula cell with a value is allowed and undoable.
 - Lazy sheets: the 256-row blocks an edit touches are parsed first, and a later full re-parse keeps
   edits. `SheetState.dirty` tracks cells that differ from the imported file (basis of the E6 export);
   typing the original content back makes a cell clean again.
-- **Cached results of formulas are not updated** after an edit (no evaluator yet), so dependents show stale values.
+- **Formulas are recalculated** after edits (see ADR-016 and the Formulas section); cells that cannot be calculated keep their saved result and are reported.
 - `tests/roundtrip/test_replay_determinism.py` replays deltas on a fresh engine (through JSON) and
   compares full-workbook fingerprints at every step, including full undo/redo.
 
@@ -74,7 +73,7 @@ Edits (`apply_cell_edits`, `apply_delta`; CSV and XLSX workbooks, value edits on
 
 Stable error identifiers (`GridoraEngineError.code` = contract top-level code; `.reason` = detail code, via `to_detail()`):
 - `operation_conflict` / `too_large_for_history`: an edit or delta above `max_patch_cells` (default 200,000). Review 4: apps/api maps `exc.code` to the status and `exc.to_detail()` to the detail, as it already does for dataops.
-- `validation_failed` / `edit.protected_formula_cell`: the cell belongs to a shared or array formula (refused until E7). Other edit reasons: `edit.formulas_unsupported`, `edit.out_of_range`, `edit.invalid_number`, `edit.string_too_long`, `edit.date_needs_format`, `delta.out_of_range`, `delta.unsupported_kind`.
+- `validation_failed` / `edit.protected_formula_cell`: the cell belongs to an array formula or data table. Other edit reasons: `edit.formulas_unsupported`, `edit.out_of_range`, `edit.invalid_number`, `edit.string_too_long`, `edit.date_needs_format`, `delta.out_of_range`, `delta.unsupported_kind`.
 - `unsupported_workbook` / `xlsx.legacy_xls` (old binary .xls), `xlsx.encrypted` (password-protected OOXML), `xlsx.encrypted_or_legacy` (other OLE2), `xlsx.strict_ooxml`. Messages are fixed English text; apps should map the reason to a localized message.
 
 Corpus: `tests/corpus/` runs every file in `corpus/` (Apache POI workbooks, the private plain files, the softwiro
@@ -139,3 +138,11 @@ Known limitations:
 
 Dev: `pip install -e contracts/python -e "packages/engine[dev]"`, then `ruff check`, `mypy src`, `pytest`.
 Proposed CI: `ci/engine.yml.proposed`.
+
+
+## Formulas (E7, ADR-016)
+- Pure-Python parser/evaluator (`gridora_engine.formula`) and dependency-graph calculator (`gridora_engine.calc`). About 400 functions; unknown ones give `#NAME?` when typed and keep their saved result when imported (reported).
+- `Engine.apply_cell_edits` recalculates dependents (same and other sheets) and returns them in the delta; `Engine.recalculate` does a full recalculation. Cycles keep their cached value. `TODAY/NOW/RAND/RANDBETWEEN/INDIRECT/OFFSET` recalculate every time (`engine.now` is a test hook).
+- **Calendar:** `create_engine({"calendar": "jalali"})` is the default; `gregorian` and `hijri` are available, and `Engine.set_calendar(handle, mode)` switches and recalculates. `Engine.detect_date_columns(handle, sheet_id)` returns date columns (`kind`: `serial` or `text`, `calendar`, counts). Explicit functions `JYEAR/JMONTH/JDAY/JDATE`, `HYEAR/HMONTH/HDAY/HDATE` ignore the mode.
+- Oracle test: `tests/corpus/test_formula_oracle.py` recalculates every corpus formula and compares it with Excel's cached value (the private payroll workbook must match exactly).
+- Not done yet: see the known gaps in ADR-016.

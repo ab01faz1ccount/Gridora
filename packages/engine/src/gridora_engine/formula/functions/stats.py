@@ -131,9 +131,15 @@ def f_mode(ctx: Any, *args: Any) -> float:
     raise XlRaise(E.NA)
 
 
+def _kth_values(ctx: Any, a: Any) -> list[float]:
+    if is_matrix(a):
+        return _mat_numbers(a)
+    return [num(ctx, a)]  # a scalar argument is coerced like any other (TRUE -> 1, "2.3" -> 2.3)
+
+
 @fn("LARGE", 2, 2)
 def f_large(ctx: Any, a: Any, k: Any) -> float:
-    v = sorted(_mat_numbers(a), reverse=True)
+    v = sorted(_kth_values(ctx, a), reverse=True)
     n = math.ceil(num(ctx, k))
     if n < 1 or n > len(v):
         raise XlRaise(E.NUM)
@@ -142,7 +148,7 @@ def f_large(ctx: Any, a: Any, k: Any) -> float:
 
 @fn("SMALL", 2, 2)
 def f_small(ctx: Any, a: Any, k: Any) -> float:
-    v = sorted(_mat_numbers(a))
+    v = sorted(_kth_values(ctx, a))
     n = math.ceil(num(ctx, k))
     if n < 1 or n > len(v):
         raise XlRaise(E.NUM)

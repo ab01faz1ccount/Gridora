@@ -165,8 +165,7 @@ def test_edit_in_workbook_with_formulas_reports_stale_values_and_sets_full_calc(
     out = tmp_path / "out.xlsx"
     rep = eng.export_xlsx(h, out)
     c = codes(rep)
-    assert "20" in c["xlsx.cached_values_stale"].message and c["xlsx.cached_values_stale"].location == "Sheet1"
-    assert "every formula cell" in c["xlsx.cached_values_stale"].message
+    assert "xlsx.cached_values_stale" not in c  # everything was recalculated by Gridora
     assert "xlsx.full_calc_on_load_set" in c
     assert b'fullCalcOnLoad="1"' in read_parts(out)["xl/workbook.xml"]
     assert 'calcPr calcId="191029" fullCalcOnLoad="1"' in read_parts(out)["xl/workbook.xml"].decode()
@@ -326,3 +325,36 @@ def test_undo_back_to_the_imported_state_exports_the_original_bytes(tmp_path):
     eng.export_xlsx(h, tmp_path / "o.xlsx")
     a, b = read_parts(src), read_parts(tmp_path / "o.xlsx")
     assert all(a[n] == b[n] for n in a)  # nothing is dirty again: a verbatim copy
+
+
+def _formula_wb(tmp_path, body):
+    rows = f'<row r="1"><c r="A1"><v>1</v></c>{body}</row>'
+    return make_xlsx(tmp_path / "f.xlsx", sheet_doc(rows))
+
+
+def test_unrecalculable_formulas_are_reported_as_stale(tmp_path):
+    eng = create_engine({})
+    h, wb, _ = eng.import_xlsx(_formula_wb(tmp_path, '<c r="B1"><f>NOSUCHFN(A1)</f><v>7</v></c><c r="C1"><f>B1+1</f><v>8</v></c>'))
+    eng.apply_cell_edits(h, wb.sheets[0].id, [num(0, 0, 2)])
+    c = codes(eng.export_xlsx(h, tmp_path / "o.xlsx"))
+    assert "xlsx.cached_values_stale" in c and "1 formula cell" in c["xlsx.cached_values_stale"].message
+    assert "formula.unsupported_function" in c
+
+
+def test_circular_formulas_are_reported(tmp_path):
+    eng = create_engine({})
+    h, wb, _ = eng.import_xlsx(_formula_wb(tmp_path, '<c r="B1"><f>C1+1</f><v>1</v></c><c r="C1"><f>B1+1</f><v>2</v></c>'))
+    eng.apply_cell_edits(h, wb.sheets[0].id, [num(0, 0, 2)])
+    eng.recalculate(h)
+    assert "formula.circular" in codes(eng.export_xlsx(h, tmp_path / "o.xlsx"))
+
+
+def test_calendar_mode_is_reported_for_date_formulas(tmp_path):
+    eng = create_engine({})  # Jalali by default
+    h, wb, _ = eng.import_xlsx(_formula_wb(tmp_path, '<c r="B1"><f>YEAR(A1)</f><v>1900</v></c>'))
+    eng.apply_cell_edits(h, wb.sheets[0].id, [num(0, 0, 45371)])
+    assert "formula.calendar_mode" in codes(eng.export_xlsx(h, tmp_path / "o.xlsx"))
+    eng2 = create_engine({"calendar": "gregorian"})
+    h2, wb2, _ = eng2.import_xlsx(_formula_wb(tmp_path, '<c r="B1"><f>YEAR(A1)</f><v>1900</v></c>'))
+    eng2.apply_cell_edits(h2, wb2.sheets[0].id, [num(0, 0, 45371)])
+    assert "formula.calendar_mode" not in codes(eng2.export_xlsx(h2, tmp_path / "o2.xlsx"))
