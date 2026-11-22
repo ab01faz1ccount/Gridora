@@ -16,7 +16,10 @@ TOOL: dict[str, object] = {
         "name": "p",
         "input_kind": "sheet_range",
         "steps": [
-            {"type": "sort", "params": {"keys": [{"column": {"$input": "col"}, "direction": "asc"}]}}
+            {
+                "type": "sort",
+                "params": {"keys": [{"column": {"$input": "col"}, "direction": "asc"}]},
+            }
         ],
     },
     "inputs": [{"name": "col", "kind": "column", "label": "column"}],

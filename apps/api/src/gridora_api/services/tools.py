@@ -24,7 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.errors import DomainError
-from ..db.models import ToolRow, WorkbookRow
+from ..db.models import ToolRow
 from ..db.repos.owned import get_owned
 from . import history as history_service
 from . import operations as ops_service
