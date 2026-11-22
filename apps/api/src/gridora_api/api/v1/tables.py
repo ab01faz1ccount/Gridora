@@ -66,7 +66,7 @@ async def get_rows(
     limit: Annotated[int, Query(ge=1, le=table_service.MAX_PAGE)] = 100,
     sort: Annotated[str | None, Query(max_length=300)] = None,
 ) -> Envelope[TableRows]:
-    """`sort`: a column name, or `-name` for descending (text sorts with the Persian-aware order)."""
+    """`sort`: a column name, or `-name` for descending (Persian-aware text order)."""
     res = await table_service.read_rows(
         db, request.app.state, ctx.user.id, id, offset, limit, sort
     )

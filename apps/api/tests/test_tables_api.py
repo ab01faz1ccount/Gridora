@@ -82,7 +82,8 @@ def test_table_from_a_sheet_range_preview_then_create(tuser: Session) -> None:
     assert [c.name for c in prev.columns] == ["نام", "تعداد", "شهر"] and prev.row_count == 2
 
     ws = tuser.get("/api/v1/workspaces").json()["data"][0]["id"]  # Doc made the only workspace
-    assert tuser.get(f"/api/v1/workspaces/{ws}/tables").json()["data"] == []  # preview stored nothing
+    stored = tuser.get(f"/api/v1/workspaces/{ws}/tables").json()["data"]
+    assert stored == []  # the preview stored nothing
     r = tuser.post("/api/v1/tables/from-range", json={**body, "name": "From sheet"})
     assert r.status_code == 200, r.text
     t = DataTable.model_validate(r.json()["data"])

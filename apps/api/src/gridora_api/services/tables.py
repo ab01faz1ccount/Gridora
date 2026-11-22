@@ -123,10 +123,7 @@ async def _register(
 
 def remove_table_files(layout: StorageLayout, owner_id: uuid.UUID, ids: list[uuid.UUID]) -> None:
     for tid in ids:
-        try:
-            shutil.rmtree(layout.table_path(str(owner_id), str(tid), 1).parent, ignore_errors=True)
-        except Exception:  # noqa: BLE001 - best effort
-            pass
+        shutil.rmtree(layout.table_path(str(owner_id), str(tid), 1).parent, ignore_errors=True)
 
 
 async def create_table(
