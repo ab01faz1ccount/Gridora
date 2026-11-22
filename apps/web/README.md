@@ -93,6 +93,9 @@ tuned, and 60 fps is **not** claimed.
   described in the person's language; operation names come from the server and are shown as given.
 - Conflict banner: when the server answers `version_conflict` the history and caches are reloaded, the last change is NOT saved, and a
   banner (not only a toast) says so until it is dismissed or the next change succeeds.
+- The grid is shown padded: at least 100 rows x 26 columns, and always 20 rows / 5 columns bigger than the data, so empty cells
+  outside the data can be typed into (the server answers empty windows there). Ctrl+End still goes to the last cell with data.
+- Verified in a real browser on the real engine: `e2e/real_stack.py` (28 checks, see `e2e/README.md`).
 - Known limits: the first keystroke of an IME composition (`key` = "Process") cannot open the editor; use F2 or double click.
   The screen updates when the server answers (no optimistic display). Editing a date cell and saving without changes is a no-op, but
   changing it makes text. No fill handle, no formatted (HTML) clipboard. Not run in a real browser or on the real engine.

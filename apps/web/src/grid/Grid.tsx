@@ -209,6 +209,8 @@ export function Grid({
   );
 
   const dims = { rowCount: source.rowCount, colCount: source.colCount, rtl,
+    lastRow: source.usedRows === undefined ? undefined : Math.max(0, source.usedRows - 1),
+    lastCol: source.usedCols === undefined ? undefined : Math.max(0, source.usedCols - 1),
     pageRows: Math.max(1, Math.floor(bodyH / ROW_H) - 1) };
 
   const scrollIntoView = useCallback(

@@ -27,7 +27,7 @@ function server() {
   const head = () => Math.max(0, ...history.filter((h) => !h.undone).map((h) => h.seq));
   return mockApi({
     "GET /workbooks/w1": () => ok(WORKBOOK),
-    "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [...cells.values()] }),
+    "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [...cells.values()] }),
     "GET /documents/w1/history?limit=100": () => ok([...history].reverse().map((h) => entry(h.seq, h.undone))),
     "PATCH /workbooks/w1/sheets/s1/cells": (call) => {
       const body = call.body as { base_seq: number; edits: { r: number; c: number; value?: Cell["v"]; formula?: string }[] };
@@ -108,7 +108,7 @@ describe("WorkbookPage editing", () => {
   it("an error from the server becomes a plain-language message, not server text", async () => {
     mockApi({
       "GET /workbooks/w1": () => ok(WORKBOOK),
-      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [] }),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
       "GET /documents/w1/history?limit=100": () => ok([]),
       "PATCH /workbooks/w1/sheets/s1/cells": () => err(422, "validation_failed"),
     });
@@ -125,7 +125,7 @@ describe("WorkbookPage editing", () => {
     let conflict = true;
     const api = mockApi({
       "GET /workbooks/w1": () => ok(WORKBOOK),
-      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [] }),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
       "GET /documents/w1/history?limit=100": () => ok([]),
       "PATCH /workbooks/w1/sheets/s1/cells": () => (conflict ? err(409, "version_conflict") : ok({ history_entry: entry(1), sheet_id: "s1", cells: [] })),
     });
@@ -148,7 +148,7 @@ describe("WorkbookPage editing", () => {
   it("the banner can be dismissed", async () => {
     mockApi({
       "GET /workbooks/w1": () => ok(WORKBOOK),
-      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [] }),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
       "GET /documents/w1/history?limit=100": () => ok([]),
       "PATCH /workbooks/w1/sheets/s1/cells": () => err(409, "version_conflict"),
     });
@@ -177,7 +177,7 @@ describe("WorkbookPage editing", () => {
       ({ ...entry(seq, undone), label, operation: { type: "set_cells", params }, created_at: "2026-11-22T10:00:00Z" });
     mockApi({
       "GET /workbooks/w1": () => ok(WORKBOOK),
-      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [] }),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
       "GET /documents/w1/history?limit=100": () => ok([]),
       "GET /documents/w1/history?limit=50": () => ok([withLabel(3, "Sort A to Z", true), withLabel(2, "history.cell_edit", false, { count: 4 })]),
     });
