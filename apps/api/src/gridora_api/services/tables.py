@@ -86,6 +86,11 @@ async def _run(fn: Any, *args: Any, **kw: Any) -> Any:
         raise mapped from None
 
 
+async def run_blocking(fn: Any, *args: Any) -> Any:
+    """A blocking store call in a worker thread; dataops errors become typed API errors."""
+    return await _run(fn, *args)
+
+
 def store_for(st: Any, owner_id: uuid.UUID) -> Any:
     """The table store bound to one owner (the contract methods without a context need it)."""
     store = st.services.table_store

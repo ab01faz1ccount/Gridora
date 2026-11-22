@@ -11,6 +11,7 @@ from ..db.models import JobRow, StoredFile
 from ..db.repos.owned import get_owned
 from ..services import exports as exports_service
 from ..services import operations as operations_service
+from ..services import table_history as table_history_service
 from ..services import tools as tools_service
 from ..services import workbooks as wb_service
 
@@ -48,6 +49,11 @@ def make_operation_handler(app_state: Any):  # type: ignore[no-untyped-def]
             )
             return str(seq)
         req = OperationRequest.model_validate(job.payload["request"])
+        if "table_id" in job.payload:  # an operation on a Data Table: a new version
+            tseq = await table_history_service.run_operation(
+                app_state, job.owner_id, job.payload["table_id"], req
+            )
+            return str(tseq)
         result = await operations_service.run_operation(
             app_state, job.owner_id, job.payload["doc_id"], req
         )
@@ -59,9 +65,14 @@ def make_operation_handler(app_state: Any):  # type: ignore[no-untyped-def]
 def make_export_handler(app_state: Any):  # type: ignore[no-untyped-def]
     async def handle(job: JobRow) -> str | None:
         req = ExportRequest.model_validate(job.payload["request"])
-        file_id, report = await exports_service.run_export(
-            app_state, job.owner_id, job.payload["doc_id"], req
-        )
+        if "table_id" in job.payload:
+            file_id, report = await exports_service.run_table_export(
+                app_state, job.owner_id, job.payload["table_id"], req
+            )
+        else:
+            file_id, report = await exports_service.run_export(
+                app_state, job.owner_id, job.payload["doc_id"], req
+            )
         async with app_state.sessionmaker() as db:  # keep the export report next to the job
             j = await db.get(JobRow, job.id)
             if j is not None:

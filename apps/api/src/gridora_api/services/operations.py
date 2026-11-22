@@ -68,10 +68,10 @@ async def verify_targets(
     if primary.range.sheet_id not in {s["id"] for s in doc.meta_json.get("sheets", [])}:
         raise DomainError("not_found")
     for t in op.extra_targets:
-        await _verify_one(db, owner_id, t)
+        await verify_one(db, owner_id, t)
 
 
-async def _verify_one(db: AsyncSession, owner_id: uuid.UUID, t: Target) -> None:
+async def verify_one(db: AsyncSession, owner_id: uuid.UUID, t: Target) -> None:
     if isinstance(t, SheetRangeTarget):
         rows = (
             await db.execute(select(WorkbookRow.meta_json).where(WorkbookRow.owner_id == owner_id))
