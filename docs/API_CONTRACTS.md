@@ -102,11 +102,11 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 
 ## 9. Tools (saved workflows)
 
-| Method | Path |
-|---|---|
-| GET/POST | `/tools` |
-| GET/PUT/DELETE | `/tools/{id}` |
-| POST | `/tools/{id}/run` — `{ target, inputs }` |
+| Method | Path | Notes |
+|---|---|---|
+| GET/POST | `/tools` | v0.6.5: `Tool`; validated statically (known operations, parameters, declared inputs); ≤ 200 per user |
+| GET/PUT/DELETE | `/tools/{id}` | |
+| POST | `/tools/{id}/run` | `ToolRunRequest {workbook_id, target, inputs, base_seq, confirm_destructive}` → 202 `Job` (kind `operation`; `result_ref` = the last history seq). Sheet-range tools on a workbook only; one history entry per step; a run that does not produce plain cell changes is rolled back (`tool.unsupported_output`) |
 
 ## 10. Charts
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import auth, charts, history, jobs, operations, tables, workbooks, workspaces
+from . import auth, charts, history, jobs, operations, tables, tools, workbooks, workspaces
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
@@ -15,3 +15,4 @@ api_router.include_router(history.router)
 api_router.include_router(operations.router)
 api_router.include_router(tables.router)
 api_router.include_router(charts.router)
+api_router.include_router(tools.router)

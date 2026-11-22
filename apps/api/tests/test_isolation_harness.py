@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from .conftest import Session, run_db
 from .helpers import import_csv
-from .isolation_cases import _CHART, ISOLATION_CASES
+from .isolation_cases import _CHART, ISOLATION_CASES, TOOL
 from .routes import implemented_routes
 
 
@@ -35,6 +35,7 @@ def test_every_case_is_404_for_another_user_and_changes_nothing(
     made = alice.post(f"/api/v1/documents/{ids['wb']}/charts", json=_CHART(ids))
     assert made.status_code == 201, made.text
     ids["chart"] = made.json()["data"]["id"]
+    ids["tool"] = _a_tool_of(alice)
     for key, case in ISOLATION_CASES.items():
         r = case(bob, ids)
         assert r.status_code == 404, f"{key}: another user got {r.status_code}"
@@ -82,3 +83,10 @@ def _a_table_of(owner: Session, workspace_id: str) -> str:
 
     run_db(go)
     return str(tid)
+
+
+def _a_tool_of(owner: Session) -> str:
+    """A saved tool; needs no engine data, only the stub executor's static validation."""
+    made = owner.post("/api/v1/tools", json=TOOL)
+    assert made.status_code == 201, made.text
+    return str(made.json()["data"]["id"])

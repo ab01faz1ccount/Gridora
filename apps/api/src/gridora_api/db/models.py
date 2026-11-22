@@ -191,6 +191,20 @@ class ChartRow(Base):
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
 
 
+class ToolRow(Base):
+    """A saved workflow (contract Tool): a pipeline with named inputs."""
+
+    __tablename__ = "tools"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    tool_json: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
 class JobRow(Base):
     __tablename__ = "jobs"
     __table_args__ = (
