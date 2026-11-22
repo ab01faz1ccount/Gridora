@@ -33,8 +33,7 @@ class _TableOnlyContext:
     def __init__(self, user_id: str, workspace_id: str, store: Any) -> None:
         self.user_id, self.workspace_id, self._store = user_id, workspace_id, store
 
-    @property
-    def table_store(self) -> Any:
+    def table_store(self) -> Any:  # a method in the ExecContext protocol
         return self._store
 
 
