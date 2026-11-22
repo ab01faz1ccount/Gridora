@@ -37,7 +37,7 @@ from .working_copies import Entry
 PREVIEW_LIMIT = 100
 
 
-def _details(errors: list[ValidationError]) -> list[ErrorDetail]:
+def details_of(errors: list[ValidationError]) -> list[ErrorDetail]:
     return [ErrorDetail(code=e.code, path=e.path, message=e.message, hint=e.hint) for e in errors]
 
 
@@ -145,7 +145,7 @@ async def preview(
     ctx = exec_context(st.services, row, entry)
     errors = await st.copies.call(entry, st.services.executor.validate, op, ctx)
     if errors:
-        raise DomainError("validation_failed", details=_details(errors))
+        raise DomainError("validation_failed", details=details_of(errors))
     result: PreviewResult = await st.copies.call(
         entry, st.services.executor.preview, op, ctx, PREVIEW_LIMIT
     )
@@ -175,7 +175,7 @@ async def run_operation(
         ctx = exec_context(st.services, row, entry)
         errors = await st.copies.call(entry, st.services.executor.validate, op, ctx)
         if errors:
-            raise DomainError("validation_failed", details=_details(errors))
+            raise DomainError("validation_failed", details=details_of(errors))
         result = await st.copies.call(entry, st.services.executor.apply, op, ctx)
         if result.status != "ok" or result.delta is None:
             raise DomainError(
@@ -183,7 +183,7 @@ async def run_operation(
                 details=[
                     ErrorDetail(code="operation.no_change", message="the operation changed nothing")
                 ]
-                + _details(list(result.errors)),
+                + details_of(list(result.errors)),
             )
         delta = result.delta
         h = await history_service.record_entry(db, st.copies, row, op, delta, desc.label)

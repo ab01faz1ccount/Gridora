@@ -10,6 +10,19 @@ Case = Callable[[Any, dict[str, str]], Any]
 
 CSV = {"file": ("x.csv", b"a,b\n1,2\n", "text/csv")}
 
+TOOL: dict[str, object] = {
+    "name": "sort by a column",
+    "pipeline": {
+        "name": "p",
+        "input_kind": "sheet_range",
+        "steps": [
+            {"type": "sort", "params": {"keys": [{"column": {"$input": "col"}, "direction": "asc"}]}}
+        ],
+    },
+    "inputs": [{"name": "col", "kind": "column", "label": "column"}],
+}
+
+
 def _CHART(ids: dict[str, str]) -> dict[str, object]:  # noqa: N802
     return {
         "document_id": ids["wb"],
@@ -101,6 +114,22 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("DELETE", "/api/v1/charts/{id}"): lambda c, ids: c.delete(f"/api/v1/charts/{ids['chart']}"),
     ("GET", "/api/v1/charts/{id}/data"): lambda c, ids: c.get(
         f"/api/v1/charts/{ids['chart']}/data"
+    ),
+    ("GET", "/api/v1/tools/{id}"): lambda c, ids: c.get(f"/api/v1/tools/{ids['tool']}"),
+    ("PUT", "/api/v1/tools/{id}"): lambda c, ids: c.put(
+        f"/api/v1/tools/{ids['tool']}", json=TOOL
+    ),
+    ("DELETE", "/api/v1/tools/{id}"): lambda c, ids: c.delete(f"/api/v1/tools/{ids['tool']}"),
+    ("POST", "/api/v1/tools/{id}/run"): lambda c, ids: c.post(
+        f"/api/v1/tools/{ids['tool']}/run",
+        json={
+            "workbook_id": ids["wb"],
+            "base_seq": 0,
+            "target": {
+                "kind": "sheet_range",
+                "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 1, "c1": 1},
+            },
+        },
     ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"

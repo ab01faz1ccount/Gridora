@@ -436,6 +436,17 @@ class Tool(_Base):
     created_at: Optional[datetime] = None
 
 
+class ToolRunRequest(_Base):
+    """v0.6.5: POST /tools/{id}/run (a job). Only sheet-range pipelines on a workbook for now;
+    every step becomes its own undoable history entry."""
+
+    workbook_id: str
+    target: Target
+    inputs: dict[str, Any] = {}
+    base_seq: int
+    confirm_destructive: bool = False
+
+
 # -------------------------------------------------------------- history ----
 class HistoryEntry(_Base):
     id: str

@@ -13,6 +13,7 @@ from gridora_api.main import create_app
 
 from .conftest import PASSWORD, ScanningClient, Session, fast_settings, forbidden_fragments
 from .e2e_kit import Doc
+from .helpers import wait_job
 
 pytest.importorskip("gridora_engine", reason="packages/engine is not installed")
 pytest.importorskip("gridora_dataops", reason="packages/dataops is not installed")
@@ -198,3 +199,85 @@ def test_chart_over_a_data_table(tuser: Session) -> None:
     data = tuser.get(f"/api/v1/charts/{r.json()['data']['id']}/data")
     assert data.status_code == 200, data.text
     assert data.json()["data"]["series"][0]["values"] == [3, 1, 2]
+
+
+# ------------------------------------------------------------------------------------- tools
+SORT_TOOL: dict[str, Any] = {
+    "name": "مرتب‌سازی",
+    "description": "sort by one column",
+    "pipeline": {
+        "name": "p",
+        "input_kind": "sheet_range",
+        "steps": [
+            {
+                "type": "sort",
+                "params": {"keys": [{"column": {"$input": "col"}, "direction": "desc"}]},
+            }
+        ],
+    },
+    "inputs": [{"name": "col", "kind": "column", "label": "ستون"}],
+}
+
+
+def test_tool_crud_and_static_validation(tuser: Session) -> None:
+    r = tuser.post("/api/v1/tools", json=SORT_TOOL)
+    assert r.status_code == 201, r.text
+    tool = r.json()["data"]
+    assert tool["id"] and tool["owner_id"] and tool["created_at"]
+    assert [t["id"] for t in tuser.get("/api/v1/tools").json()["data"]] == [tool["id"]]
+    assert tuser.get(f"/api/v1/tools/{tool['id']}").json()["data"]["name"] == "مرتب‌سازی"
+
+    renamed = {**SORT_TOOL, "name": "other"}
+    put = tuser.put(f"/api/v1/tools/{tool['id']}", json=renamed)
+    assert put.status_code == 200 and put.json()["data"]["name"] == "other"
+
+    unknown = {**SORT_TOOL, "pipeline": {**SORT_TOOL["pipeline"], "steps": [{"type": "nope"}]}}
+    bad = tuser.post("/api/v1/tools", json=unknown)
+    assert bad.status_code == 400 and bad.json()["error"]["code"] == "validation_failed"
+    empty = {**SORT_TOOL, "pipeline": {**SORT_TOOL["pipeline"], "steps": []}}
+    assert tuser.post("/api/v1/tools", json=empty).status_code == 400
+
+    assert tuser.delete(f"/api/v1/tools/{tool['id']}").status_code == 204
+    assert tuser.get(f"/api/v1/tools/{tool['id']}").status_code == 404
+
+
+def _run(tuser: Session, tool_id: str, d: Doc, inputs: dict[str, Any], base_seq: int = 0) -> Any:
+    body = {
+        "workbook_id": d.wb,
+        "base_seq": base_seq,
+        "inputs": inputs,
+        "target": {
+            "kind": "sheet_range",
+            "range": {"sheet_id": d.sheet, "r0": 0, "c0": 0, "r1": 2, "c1": 2},
+        },
+    }
+    return tuser.post(f"/api/v1/tools/{tool_id}/run", json=body)
+
+
+def test_running_a_tool_makes_an_undoable_history_entry(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    tid = tuser.post("/api/v1/tools", json=SORT_TOOL).json()["data"]["id"]
+    before = d.cells()
+    r = _run(tuser, tid, d, {"col": "تعداد"})
+    assert r.status_code == 202, r.text
+    job = wait_job(tuser, r.json()["data"]["id"])
+    assert job["status"] == "succeeded", job
+    assert job["result_ref"] == "1"
+    after = d.cells()
+    assert after[(1, 0)]["s"] == "رضا"  # 4.5 sorts first, descending
+
+    assert d.undo().status_code == 200
+    assert d.cells() == before
+    assert d.redo().status_code == 200
+    assert d.cells() == after
+
+
+def test_a_tool_run_with_a_bad_input_changes_nothing(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    tid = tuser.post("/api/v1/tools", json=SORT_TOOL).json()["data"]["id"]
+    before = d.cells()
+    job = wait_job(tuser, _run(tuser, tid, d, {"col": "no such column"}).json()["data"]["id"])
+    assert job["status"] == "failed", job
+    assert d.cells() == before and d.history().json()["data"] == []
+    stale = wait_job(tuser, _run(tuser, tid, d, {"col": "تعداد"}, base_seq=7).json()["data"]["id"])
+    assert stale["status"] == "failed"
