@@ -241,6 +241,8 @@ class CellParser:
         if not self._has_v:
             return 0, 0.0
         txt = "".join(self._vbuf).strip() if t != "str" else "".join(self._vbuf)
+        if txt == "" and self._has_f and t != "str":
+            return 0, 0.0  # a formula with an empty <v/> (openpyxl writes that): no saved result, computed on first read
         if t == "s":
             try:
                 i = int(txt)

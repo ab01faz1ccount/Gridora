@@ -103,7 +103,12 @@ class GridoraEngine:
     ) -> tuple[WorkbookHandle, Workbook, CompatibilityReport]:
         state = import_xlsx_file(path, self.limits, file_id)
         assert state.compat is not None
-        return self._new_handle(state), state.to_model(), state.compat
+        handle = self._new_handle(state)
+        if self._has_unsaved_results(state):
+            # The file holds formulas but no results (openpyxl and similar save none): compute them now,
+            # otherwise every such cell would be empty. Files that carry saved results are left as saved.
+            self.recalculate(handle)
+        return handle, state.to_model(), state.compat
 
     def import_csv(
         self, path: Path, options: CsvOptions, *, file_id: str | None = None
@@ -324,6 +329,10 @@ class GridoraEngine:
         if state.calc is None:
             state.calc = Calculator(state, self.now, self.calendar)
         return cast(Calculator, state.calc)
+
+    @staticmethod
+    def _has_unsaved_results(state: WorkbookState) -> bool:
+        return any(getattr(getattr(s.lazy, "source", None), "noval_count", 0) for s in state.sheets)
 
     @staticmethod
     def _has_formulas(state: WorkbookState) -> bool:

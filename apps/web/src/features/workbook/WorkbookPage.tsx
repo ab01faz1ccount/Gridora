@@ -1,4 +1,4 @@
-import type { SheetMeta } from "@contracts";
+import type { CellEdit, SheetMeta } from "@contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError } from "@/api/client";
@@ -14,6 +14,7 @@ import { columnLetters } from "@/grid/geometry";
 import { boundsOf, single, type Selection } from "@/grid/selection";
 import { cellRaw, summarize } from "@/grid/summary";
 import { CompatPanel } from "@/features/import/CompatPanel";
+import { HistoryPanel } from "./HistoryPanel";
 import { useT } from "@/i18n";
 import { formatNumber } from "@/i18n/format";
 import { usePrefs } from "@/state/prefs";
@@ -28,7 +29,11 @@ export function WorkbookPage({ id }: { id: string }) {
   const qc = useQueryClient();
   // One editor per open workbook: it owns the per-sheet caches, the undo state and the request queue.
   const editor = useMemo(
-    () => new WorkbookEditor(id, () => void qc.invalidateQueries({ queryKey: ["workbook", id] })),
+    () =>
+      new WorkbookEditor(id, () => {
+        void qc.invalidateQueries({ queryKey: ["workbook", id] });
+        void qc.invalidateQueries({ queryKey: ["history", id] });
+      }),
     [id, qc],
   );
   useEffect(() => () => editor.dispose(), [editor]);
@@ -64,6 +69,11 @@ export function WorkbookPage({ id }: { id: string }) {
       {panel === "report" && report ? (
         <aside className="wbs-panel" aria-label={t("shell.report")}>
           <CompatPanel report={report} onClose={() => setPanel(null)} />
+        </aside>
+      ) : null}
+      {panel === "history" ? (
+        <aside className="wbs-panel" aria-label={t("shell.history")}>
+          <HistoryPanel id={id} onClose={() => setPanel(null)} />
         </aside>
       ) : null}
       <footer className="wbs-bottom">
@@ -119,7 +129,15 @@ function WorkbookView({
   const multi = b.r0 !== b.r1 || b.c0 !== b.c1;
   const sum = (void version, summarize(cache, b));
 
-  const fail = (e: unknown) => push("error", e instanceof RangeError ? t("edit.rangeTooLarge") : t(errorKey(e)));
+  const fail = (e: unknown) => {
+    if (e instanceof ApiError && e.code === "version_conflict") return; // the banner says it, in more words
+    push("error", e instanceof RangeError ? t("edit.rangeTooLarge") : t(errorKey(e)));
+  };
+  const paste = (edits: CellEdit[]) => {
+    editor.edit(sheet.id, edits).catch(fail);
+  };
+  const clipboardProblem = (reason: "notLoaded" | "tooLarge") =>
+    push("error", t(reason === "notLoaded" ? "clipboard.notLoaded" : "clipboard.tooLarge"));
   const commit = (r: number, c: number, text: string) => {
     editor.edit(sheet.id, [editFor(r, c, text)]).catch(fail);
   };
@@ -143,6 +161,9 @@ function WorkbookView({
           aria-label={t("shell.undo")}>↶</Button>
         <Button disabled={!ed.canRedo} onClick={redo} title={ed.canRedo ? t("shell.redo") : t("shell.redoDisabled")}
           aria-label={t("shell.redo")}>↷</Button>
+        <Button onClick={() => setPanel(panel === "history" ? null : "history")} aria-pressed={panel === "history"}>
+          {t("shell.history")}
+        </Button>
         <Button disabled title={t("shell.findSoon")}>{t("shell.find")}</Button>
         {hasReport ? (
           <Button onClick={() => setPanel(panel === "report" ? null : "report")} aria-pressed={panel === "report"}>
@@ -150,6 +171,15 @@ function WorkbookView({
           </Button>
         ) : null}
       </header>
+      {ed.conflict ? (
+        <div className="wbs-conflict" role="alert">
+          <div>
+            <strong>{t("conflict.title")}</strong>
+            <div>{t("conflict.body")}</div>
+          </div>
+          <Button onClick={() => editor.dismissConflict()}>{t("common.dismiss")}</Button>
+        </div>
+      ) : null}
       <div className="wbs-formula" role="group" aria-label={t("shell.formulaBar")}>
         <span className="wbs-addr" dir="ltr" aria-label={t("shell.cellAddress")}>{address}</span>
         <ValueBar key={`${active.r}:${active.c}`} raw={raw} label={t("shell.formulaBar")}
@@ -157,7 +187,8 @@ function WorkbookView({
       </div>
       <div className="wbs-grid gv-host">
         <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel}
-          onEdit={commit} onClear={clear} onUndo={undo} onRedo={redo} />
+          onEdit={commit} onClear={clear} onUndo={undo} onRedo={redo}
+          onPaste={paste} onClipboardProblem={clipboardProblem} />
       </div>
       <div className="wbs-status" role="status" aria-label={t("shell.statusBar")}>
         <span className="muted">

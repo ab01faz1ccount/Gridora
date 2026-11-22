@@ -367,3 +367,75 @@ describe("Grid editing", () => {
     expect(editor()).toBeNull();
   });
 });
+
+describe("Grid clipboard", () => {
+  async function setup(over: Partial<DataSource> = {}) {
+    usePrefs.setState({ digits: "latin" });
+    const { src } = source(50, 5, over);
+    const onPaste = vi.fn();
+    const onClear = vi.fn();
+    const onEdit = vi.fn();
+    const onProblem = vi.fn();
+    render(<Grid source={src} rtl={false} viewport={VIEW} onEdit={onEdit} onClear={onClear} onPaste={onPaste}
+      onClipboardProblem={onProblem} />);
+    await waitFor(() => expect(screen.getByText("1001")).toBeInTheDocument());
+    act(() => scroller().focus());
+    return { user: userEvent.setup(), onPaste, onClear, onEdit, onProblem };
+  }
+  const clip = (text = "") => {
+    const data: Record<string, string> = { "text/plain": text };
+    return { clipboardData: { setData: (k: string, v: string) => (data[k] = v), getData: (k: string) => data[k] ?? "" }, data };
+  };
+
+  it("copy puts the selected values on the clipboard as tab-separated text", async () => {
+    const { user } = await setup();
+    await user.keyboard("{Shift>}{ArrowDown}{ArrowRight}{/Shift}");
+    const c = clip();
+    fireEvent.copy(scroller(), { clipboardData: c.clipboardData });
+    expect(c.data["text/plain"]).toBe("0\t1\n1000\t1001");
+  });
+
+  it("cut copies, then clears the range", async () => {
+    const { user, onClear } = await setup();
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    const c = clip();
+    fireEvent.cut(scroller(), { clipboardData: c.clipboardData });
+    expect(c.data["text/plain"]).toBe("0\t1");
+    expect(onClear).toHaveBeenCalledWith({ r0: 0, r1: 0, c0: 0, c1: 1 });
+  });
+
+  it("paste sends one change for all cells and selects what was pasted", async () => {
+    const { user, onPaste } = await setup();
+    await user.keyboard("{ArrowDown}");
+    fireEvent.paste(scroller(), { clipboardData: clip("1\t2\n3\t4").clipboardData });
+    expect(onPaste).toHaveBeenCalledTimes(1);
+    expect(onPaste.mock.calls[0]![0]).toEqual([
+      { r: 1, c: 0, value: { k: "num", n: 1 } }, { r: 1, c: 1, value: { k: "num", n: 2 } },
+      { r: 2, c: 0, value: { k: "num", n: 3 } }, { r: 2, c: 1, value: { k: "num", n: 4 } },
+    ]);
+    expect(document.querySelectorAll(".gv-selected, .gv-active").length).toBe(4);
+  });
+
+  it("while the cell editor is open, paste and copy are the text box's own", async () => {
+    const { user, onPaste } = await setup();
+    await user.keyboard("a");
+    const c = clip("1\t2");
+    fireEvent.paste(screen.getByRole("textbox"), { clipboardData: c.clipboardData });
+    expect(onPaste).not.toHaveBeenCalled();
+  });
+
+  it("copying cells that are not loaded says so and copies nothing", async () => {
+    usePrefs.setState({ digits: "latin" });
+    const { src } = source(5000, 5);
+    const onProblem = vi.fn();
+    render(<Grid source={src} rtl={false} viewport={VIEW} onEdit={vi.fn()} onClipboardProblem={onProblem} />);
+    await waitFor(() => expect(screen.getByText("1001")).toBeInTheDocument());
+    act(() => scroller().focus());
+    const c = clip();
+    // select from A1 to the last row at once: the far blocks were never asked for
+    fireEvent.keyDown(scroller(), { key: "End", ctrlKey: true, shiftKey: true });
+    fireEvent.copy(scroller(), { clipboardData: c.clipboardData });
+    expect(onProblem).toHaveBeenCalledWith("notLoaded");
+    expect(c.data["text/plain"]).toBe("");
+  });
+});

@@ -59,9 +59,11 @@ export interface EditorSnapshot {
   pending: number;
   /** the last request failed and nothing has succeeded since */
   failed: boolean;
+  /** the document was changed elsewhere: the last change was NOT saved and the screen was reloaded */
+  conflict: boolean;
 }
 
-const INITIAL: EditorSnapshot = { canUndo: false, canRedo: false, pending: 0, failed: false };
+const INITIAL: EditorSnapshot = { canUndo: false, canRedo: false, pending: 0, failed: false, conflict: false };
 
 export class WorkbookEditor {
   readonly caches = new SheetCaches();
@@ -70,6 +72,7 @@ export class WorkbookEditor {
   private tail: Promise<unknown> = Promise.resolve();
   private pending = 0;
   private failed = false;
+  private conflict = false;
   private snap: EditorSnapshot = INITIAL;
   private listeners = new Set<() => void>();
 
@@ -91,9 +94,13 @@ export class WorkbookEditor {
       canRedo: canRedo(this.history),
       pending: this.pending,
       failed: this.failed,
+      conflict: this.conflict,
     };
     const s = this.snap;
-    if (s.canUndo === next.canUndo && s.canRedo === next.canRedo && s.pending === next.pending && s.failed === next.failed) return;
+    if (
+      s.canUndo === next.canUndo && s.canRedo === next.canRedo && s.pending === next.pending &&
+      s.failed === next.failed && s.conflict === next.conflict
+    ) return;
     this.snap = next;
     this.listeners.forEach((l) => l());
   }
@@ -135,6 +142,7 @@ export class WorkbookEditor {
       (v) => {
         this.pending--;
         this.failed = false;
+        this.conflict = false;
         this.publish();
         return v;
       },
@@ -156,6 +164,7 @@ export class WorkbookEditor {
   /** Something went wrong in a way that may have left the screen out of date: start from the server. */
   private async resync(e: unknown): Promise<void> {
     if (e instanceof ApiError && (e.code === "version_conflict" || e.code === "operation_conflict")) {
+      if (e.code === "version_conflict") this.conflict = true; // shown as a banner until dismissed
       this.loaded = null;
       this.caches.refreshAll();
       try {
@@ -221,6 +230,11 @@ export class WorkbookEditor {
         throw e;
       }
     });
+  }
+
+  dismissConflict(): void {
+    this.conflict = false;
+    this.publish();
   }
 
   dispose(): void {

@@ -113,6 +113,7 @@ class SheetSource:
         self.close_end = 0  # first byte after </sheetData>
         self.max_span_col = 0
         self.formula_count = 0
+        self.noval_count = 0  # formulas saved without a result (files from generators such as openpyxl)
         self.shared_count = 0
         self.array_count = 0
         self.metadata_count = 0
@@ -207,6 +208,11 @@ def _scan(src: SheetSource, limits: ResourceLimits, deadline: Deadline) -> None:
             src.indexed = False  # data present but no rows found: odd markup (prefixes?)
     # cheap byte counts (approximate: they can over-count in crafted files)
     src.formula_count = count_bytes(mm, b"<f>") + count_bytes(mm, b"<f ")
+    # openpyxl writes <f>..</f><v /> for every formula. (A formula with no <v> at all keeps reading as
+    # empty, as before: that is how hand-made files look, and unit tests rely on it.)
+    src.noval_count = (
+        count_bytes(mm, b"</f><v/>") + count_bytes(mm, b"</f><v />") if src.formula_count else 0
+    )
     src.shared_count = count_bytes(mm, b't="shared"')
     src.array_count = count_bytes(mm, b't="array"')
     src.metadata_count = count_bytes(mm, b' cm="')

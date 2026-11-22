@@ -12,6 +12,9 @@ export interface Selection {
 export interface Dims {
   rowCount: number;
   colCount: number;
+  /** last row/column that holds data (End goes there); default: the last one of the grid */
+  lastRow?: number;
+  lastCol?: number;
   pageRows: number;
   rtl: boolean; // sheet direction: ArrowLeft means "next column" in an RTL sheet
 }
@@ -43,7 +46,11 @@ export function navigate(sel: Selection, k: KeyInfo, d: Dims): Selection | null 
     case "PageUp": to = { r: from.r - d.pageRows, c: from.c }; break;
     case "PageDown": to = { r: from.r + d.pageRows, c: from.c }; break;
     case "Home": to = k.ctrl ? { r: 0, c: 0 } : { r: from.r, c: 0 }; break;
-    case "End": to = k.ctrl ? { r: d.rowCount - 1, c: d.colCount - 1 } : { r: from.r, c: d.colCount - 1 }; break;
+    case "End": {
+      const lastCol = d.lastCol ?? d.colCount - 1;
+      to = k.ctrl ? { r: d.lastRow ?? d.rowCount - 1, c: lastCol } : { r: from.r, c: lastCol };
+      break;
+    }
     case "Tab": to = { r: sel.active.r, c: sel.active.c + (k.shift ? -1 : 1) }; break; // reading order, both directions
     case "Enter": to = { r: sel.active.r + (k.shift ? -1 : 1), c: sel.active.c }; break;
     default: return null;

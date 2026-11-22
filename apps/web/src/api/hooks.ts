@@ -1,5 +1,5 @@
-import type { AuthResult, FileRecord, Job, Workbook, Workspace } from "@contracts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AuthResult, FileRecord, HistoryEntry, Job, Workbook, Workspace } from "@contracts";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, setCsrfToken } from "./client";
 
 export const keys = { me: ["me"] as const, workspaces: ["workspaces"] as const };
@@ -115,4 +115,20 @@ export function useWorkbook(id: string) {
 
 export function openFile(fileId: string): Promise<Workbook> {
   return api.post<Workbook>(`/files/${fileId}/open`);
+}
+
+export const HISTORY_PAGE = 50;
+
+/** Change history of a document, newest first, a page at a time (the cursor is the last seq seen). */
+export function useHistory(id: string, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: ["history", id],
+    enabled,
+    retry: false,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<HistoryEntry[]>(`/documents/${id}/history`, { query: { limit: HISTORY_PAGE, cursor: pageParam } }),
+    getNextPageParam: (last) =>
+      last.length === HISTORY_PAGE ? String(last[last.length - 1]!.seq) : undefined,
+  });
 }

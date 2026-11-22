@@ -1,6 +1,6 @@
 import type { Cell } from "@contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { catalogs } from "@/i18n";
@@ -27,7 +27,7 @@ function server() {
   const head = () => Math.max(0, ...history.filter((h) => !h.undone).map((h) => h.seq));
   return mockApi({
     "GET /workbooks/w1": () => ok(WORKBOOK),
-    "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [...cells.values()] }),
+    "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [...cells.values()] }),
     "GET /documents/w1/history?limit=100": () => ok([...history].reverse().map((h) => entry(h.seq, h.undone))),
     "PATCH /workbooks/w1/sheets/s1/cells": (call) => {
       const body = call.body as { base_seq: number; edits: { r: number; c: number; value?: Cell["v"]; formula?: string }[] };
@@ -108,7 +108,7 @@ describe("WorkbookPage editing", () => {
   it("an error from the server becomes a plain-language message, not server text", async () => {
     mockApi({
       "GET /workbooks/w1": () => ok(WORKBOOK),
-      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=50&cols=5": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 50, cols: 5, cells: [] }),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
       "GET /documents/w1/history?limit=100": () => ok([]),
       "PATCH /workbooks/w1/sheets/s1/cells": () => err(422, "validation_failed"),
     });
@@ -119,5 +119,77 @@ describe("WorkbookPage editing", () => {
     await user.keyboard("x{Enter}");
     await waitFor(() => expect(useUi.getState().toasts.map((t) => t.text)).toEqual([catalogs.en["error.validation_failed"]]));
     expect(fa["error.validation_failed"]).toBeTruthy();
+  });
+
+  it("a conflict shows a banner (not a toast), reloads, and goes away after the next successful change", async () => {
+    let conflict = true;
+    const api = mockApi({
+      "GET /workbooks/w1": () => ok(WORKBOOK),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
+      "GET /documents/w1/history?limit=100": () => ok([]),
+      "PATCH /workbooks/w1/sheets/s1/cells": () => (conflict ? err(409, "version_conflict") : ok({ history_entry: entry(1), sheet_id: "s1", cells: [] })),
+    });
+    const user = userEvent.setup();
+    page();
+    await ready();
+    grid().focus();
+    await user.keyboard("x{Enter}");
+    const banner = await screen.findByRole("alert");
+    expect(banner).toHaveTextContent(catalogs.en["conflict.title"]);
+    expect(useUi.getState().toasts).toEqual([]);
+    expect(api.calls.filter((c) => c.path.startsWith("/documents/w1/history"))).toHaveLength(2); // reloaded
+
+    conflict = false;
+    grid().focus();
+    await user.keyboard("y{Enter}");
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("the banner can be dismissed", async () => {
+    mockApi({
+      "GET /workbooks/w1": () => ok(WORKBOOK),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
+      "GET /documents/w1/history?limit=100": () => ok([]),
+      "PATCH /workbooks/w1/sheets/s1/cells": () => err(409, "version_conflict"),
+    });
+    const user = userEvent.setup();
+    page();
+    await ready();
+    grid().focus();
+    await user.keyboard("x{Enter}");
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("pasting several cells is ONE request and one undo step", async () => {
+    const api = server();
+    page();
+    await ready();
+    grid().focus();
+    fireEvent.paste(grid(), { clipboardData: { getData: () => "1\t2\n3\t4" } });
+    await waitFor(() => expect(api.calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    expect((api.calls.find((c) => c.method === "PATCH")!.body as { edits: unknown[] }).edits).toHaveLength(4);
+  });
+
+  it("the history panel lists changes newest first, marks undone ones and speaks the person's language", async () => {
+    const withLabel = (seq: number, label: string, undone: boolean, params: unknown = {}) =>
+      ({ ...entry(seq, undone), label, operation: { type: "set_cells", params }, created_at: "2026-11-22T10:00:00Z" });
+    mockApi({
+      "GET /workbooks/w1": () => ok(WORKBOOK),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
+      "GET /documents/w1/history?limit=100": () => ok([]),
+      "GET /documents/w1/history?limit=50": () => ok([withLabel(3, "Sort A to Z", true), withLabel(2, "history.cell_edit", false, { count: 4 })]),
+    });
+    const user = userEvent.setup();
+    page();
+    await ready();
+    await user.click(screen.getByRole("button", { name: "History" }));
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Sort A to Z");
+    expect(items[0]).toHaveTextContent("undone");
+    expect(items[1]).toHaveTextContent("Edited cells (4 cells)");
+    await user.click(screen.getAllByRole("button", { name: "Close panel" })[0]!);
+    expect(screen.queryByText("Edited cells (4 cells)")).toBeNull();
   });
 });

@@ -186,7 +186,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* ---- workbook shell regions (top bar, formula bar, grid, side panel, sheet tabs, status bar) ---- */
 .content-wide { max-inline-size: none; padding-block: 8px; padding-inline: 12px; }
-.wbs { display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto auto;
+.wbs { display: flex; flex-direction: column;
   block-size: calc(100vh - 70px); min-block-size: 360px; gap: 6px; }
 .wbs-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .wbs-name { margin: 0; font-size: 1.1rem; }
@@ -194,8 +194,14 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .wbs-addr { min-inline-size: 64px; padding-block: 4px; padding-inline: 8px; text-align: center; border: 1px solid var(--border);
   border-radius: 6px; background: var(--surface); font-variant-numeric: tabular-nums; }
 .wbs-value { flex: 1; min-inline-size: 0; }
-.wbs-grid.gv-host { block-size: auto; min-block-size: 0; }
+.wbs-grid.gv-host { block-size: auto; min-block-size: 0; flex: 1 1 0; } /* the one flexible region, whatever banners are showing */
 .wbs-panel { position: fixed; inset-block: 0; inset-inline-start: 0; inline-size: min(380px, 100vw); z-index: 20;
   background: var(--surface); border-inline-end: 1px solid var(--border); padding: 16px; overflow: auto; }
+.wbs-conflict { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); padding: 8px 12px;
+  border: 1px solid var(--danger); border-radius: var(--radius); background: var(--warn-bg); }
+.history-list { list-style: none; margin: 0 0 var(--gap); padding: 0; display: grid; gap: 8px; }
+.history-list li { padding-block-end: 8px; border-block-end: 1px solid var(--border); }
+.history-undone { opacity: 0.55; }
+.history-meta { font-size: 0.8rem; }
 .wbs-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); }
 .wbs-status { min-block-size: 22px; font-size: 0.85rem; color: var(--muted); }

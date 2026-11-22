@@ -84,12 +84,24 @@ tuned, and 60 fps is **not** claimed.
   `base_seq`; the returned `cells` and `others` are written into the block cache of the sheet they belong to (caches are kept per
   sheet while the workbook is open). A change that arrives while a block is still loading is applied when the block lands.
   On `version_conflict` the history and caches are reloaded and the error is shown. The save indicator shows saving / saved / not saved.
+- Clipboard (`grid/clipboard.ts`): Ctrl+C copies the selected VALUES (a formula's result; Latin digits) as tab-separated text, with
+  quotes where Excel quotes. It refuses, with a message, when some selected cells are not loaded yet or there are more than 50,000.
+  Ctrl+V pastes at the top-left of the selection as ONE change (one undo step), typing each cell like the keyboard would (numbers,
+  `=formulas`, text); empty pasted cells clear their target; one value pasted into a bigger selection fills it. Ctrl+X copies and clears
+  at once (undo brings it back). Formulas are pasted as typed: references are NOT shifted. Dates arrive as text.
+- History panel (top bar "History"): newest first, undone entries dimmed, "show older changes" pages by seq. Cell edits are
+  described in the person's language; operation names come from the server and are shown as given.
+- Conflict banner: when the server answers `version_conflict` the history and caches are reloaded, the last change is NOT saved, and a
+  banner (not only a toast) says so until it is dismissed or the next change succeeds.
+- The grid is shown padded: at least 100 rows x 26 columns, and always 20 rows / 5 columns bigger than the data, so empty cells
+  outside the data can be typed into (the server answers empty windows there). Ctrl+End still goes to the last cell with data.
+- Verified in a real browser on the real engine: `e2e/real_stack.py` (28 checks, see `e2e/README.md`).
 - Known limits: the first keystroke of an IME composition (`key` = "Process") cannot open the editor; use F2 or double click.
   The screen updates when the server answers (no optimistic display). Editing a date cell and saving without changes is a no-op, but
-  changing it makes text. Copy/paste, fill handle and the history panel are not built. Not run in a real browser or on the real engine.
+  changing it makes text. No fill handle, no formatted (HTML) clipboard. Not run in a real browser or on the real engine.
 
 ### Not done in this PR (the integrated slice is NOT complete in the UI)
-- **No history panel, conflict banner** in the web app. Find is disabled. Cancelling a running import is impossible (no API; the card says so).
+- Find is disabled. Cancelling a running import is impossible (no API; the card says so).
 - Not verified in a real browser: upload via the file chooser/drag and drop, progress, the new shell layout. Real-browser e2e of
   upload -> edit -> undo on the REAL engine has not been written or run.
 - Task bar, Data Tables, charts, tools, export, keyboard help, accessibility audit: not started.
