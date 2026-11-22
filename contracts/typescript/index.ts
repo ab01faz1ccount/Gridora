@@ -49,6 +49,14 @@ export type CalendarMode = "jalali" | "gregorian" | "hijri";
 /** v0.6.0: a column holding dates (detection only; nothing is converted). */
 export interface DateColumn { col: number; kind: "serial" | "text"; calendar: CalendarMode; header_row: boolean; dates: number; total: number }
 export interface DateColumns { sheet_id: string; columns: DateColumn[] }
+/** v0.6.2 */
+export interface CreateTableRequest { name: string; columns: Column[]; rows?: unknown[][] }
+export interface FromRangeRequest {
+  workbook_id: string; range: Range; header_row?: boolean;
+  dtype_overrides?: Record<string, string>; preview?: boolean; name?: string;
+}
+export interface TablePreview { columns: Column[]; rows: unknown[][]; row_count: number; warnings: Warning[] }
+export interface TableRows { table_id: string; version: number; columns: Column[]; row_count: number; offset: number; rows: unknown[][] }
 export interface ExportRequest { format: "xlsx" | "csv"; sheet_id?: string }
 export interface SetCalendarRequest { calendar: CalendarMode }
 

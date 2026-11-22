@@ -246,6 +246,42 @@ class Warning_(_Base):
     location: Optional[str] = None
 
 
+class CreateTableRequest(_Base):
+    """v0.6.2: POST /workspaces/{id}/tables. Small tables only (rows are capped by apps/api);
+    larger data comes from a sheet range or a file."""
+
+    name: str = Field(min_length=1, max_length=255)
+    columns: list[Column] = Field(min_length=1)
+    rows: list[list[Any]] = []
+
+
+class FromRangeRequest(_Base):
+    """v0.6.2: POST /tables/from-range. preview=true stores nothing and answers TablePreview."""
+
+    workbook_id: str
+    range: Range
+    header_row: bool = True
+    dtype_overrides: Optional[dict[str, str]] = None
+    preview: bool = False
+    name: Optional[str] = Field(default=None, max_length=255)
+
+
+class TablePreview(_Base):
+    columns: list[Column]
+    rows: list[list[Any]]
+    row_count: int
+    warnings: list[Warning_] = []
+
+
+class TableRows(_Base):
+    table_id: str
+    version: int
+    columns: list[Column]
+    row_count: int
+    offset: int
+    rows: list[list[Any]]
+
+
 # ----------------------------------------------------------- operations ----
 class SheetRangeTarget(_Base):
     kind: Literal["sheet_range"] = "sheet_range"

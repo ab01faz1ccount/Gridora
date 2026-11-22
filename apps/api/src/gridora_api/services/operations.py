@@ -117,7 +117,7 @@ def check_confirmation(desc: OperationDescriptor, confirmed: bool) -> None:
         )
 
 
-def _ctx(services: Services, row: WorkbookRow, entry: Entry) -> EngineExecContext:
+def exec_context(services: Services, row: WorkbookRow, entry: Entry) -> EngineExecContext:
     return EngineExecContext(
         services.engine,
         entry.handle,
@@ -142,7 +142,7 @@ async def preview(
     entry = await wb_service.ensure_open(
         db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
     )
-    ctx = _ctx(st.services, row, entry)
+    ctx = exec_context(st.services, row, entry)
     errors = await st.copies.call(entry, st.services.executor.validate, op, ctx)
     if errors:
         raise DomainError("validation_failed", details=_details(errors))
@@ -172,7 +172,7 @@ async def run_operation(
             row,
             time_limit=st.settings.import_timeout_seconds,
         )
-        ctx = _ctx(st.services, row, entry)
+        ctx = exec_context(st.services, row, entry)
         errors = await st.copies.call(entry, st.services.executor.validate, op, ctx)
         if errors:
             raise DomainError("validation_failed", details=_details(errors))

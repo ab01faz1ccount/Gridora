@@ -55,6 +55,24 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("GET", "/api/v1/jobs/{id}/compatibility"): lambda c, ids: c.get(
         f"/api/v1/jobs/{ids['job']}/compatibility"
     ),
+    ("GET", "/api/v1/workspaces/{id}/tables"): lambda c, ids: c.get(
+        f"/api/v1/workspaces/{ids['ws']}/tables"
+    ),
+    ("POST", "/api/v1/workspaces/{id}/tables"): lambda c, ids: c.post(
+        f"/api/v1/workspaces/{ids['ws']}/tables",
+        json={"name": "t", "columns": [{"name": "a", "dtype": "int64"}], "rows": [[1]]},
+    ),
+    ("POST", "/api/v1/tables/from-range"): lambda c, ids: c.post(
+        "/api/v1/tables/from-range",
+        json={
+            "workbook_id": ids["wb"],
+            "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 1, "c1": 1},
+        },
+    ),
+    ("GET", "/api/v1/tables/{id}"): lambda c, ids: c.get(f"/api/v1/tables/{ids['table']}"),
+    ("GET", "/api/v1/tables/{id}/rows"): lambda c, ids: c.get(
+        f"/api/v1/tables/{ids['table']}/rows"
+    ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"
     ),

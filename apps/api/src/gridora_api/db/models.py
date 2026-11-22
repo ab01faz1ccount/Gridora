@@ -155,6 +155,26 @@ class WorkbookRow(Base):
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
 
 
+class DataTableRow(Base):
+    """Metadata and the current-version pointer of a Data Table; the Parquet versions are files."""
+
+    __tablename__ = "data_tables"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    current_version: Mapped[int] = mapped_column(Integer, default=1)
+    meta_json: Mapped[dict[str, Any]] = mapped_column(JSONB)  # contract DataTable (current version)
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
 class JobRow(Base):
     __tablename__ = "jobs"
     __table_args__ = (

@@ -13,11 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
 from ...core.errors import DomainError, request_id_of
-from ...db.models import Document, StoredFile, WorkbookRow, Workspace
+from ...db.models import DataTableRow, Document, StoredFile, WorkbookRow, Workspace
 from ...db.repos.owned import get_owned, list_owned
 from ...db.session import get_db
 from ...services import audit
 from ...services import files as file_service
+from ...services import tables as table_service
 from ...services.auth import AuthContext
 from ..deps import auth, client_ip
 
@@ -126,7 +127,12 @@ async def delete_workspace(
         .scalars()
         .all()
     )
-    await db.execute(delete(Document).where(Document.id.in_(doc_ids)))
+    table_ids = (
+        (await db.execute(select(DataTableRow.id).where(DataTableRow.workspace_id == w.id)))
+        .scalars()
+        .all()
+    )
+    await db.execute(delete(Document).where(Document.id.in_([*doc_ids, *table_ids])))
     await db.execute(
         delete(Workspace).where(Workspace.id == w.id, Workspace.owner_id == ctx.user.id)
     )
@@ -144,6 +150,7 @@ async def delete_workspace(
     for d in doc_ids:
         request.app.state.copies.drop(str(d))
     file_service.remove_stored(request.app.state.layout, keys)  # after commit; best effort
+    table_service.remove_table_files(request.app.state.layout, ctx.user.id, list(table_ids))
 
 
 @router.get("/workspaces/{id}/files", response_model=Envelope[list[FileRecord]])
