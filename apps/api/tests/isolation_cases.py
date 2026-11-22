@@ -99,7 +99,9 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
         f"/api/v1/charts/{ids['chart']}", json=_CHART(ids)
     ),
     ("DELETE", "/api/v1/charts/{id}"): lambda c, ids: c.delete(f"/api/v1/charts/{ids['chart']}"),
-    ("GET", "/api/v1/charts/{id}/data"): lambda c, ids: c.get(f"/api/v1/charts/{ids['chart']}/data"),
+    ("GET", "/api/v1/charts/{id}/data"): lambda c, ids: c.get(
+        f"/api/v1/charts/{ids['chart']}/data"
+    ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"
     ),
