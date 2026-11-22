@@ -281,3 +281,102 @@ def test_a_tool_run_with_a_bad_input_changes_nothing(tuser: Session) -> None:
     assert d.cells() == before and d.history().json()["data"] == []
     stale = wait_job(tuser, _run(tuser, tid, d, {"col": "تعداد"}, base_seq=7).json()["data"]["id"])
     assert stale["status"] == "failed"
+
+
+# ------------------------------------------------------------------- table history + export
+def _table_op(tid: str, typ: str, **params: Any) -> dict[str, Any]:
+    return {"type": typ, "target": {"kind": "data_table", "table_id": tid}, "params": params}
+
+
+def _qty(s: Session, tid: str) -> list[Any]:
+    rows = s.get(f"/api/v1/tables/{tid}/rows").json()["data"]["rows"]
+    return [r[1] for r in rows]
+
+
+def _table_job(s: Session, tid: str, body: dict[str, Any]) -> dict[str, Any]:
+    r = s.post(f"/api/v1/tables/{tid}/operations", json=body)
+    assert r.status_code == 202, r.text
+    return dict(wait_job(s, r.json()["data"]["id"]))
+
+
+def test_table_operation_undo_redo_and_version_pointer(tuser: Session) -> None:
+    t = _make(tuser, _ws(tuser))
+    assert _qty(tuser, t.id) == [3, 1, 2]
+    sort = _table_op(t.id, "sort", keys=[{"column": "qty", "direction": "asc"}])
+
+    pv = tuser.post(f"/api/v1/tables/{t.id}/operations/preview", json=sort)
+    assert pv.status_code == 200, pv.text
+    assert [r[1] for r in pv.json()["data"]["rows"]] == [1, 2, 3]
+    assert _qty(tuser, t.id) == [3, 1, 2]  # a preview changes nothing
+
+    job = _table_job(tuser, t.id, {"operation": sort, "base_seq": 0})
+    assert job["status"] == "succeeded" and job["result_ref"] == "1", job
+    assert _qty(tuser, t.id) == [1, 2, 3]
+    assert tuser.get(f"/api/v1/tables/{t.id}").json()["data"]["version"] == 2
+
+    un = tuser.post(f"/api/v1/tables/{t.id}/undo")
+    assert un.status_code == 200, un.text
+    assert un.json()["data"]["table"]["version"] == 1 and _qty(tuser, t.id) == [3, 1, 2]
+    assert tuser.post(f"/api/v1/tables/{t.id}/undo").status_code == 409  # nothing left
+    re_ = tuser.post(f"/api/v1/tables/{t.id}/redo")
+    assert re_.status_code == 200 and _qty(tuser, t.id) == [1, 2, 3]
+    hist = tuser.get(f"/api/v1/tables/{t.id}/history").json()["data"]
+    assert [h["seq"] for h in hist] == [1] and hist[0]["undone"] is False
+
+
+def test_a_destructive_table_operation_needs_confirmation_and_stale_base_is_refused(
+    tuser: Session,
+) -> None:
+    ws = _ws(tuser)
+    r = tuser.post(
+        f"/api/v1/workspaces/{ws}/tables",
+        json={"name": "D", "columns": COLS, "rows": [["a", 1], ["a", 1], ["b", 2]]},
+    )
+    t = DataTable.model_validate(r.json()["data"])
+    dedupe = _table_op(t.id, "remove_duplicates", columns=["name"])
+    body = {"operation": dedupe, "base_seq": 0}
+    plain = tuser.post(f"/api/v1/tables/{t.id}/operations", json=body)
+    assert plain.status_code == 409
+    assert plain.json()["error"]["details"][0]["code"] == "operation.confirm_required"
+    ok_ = _table_job(tuser, t.id, {"operation": dedupe, "base_seq": 0, "confirm_destructive": True})
+    assert ok_["status"] == "succeeded", ok_
+    assert tuser.get(f"/api/v1/tables/{t.id}").json()["data"]["row_count"] == 2
+    stale = _table_job(
+        tuser, t.id, {"operation": dedupe, "base_seq": 0, "confirm_destructive": True}
+    )
+    assert stale["status"] == "failed"  # the client had not seen entry 1
+    nil = "00000000-0000-0000-0000-000000000000"
+    wrong = {**dedupe, "target": {"kind": "data_table", "table_id": nil}}
+    bad = tuser.post(f"/api/v1/tables/{t.id}/operations/preview", json=wrong)
+    assert bad.status_code == 400
+
+
+def test_a_new_operation_discards_the_redo_tail(tuser: Session) -> None:
+    t = _make(tuser, _ws(tuser))
+    asc = _table_op(t.id, "sort", keys=[{"column": "qty", "direction": "asc"}])
+    desc = _table_op(t.id, "sort", keys=[{"column": "qty", "direction": "desc"}])
+    assert _table_job(tuser, t.id, {"operation": asc, "base_seq": 0})["status"] == "succeeded"
+    assert tuser.post(f"/api/v1/tables/{t.id}/undo").status_code == 200
+    assert _table_job(tuser, t.id, {"operation": desc, "base_seq": 0})["status"] == "succeeded"
+    assert _qty(tuser, t.id) == [3, 2, 1]
+    assert tuser.post(f"/api/v1/tables/{t.id}/redo").status_code == 409  # the tail is gone
+    assert [h["seq"] for h in tuser.get(f"/api/v1/tables/{t.id}/history").json()["data"]] == [2]
+
+
+def test_table_csv_export(tuser: Session) -> None:
+    ws = _ws(tuser)
+    rows = [["=1+1", 1], ["علی", 2]]
+    r = tuser.post(
+        f"/api/v1/workspaces/{ws}/tables", json={"name": "E/x", "columns": COLS, "rows": rows}
+    )
+    t = DataTable.model_validate(r.json()["data"])
+    job = tuser.post(f"/api/v1/tables/{t.id}/export", json={"format": "csv"})
+    assert job.status_code == 202, job.text
+    done = wait_job(tuser, job.json()["data"]["id"])
+    assert done["status"] == "succeeded", done
+    dl = tuser.get(f"/api/v1/files/{done['result_ref']}/download")
+    text = dl.content.decode("utf-8-sig").splitlines()
+    assert text == ["name,qty", "'=1+1,1", "علی,2"]
+    rep = tuser.get(f"/api/v1/jobs/{done['id']}/compatibility").json()["data"]
+    assert [i["code"] for i in rep["items"]] == ["csv.formula_text_neutralized"]
+    assert tuser.post(f"/api/v1/tables/{t.id}/export", json={"format": "xlsx"}).status_code == 400

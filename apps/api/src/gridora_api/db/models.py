@@ -171,6 +171,7 @@ class DataTableRow(Base):
     )
     name: Mapped[str] = mapped_column(String(255))
     current_version: Mapped[int] = mapped_column(Integer, default=1)
+    seq_counter: Mapped[int] = mapped_column(Integer, default=0)  # highest history seq issued
     meta_json: Mapped[dict[str, Any]] = mapped_column(JSONB)  # contract DataTable (current version)
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
 

@@ -8,20 +8,29 @@ save    -> a new xlsx version of the workbook (kind "workbook", parent = the pre
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import re
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from gridora_contracts.models import CompatibilityReport, ExportRequest
+from gridora_contracts.models import (
+    CompatibilityReport,
+    CompatItem,
+    CompatSummary,
+    ExportRequest,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.errors import DomainError
-from ..db.models import StoredFile, WorkbookRow
+from ..db.models import DataTableRow, StoredFile, WorkbookRow
+from ..db.repos.owned import get_owned
 from ..storage.atomic import move_into_place
 from ..storage.layout import StorageLayout
 from . import history as history_service
+from . import tables as table_service
 from . import workbooks as wb_service
 
 _UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
@@ -126,3 +135,101 @@ async def save_version(db: AsyncSession, st: Any, owner_id: uuid.UUID, doc_id: s
         st.layout.resolve_key(rec.storage_key).unlink(missing_ok=True)
         raise
     return rec
+
+
+# ------------------------------------------------------------------------------ Data Tables
+_DANGEROUS = ("=", "+", "-", "@", "\t", "\r")
+_PAGE = 1000
+
+
+def _cell_text(v: Any) -> tuple[str, bool]:
+    """(text, neutralized): text starting like a formula gets an apostrophe, as in the engine."""
+    if v is None:
+        return "", False
+    if isinstance(v, bool):
+        return ("TRUE" if v else "FALSE"), False
+    if isinstance(v, float):
+        return (str(int(v)) if v.is_integer() and abs(v) < 1e15 else repr(v)), False
+    if isinstance(v, str) and v.startswith(_DANGEROUS):
+        return "'" + v, True
+    return str(v), False
+
+
+def _write_table_csv(store: Any, row: DataTableRow, columns: list[str], tmp: Path) -> int:
+    """Blocking. UTF-8 with BOM (opens correctly in Excel for Persian text). Returns the number of
+    neutralized cells."""
+    neutralized, offset = 0, 0
+    with open(tmp, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f, lineterminator="\r\n")
+        w.writerow([_cell_text(c)[0] for c in columns])
+        while True:
+            page = store.read_page(str(row.id), offset, _PAGE, None, row.current_version)
+            for r in page:
+                out = [_cell_text(v) for v in r]
+                neutralized += sum(1 for _t, n in out if n)
+                w.writerow([t for t, _n in out])
+            if len(page) < _PAGE:
+                return neutralized
+            offset += _PAGE
+
+
+async def run_table_export(
+    st: Any, owner_id: uuid.UUID, table_id: str, req: ExportRequest
+) -> tuple[str, dict[str, Any]]:
+    """Job body for a Data Table (csv only: xlsx is a table written to a sheet, then exported)."""
+    if req.format != "csv":
+        raise DomainError("validation_failed", "A table can be exported as csv.")
+    layout: StorageLayout = st.layout
+    async with st.sessionmaker() as db:
+        row = await get_owned(db, DataTableRow, owner_id, table_id)
+        cols = [c["name"] for c in row.meta_json.get("columns", [])]
+        store = table_service.store_for(st, owner_id)
+        tmp = layout.quarantine_path(uuid.uuid4())
+        tmp.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            neutralized = await table_service.run_blocking(_write_table_csv, store, row, cols, tmp)
+            digest, size = _sha256(tmp)
+            file_id = uuid.uuid4()
+            key = layout.file_key(row.owner_id, "export", file_id, "csv")
+            move_into_place(tmp, layout.resolve_key(key))
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        rec = StoredFile(
+            id=file_id,
+            owner_id=row.owner_id,
+            workspace_id=row.workspace_id,
+            kind="export",
+            display_name=file_name(row.name, "csv"),
+            size_bytes=size,
+            sha256=digest,
+            parent_id=None,
+            storage_key=key,
+        )
+        try:
+            db.add(rec)
+            await db.commit()
+        except BaseException:
+            layout.resolve_key(key).unlink(missing_ok=True)
+            raise
+    items = (
+        [
+            CompatItem(
+                code="csv.formula_text_neutralized",
+                status="partial",
+                preserved=False,
+                editable=True,
+                message=f"{neutralized} text cells starting with = + - @ were prefixed with ' "
+                "to prevent formula injection when the CSV is opened in a spreadsheet.",
+            )
+        ]
+        if neutralized
+        else []
+    )
+    report = CompatibilityReport(
+        source="export",
+        generated_at=datetime.now(UTC),
+        items=items,
+        summary=CompatSummary(partial=len(items)),
+    )
+    return str(file_id), report.model_dump(mode="json")

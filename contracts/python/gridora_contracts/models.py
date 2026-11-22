@@ -459,6 +459,13 @@ class HistoryEntry(_Base):
     undone: bool = False
 
 
+class TableChangedResult(_Base):
+    """v0.6.6: result of undo/redo on a Data Table: the entry and the table at its new version."""
+
+    history_entry: HistoryEntry
+    table: DataTable
+
+
 # --------------------------------------------------------------- charts ----
 class ChartSeries(_Base):
     name: Optional[str] = None

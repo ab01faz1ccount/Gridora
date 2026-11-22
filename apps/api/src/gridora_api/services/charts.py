@@ -27,7 +27,7 @@ from . import workbooks as wb_service
 MAX_CHARTS_PER_DOCUMENT = 50
 
 
-class _TableOnlyContext:
+class TableOnlyContext:
     """What the executor reads from an ExecContext when the source is a Data Table."""
 
     def __init__(self, user_id: str, workspace_id: str, store: Any) -> None:
@@ -146,7 +146,7 @@ async def chart_data(db: AsyncSession, st: Any, owner_id: uuid.UUID, chart_id: s
         spec = spec.model_copy(
             update={"source": src.model_copy(update={"version": t.current_version})}
         )
-        tctx = _TableOnlyContext(str(owner_id), str(t.workspace_id), st.services.table_store)
+        tctx = TableOnlyContext(str(owner_id), str(t.workspace_id), st.services.table_store)
         result = await run_in_threadpool(st.services.executor.chart_data, spec, tctx)
         return result
     except DomainError:

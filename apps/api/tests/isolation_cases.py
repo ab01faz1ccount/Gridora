@@ -10,6 +10,14 @@ Case = Callable[[Any, dict[str, str]], Any]
 
 CSV = {"file": ("x.csv", b"a,b\n1,2\n", "text/csv")}
 
+def _TABLE_SORT(ids: dict[str, str]) -> dict[str, object]:  # noqa: N802
+    return {
+        "type": "sort",
+        "target": {"kind": "data_table", "table_id": ids["table"]},
+        "params": {"keys": [{"column": "a"}]},
+    }
+
+
 TOOL: dict[str, object] = {
     "name": "sort by a column",
     "pipeline": {
@@ -133,6 +141,25 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
                 "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 1, "c1": 1},
             },
         },
+    ),
+    ("POST", "/api/v1/tables/{id}/operations/preview"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/operations/preview", json=_TABLE_SORT(ids)
+    ),
+    ("POST", "/api/v1/tables/{id}/operations"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/operations",
+        json={"operation": _TABLE_SORT(ids), "base_seq": 0},
+    ),
+    ("POST", "/api/v1/tables/{id}/undo"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/undo"
+    ),
+    ("POST", "/api/v1/tables/{id}/redo"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/redo"
+    ),
+    ("GET", "/api/v1/tables/{id}/history"): lambda c, ids: c.get(
+        f"/api/v1/tables/{ids['table']}/history"
+    ),
+    ("POST", "/api/v1/tables/{id}/export"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/export", json={"format": "csv"}
     ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"
