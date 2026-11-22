@@ -78,7 +78,7 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | GET | `/tables/{id}` | metadata + columns |
 | GET | `/tables/{id}/rows?offset&limit&sort` | `TableRows`; limit ≤ 1000; `sort=-col` for descending |
 | POST | `/tables/from-range` | `{workbook_id, range, header_row, dtype_overrides?}` (supports `preview:true` → `TablePreview`, nothing stored); `name?`; a snapshot table whose `source` records the workbook and range |
-| POST | `/tables/{id}/to-sheet` | `{workbook_id, sheet_id?|new_sheet_name, anchor}` |
+| POST | `/tables/{id}/to-sheet` | v0.6.3: `{workbook_id, sheet_id, row?, col?, base_seq?}` → `CellsChangedResult`; one undoable history entry; refuses to overwrite non-empty cells (`would_overwrite`); a new sheet is not supported yet |
 | POST | `/tables/{id}/export` | csv / xlsx / parquet |
 
 ## 7. Operations

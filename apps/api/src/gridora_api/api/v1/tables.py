@@ -6,11 +6,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 from gridora_contracts.models import (
+    CellsChangedResult,
     CreateTableRequest,
     DataTable,
     FromRangeRequest,
     TablePreview,
     TableRows,
+    ToSheetRequest,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,4 +72,13 @@ async def get_rows(
     res = await table_service.read_rows(
         db, request.app.state, ctx.user.id, id, offset, limit, sort
     )
+    return ok(request, res)
+
+
+@router.post("/tables/{id}/to-sheet", response_model=Envelope[CellsChangedResult])
+async def table_to_sheet(
+    id: str, body: ToSheetRequest, request: Request, ctx: Ctx
+) -> Envelope[CellsChangedResult]:
+    """Writes the table (header + rows) into a sheet; refuses to overwrite data. Undoable."""
+    res = await table_service.to_sheet(request.app.state, ctx.user.id, id, body)
     return ok(request, res)
