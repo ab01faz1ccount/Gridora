@@ -179,3 +179,64 @@ describe("BlockCache", () => {
     expect(c.getCell(0, 0).status).toBe("absent");
   });
 });
+
+describe("BlockCache: changes from the server", () => {
+  it("a change that arrives while a block is loading is applied when the block arrives", async () => {
+    const { src, pending } = fakeSource();
+    const c = new BlockCache(src);
+    c.ensure(0, 5, 0, 5);
+    c.patch([{ r: 2, c: 2, v: { k: "num", n: 42 } }]); // the response below was computed before this
+    pending[0]!.resolve([{ r: 2, c: 2, v: { k: "num", n: 1 } }]);
+    await tick();
+    expect(c.getCell(2, 2).cell?.v).toEqual({ k: "num", n: 42 });
+  });
+
+  it("a cleared cell (no value, no formula) becomes empty", async () => {
+    const { src, pending } = fakeSource();
+    const c = new BlockCache(src);
+    c.ensure(0, 5, 0, 5);
+    pending[0]!.resolve([{ r: 1, c: 1, v: { k: "num", n: 7 } }]);
+    await tick();
+    c.patch([{ r: 1, c: 1 }]);
+    expect(c.getCell(1, 1)).toEqual({ status: "loaded", cell: undefined });
+  });
+
+  it("patching notifies subscribers once per call, and not when nothing was cached", async () => {
+    const { src, pending } = fakeSource();
+    const c = new BlockCache(src);
+    const fn = vi.fn();
+    c.subscribe(fn);
+    c.patch([{ r: 0, c: 0, v: { k: "num", n: 1 } }]); // nothing loaded
+    expect(fn).not.toHaveBeenCalled();
+    c.ensure(0, 5, 0, 5);
+    pending[0]!.resolve([]);
+    await tick();
+    fn.mockClear();
+    c.patch([{ r: 0, c: 0, v: { k: "num", n: 1 } }, { r: 1, c: 0, v: { k: "num", n: 2 } }]);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("setSource keeps loaded blocks and uses the new size for later requests", async () => {
+    const { src, pending } = fakeSource(100, 10);
+    const c = new BlockCache(src);
+    c.ensure(0, 5, 0, 5);
+    pending[0]!.resolve([{ r: 0, c: 0, v: { k: "num", n: 9 } }]);
+    await tick();
+    c.setSource({ ...src, rowCount: 250 });
+    expect(c.getCell(0, 0).cell?.v).toEqual({ k: "num", n: 9 });
+    c.ensure(200, 210, 0, 5);
+    expect(pending.at(-1)).toMatchObject({ r0: 200, rows: 50 });
+  });
+
+  it("refresh drops everything and asks again for what was last on screen", async () => {
+    const { src, pending } = fakeSource();
+    const c = new BlockCache(src);
+    c.ensure(0, 5, 0, 5);
+    pending[0]!.resolve([{ r: 0, c: 0, v: { k: "num", n: 1 } }]);
+    await tick();
+    const before = pending.length;
+    c.refresh();
+    expect(c.getCell(0, 0).status).toBe("loading");
+    expect(pending.length).toBe(before + 1);
+  });
+});

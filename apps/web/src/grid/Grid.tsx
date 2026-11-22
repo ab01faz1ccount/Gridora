@@ -12,6 +12,7 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useT } from "@/i18n";
@@ -27,7 +28,8 @@ import {
   visibleRange,
   type Axis,
 } from "./geometry";
-import { boundsOf, inRange, navigate, single, type Pos, type Selection } from "./selection";
+import { boundsOf, inRange, navigate, single, type Pos, type RangeBounds, type Selection } from "./selection";
+import { cellRaw } from "./summary";
 
 export const ROW_H = 26;
 export const COL_W = 110;
@@ -45,6 +47,49 @@ export interface GridProps {
   colWidth?: (c: number) => number;
   onSelectionChange?: (sel: Selection) => void;
   label?: string;
+  /** Editing is on when this is given: the text a person typed into a cell (empty = clear). */
+  onEdit?: (r: number, c: number, text: string) => void;
+  onClear?: (b: RangeBounds) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+}
+
+interface Editing {
+  r: number;
+  c: number;
+  original: string; // what the cell held when editing began; an unchanged commit sends nothing
+}
+
+interface CellEditorProps {
+  top: number;
+  start: number;
+  w: number;
+  initial: string;
+  label: string;
+  onKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>, draft: string) => void;
+  onBlur: (draft: string) => void;
+}
+
+/** The text box over the active cell. It owns the draft, so typing does not re-render the grid. */
+function CellEditor(p: CellEditorProps) {
+  const [draft, setDraft] = useState(p.initial);
+  const ref = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  return (
+    <input ref={ref} className="gv-editor" dir="auto" value={draft} aria-label={p.label}
+      style={{ top: p.top, insetInlineStart: p.start, inlineSize: p.w, blockSize: ROW_H }}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        e.stopPropagation(); // arrows, Home/End and letters belong to the text box, not the grid
+        p.onKeyDown(e, draft);
+      }}
+      onBlur={() => p.onBlur(draft)} />
+  );
 }
 
 interface CellViewProps {
@@ -80,7 +125,10 @@ const CellView = memo(function CellView(p: CellViewProps) {
   );
 });
 
-export function Grid({ source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label }: GridProps) {
+export function Grid({
+  source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label,
+  onEdit, onClear, onUndo, onRedo,
+}: GridProps) {
   const t = useT();
   const prefs = usePrefs();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -177,7 +225,84 @@ export function Grid({ source, rtl, cache: cacheProp, viewport, colWidth, onSele
     [rows, cols, scroller, bodyH, bodyW, rtl],
   );
 
+  // editing
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const editingRef = useRef<Editing | null>(null);
+  const [initial, setInitial] = useState(""); // text the editor opens with
+  const editable = Boolean(onEdit);
+
+  const startEdit = (p: Pos, typed?: string) => {
+    if (!onEdit) return;
+    const look = cache.getCell(p.r, p.c);
+    // Keep the typed text if there is one; otherwise show the cell as it is, which needs it loaded.
+    if (typed === undefined && look.status !== "loaded") return;
+    const original = cellRaw(look.cell);
+    scrollIntoView(p);
+    const next = { r: p.r, c: p.c, original };
+    editingRef.current = next; // the ref is what handlers read; the state only drives rendering
+    setEditing(next);
+    setInitial(typed ?? original);
+  };
+
+  /** Ends editing. `move` is the key that ended it (Enter/Tab move the cursor like a spreadsheet). */
+  const finishEdit = (draft: string, commit: boolean, move?: { key: string; shift: boolean }) => {
+    const cur = editingRef.current;
+    if (!cur) return;
+    editingRef.current = null; // a blur that follows must not commit twice
+    setEditing(null);
+    if (commit && draft !== cur.original) onEdit?.(cur.r, cur.c, draft);
+    if (move) {
+      const next = navigate(single({ r: cur.r, c: cur.c }), { key: move.key, shift: move.shift }, dims);
+      if (next) {
+        update(next);
+        scrollIntoView(next.focus);
+      }
+      scrollerRef.current?.focus({ preventScroll: true });
+    } else if (!commit) {
+      scrollerRef.current?.focus({ preventScroll: true });
+    }
+  };
+
+  const onEditorKey = (e: ReactKeyboardEvent<HTMLInputElement>, draft: string) => {
+    if (e.nativeEvent.isComposing) return; // an IME candidate is being confirmed, not a command
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      finishEdit(draft, true, { key: e.key, shift: e.shiftKey });
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      finishEdit(draft, false);
+    }
+  };
+
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.code === "KeyZ" || e.code === "KeyY")) {
+      // by physical key, so it also works on a Persian keyboard layout
+      const redo = e.code === "KeyY" || e.shiftKey;
+      const fn = redo ? onRedo : onUndo;
+      if (fn) {
+        e.preventDefault();
+        fn();
+      }
+      return;
+    }
+    if (editable) {
+      if (e.key === "F2") {
+        e.preventDefault();
+        startEdit(sel.active);
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        onClear?.(boundsOf(sel));
+        return;
+      }
+      if (e.key.length === 1 && !mod && !e.altKey) {
+        e.preventDefault();
+        startEdit(sel.active, e.key); // typing replaces the content, like a spreadsheet
+        return;
+      }
+    }
     const next = navigate(sel, { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }, dims);
     if (!next) return;
     e.preventDefault();
@@ -186,6 +311,10 @@ export function Grid({ source, rtl, cache: cacheProp, viewport, colWidth, onSele
   };
 
   // pointer selection: cells carry their own coordinates (data-r / data-c)
+  const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
+    if (target) startEdit({ r: Number(target.dataset.r), c: Number(target.dataset.c) });
+  };
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
     if (!target) return;
@@ -254,7 +383,7 @@ export function Grid({ source, rtl, cache: cacheProp, viewport, colWidth, onSele
     <div ref={scrollerRef} className="gv-scroller" dir={rtl ? "rtl" : "ltr"} role="grid" tabIndex={0}
       aria-label={label ?? t("grid.label")} aria-rowcount={source.rowCount + 1} aria-colcount={source.colCount}
       aria-activedescendant={activeRendered ? activeId : undefined} aria-multiselectable="true"
-      onScroll={onScroll} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onPointerOver={onPointerOver}
+      onScroll={onScroll} onKeyDown={onKeyDown} onDoubleClick={onDoubleClick} onPointerDown={onPointerDown} onPointerOver={onPointerOver}
       data-rows={source.rowCount} data-scaled={scroller.scaled || undefined}>
       <div className="gv-content" style={{ inlineSize: HEADER_W + cols.total, blockSize: HEADER_H + scroller.proxyPx }}>
         <div className="gv-top" style={{ blockSize: HEADER_H }}>
@@ -272,6 +401,13 @@ export function Grid({ source, rtl, cache: cacheProp, viewport, colWidth, onSele
           <div className="gv-body" style={{ inlineSize: cols.total, blockSize: scroller.proxyPx }}>
             <div ref={bodyLayerRef} className="gv-layer" style={{ insetInlineStart: cols.offset(cr.first) }}>
               {cells}
+              {editing && editing.r >= rr.first && editing.r <= rr.last && editing.c >= cr.first && editing.c <= cr.last ? (
+                <CellEditor key={`${editing.r}:${editing.c}`} initial={initial} label={t("grid.cellEditor")}
+                  top={rows.offset(editing.r) - rows.offset(rr.first)}
+                  start={cols.offset(editing.c) - cols.offset(cr.first)} w={cols.size(editing.c)}
+                  onKeyDown={onEditorKey}
+                  onBlur={(draft) => finishEdit(draft, true)} />
+              ) : null}
             </div>
           </div>
         </div>
