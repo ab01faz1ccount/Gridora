@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -30,6 +31,8 @@ import {
 } from "./geometry";
 import { boundsOf, inRange, navigate, single, type Pos, type RangeBounds, type Selection } from "./selection";
 import { cellRaw } from "./summary";
+import { pasteEdits, toTsv } from "./clipboard";
+import type { CellEdit } from "@contracts";
 
 export const ROW_H = 26;
 export const COL_W = 110;
@@ -52,6 +55,10 @@ export interface GridProps {
   onClear?: (b: RangeBounds) => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  /** Pasted cells, as one change. The grid has already selected the pasted range. */
+  onPaste?: (edits: CellEdit[]) => void;
+  /** Copy/cut/paste could not be done: not all cells are loaded, or too many cells. */
+  onClipboardProblem?: (reason: "notLoaded" | "tooLarge") => void;
 }
 
 interface Editing {
@@ -127,7 +134,7 @@ const CellView = memo(function CellView(p: CellViewProps) {
 
 export function Grid({
   source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label,
-  onEdit, onClear, onUndo, onRedo,
+  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem,
 }: GridProps) {
   const t = useT();
   const prefs = usePrefs();
@@ -310,6 +317,41 @@ export function Grid({
     scrollIntoView(next.focus);
   };
 
+  // clipboard: events fire on the focused grid; while the cell editor is open they belong to its text box
+  const inEditor = (e: ReactClipboardEvent<HTMLDivElement>) => e.target instanceof HTMLInputElement;
+  const copySelection = (e: ReactClipboardEvent<HTMLDivElement>): boolean => {
+    const res = toTsv(cache, bounds);
+    if (!res.ok) {
+      e.preventDefault();
+      onClipboardProblem?.(res.reason);
+      return false;
+    }
+    e.clipboardData.setData("text/plain", res.text);
+    e.preventDefault();
+    return true;
+  };
+  const onCopy = (e: ReactClipboardEvent<HTMLDivElement>) => {
+    if (inEditor(e)) return;
+    copySelection(e);
+  };
+  const onCut = (e: ReactClipboardEvent<HTMLDivElement>) => {
+    if (inEditor(e) || !editable) return;
+    // Cut copies and clears at once (undo brings the cells back); nothing is cleared if the copy failed
+    if (copySelection(e)) onClear?.(bounds);
+  };
+  const onPasteEvent = (e: ReactClipboardEvent<HTMLDivElement>) => {
+    if (inEditor(e) || !onPaste) return;
+    e.preventDefault();
+    const res = pasteEdits(e.clipboardData.getData("text/plain"), bounds);
+    if (!res.ok) {
+      if (res.reason === "tooLarge") onClipboardProblem?.("tooLarge");
+      return;
+    }
+    const r = res.range;
+    update({ active: { r: r.r0, c: r.c0 }, anchor: { r: r.r0, c: r.c0 }, focus: { r: r.r1, c: r.c1 } });
+    onPaste(res.edits);
+  };
+
   // pointer selection: cells carry their own coordinates (data-r / data-c)
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
@@ -383,7 +425,8 @@ export function Grid({
     <div ref={scrollerRef} className="gv-scroller" dir={rtl ? "rtl" : "ltr"} role="grid" tabIndex={0}
       aria-label={label ?? t("grid.label")} aria-rowcount={source.rowCount + 1} aria-colcount={source.colCount}
       aria-activedescendant={activeRendered ? activeId : undefined} aria-multiselectable="true"
-      onScroll={onScroll} onKeyDown={onKeyDown} onDoubleClick={onDoubleClick} onPointerDown={onPointerDown} onPointerOver={onPointerOver}
+      onScroll={onScroll} onKeyDown={onKeyDown} onDoubleClick={onDoubleClick}
+      onCopy={onCopy} onCut={onCut} onPaste={onPasteEvent} onPointerDown={onPointerDown} onPointerOver={onPointerOver}
       data-rows={source.rowCount} data-scaled={scroller.scaled || undefined}>
       <div className="gv-content" style={{ inlineSize: HEADER_W + cols.total, blockSize: HEADER_H + scroller.proxyPx }}>
         <div className="gv-top" style={{ blockSize: HEADER_H }}>
