@@ -13,13 +13,19 @@ from typing import Any
 
 from gridora_contracts.models import (
     Column,
+    CellPatchDelta,
+    CellsChangedResult,
     CreateTableRequest,
     DataTable,
     ErrorDetail,
     FromRangeRequest,
+    Operation,
+    Range,
+    SheetRangeTarget,
     TablePreview,
     TableRows,
     TableSource,
+    ToSheetRequest,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +35,7 @@ from ..core.errors import DomainError
 from ..db.models import DataTableRow, Document, WorkbookRow
 from ..db.repos.owned import get_owned
 from ..storage.layout import StorageLayout
+from . import history as history_service
 from . import operations as ops_service
 from . import workbooks as wb_service
 
@@ -248,3 +255,54 @@ async def list_tables(
         .all()
     )
     return [table_out(r) for r in rows]
+
+
+async def to_sheet(
+    st: Any, owner_id: uuid.UUID, table_id: str, req: ToSheetRequest
+) -> CellsChangedResult:
+    """Own session and transaction. The table's current version is written into the sheet."""
+    async with st.sessionmaker() as db:
+        trow = await get_owned(db, DataTableRow, owner_id, table_id)
+        row = await history_service.lock_workbook(db, owner_id, req.workbook_id)
+        if req.sheet_id not in {s["id"] for s in row.meta_json.get("sheets", [])}:
+            raise DomainError("not_found")
+        history_service.check_base(req.base_seq, await history_service.head_seq(db, row.id))
+        entry = await wb_service.ensure_open(
+            db,
+            st.services,
+            st.copies,
+            st.layout,
+            row,
+            time_limit=st.settings.import_timeout_seconds,
+        )
+        ctx = ops_service.exec_context(st.services, row, entry)
+        anchor = Range(sheet_id=req.sheet_id, r0=req.row, c0=req.col, r1=req.row, c1=req.col)
+        store = store_for(st, owner_id)
+        delta = await st.copies.call(
+            entry,
+            lambda: _guarded(
+                store.table_to_cells, str(trow.id), ctx, anchor, trow.current_version
+            ),
+        )
+        op = Operation(
+            type="table_to_sheet",
+            target=SheetRangeTarget(range=anchor),
+            params={"table_id": str(trow.id), "version": trow.current_version},
+        )
+        h = await history_service.record_entry(
+            db, st.copies, row, op, delta, f"Table “{trow.name}” to sheet"
+        )
+        if isinstance(delta, CellPatchDelta) and delta.after:
+            history_service.grow_dimensions(
+                row,
+                delta.sheet_id,
+                max(c.r for c in delta.after) + 1,
+                max(c.c for c in delta.after) + 1,
+            )
+        await history_service.commit_or_drop(db, st.copies, row.id)
+        return CellsChangedResult(
+            history_entry=history_service.entry_out(h),
+            sheet_id=req.sheet_id,
+            cells=list(delta.after) if isinstance(delta, CellPatchDelta) else [],
+            others=history_service.others_of(delta),
+        )

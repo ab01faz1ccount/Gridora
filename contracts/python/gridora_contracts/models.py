@@ -266,6 +266,17 @@ class FromRangeRequest(_Base):
     name: Optional[str] = Field(default=None, max_length=255)
 
 
+class ToSheetRequest(_Base):
+    """v0.6.3: POST /tables/{id}/to-sheet. Writes header + rows with the top-left at (row, col);
+    refuses to overwrite non-empty cells. One undoable history entry on the workbook."""
+
+    workbook_id: str
+    sheet_id: str
+    row: int = Field(default=0, ge=0)
+    col: int = Field(default=0, ge=0)
+    base_seq: Optional[int] = None
+
+
 class TablePreview(_Base):
     columns: list[Column]
     rows: list[list[Any]]

@@ -55,6 +55,7 @@ export interface FromRangeRequest {
   workbook_id: string; range: Range; header_row?: boolean;
   dtype_overrides?: Record<string, string>; preview?: boolean; name?: string;
 }
+export interface ToSheetRequest { workbook_id: string; sheet_id: string; row?: number; col?: number; base_seq?: number }
 export interface TablePreview { columns: Column[]; rows: unknown[][]; row_count: number; warnings: Warning[] }
 export interface TableRows { table_id: string; version: number; columns: Column[]; row_count: number; offset: number; rows: unknown[][] }
 export interface ExportRequest { format: "xlsx" | "csv"; sheet_id?: string }

@@ -98,3 +98,28 @@ def test_deleting_the_workspace_removes_its_tables(tuser: Session) -> None:
     t = _make(tuser, ws)
     assert tuser.delete(f"/api/v1/workspaces/{ws}?confirm=true").status_code == 204
     assert tuser.get(f"/api/v1/tables/{t.id}").status_code == 404
+
+
+def test_table_to_sheet_is_undoable_and_never_overwrites(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    ws = tuser.get("/api/v1/workspaces").json()["data"][0]["id"]
+    t = _make(tuser, ws)
+    before = d.cells()
+    body = {"workbook_id": d.wb, "sheet_id": d.sheet, "row": 0, "col": 5}
+    r = tuser.post(f"/api/v1/tables/{t.id}/to-sheet", json=body)
+    assert r.status_code == 200, r.text
+    res = r.json()["data"]
+    assert res["history_entry"]["seq"] == 1 and len(res["cells"]) == 8  # header + 3 rows x 2
+    cells = d.cells()
+    assert cells[(0, 5)]["s"] == "name" and cells[(1, 6)]["n"] == 3
+
+    again = tuser.post(f"/api/v1/tables/{t.id}/to-sheet", json=body)  # the area is now occupied
+    assert again.status_code == 409, again.text
+    assert again.json()["error"]["details"][0]["code"] == "would_overwrite"
+    stale = tuser.post(f"/api/v1/tables/{t.id}/to-sheet", json={**body, "col": 9, "base_seq": 0})
+    assert stale.status_code == 409  # the client has not seen the entry just made
+
+    assert d.undo().status_code == 200
+    assert d.cells() == before
+    assert d.redo().status_code == 200
+    assert d.cells() == cells

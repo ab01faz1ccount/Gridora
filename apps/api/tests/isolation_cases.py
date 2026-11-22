@@ -73,6 +73,10 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("GET", "/api/v1/tables/{id}/rows"): lambda c, ids: c.get(
         f"/api/v1/tables/{ids['table']}/rows"
     ),
+    ("POST", "/api/v1/tables/{id}/to-sheet"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/to-sheet",
+        json={"workbook_id": ids["wb"], "sheet_id": ids["sheet"]},
+    ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"
     ),
