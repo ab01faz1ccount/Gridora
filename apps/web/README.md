@@ -69,19 +69,33 @@ tuned, and 60 fps is **not** claimed.
   too large, network; the "too large to undo -> convert to a Data Table" message (F4) is the exact spec sentence.
 - Compatibility report panel: groups unsupported / partial / supported, per item the code, location, "kept in file",
   "editable"; the engine's English text is shown as given and labelled as such.
-- Workbook shell regions: top bar, formula bar (address + raw value, read-only), grid, side-panel host (report), sheet tabs, status bar
+- Workbook shell regions: top bar, formula bar (address + raw value, editable), grid, side-panel host (report), sheet tabs, status bar
   (count/sum/average of the selection, flagged "loaded cells only" when not everything is loaded).
 - 152 vitest tests pass; tsc strict and eslint clean.
 
+### Cell editing and undo/redo (slice 3)
+- Start editing by typing (replaces the content), F2 or double click (keeps it), or in the value bar above the grid. Enter saves and
+  moves down, Tab saves and moves right, Escape cancels, clicking elsewhere saves. A text that is unchanged sends nothing.
+- Delete/Backspace clears the selected range (one undo step, at most 50,000 cells). Ctrl+Z undoes; Ctrl+Y or Ctrl+Shift+Z redoes
+  (by physical key, so it works on a Persian layout). The toolbar buttons do the same and are enabled from the real history.
+- What is typed becomes: `=...` formula; `'text` text (apostrophe dropped); TRUE/FALSE boolean; a number (Persian/Arabic digits and
+  separators accepted, sent as Latin); anything else text. Dates, percentages and currencies are NOT recognized yet: they stay text.
+- `grid/editing.ts` (`WorkbookEditor`): one per open workbook; requests are serialized, each sends the previous entry's seq as
+  `base_seq`; the returned `cells` and `others` are written into the block cache of the sheet they belong to (caches are kept per
+  sheet while the workbook is open). A change that arrives while a block is still loading is applied when the block lands.
+  On `version_conflict` the history and caches are reloaded and the error is shown. The save indicator shows saving / saved / not saved.
+- Known limits: the first keystroke of an IME composition (`key` = "Process") cannot open the editor; use F2 or double click.
+  The screen updates when the server answers (no optimistic display). Editing a date cell and saving without changes is a no-op, but
+  changing it makes text. Copy/paste, fill handle and the history panel are not built. Not run in a real browser or on the real engine.
+
 ### Not done in this PR (the integrated slice is NOT complete in the UI)
-- **No cell editing, undo/redo buttons (disabled), history panel, save status, conflict banner** in the web app, although the API
-  supports edit/undo/redo/history (PR #50). Find is disabled. Cancelling a running import is impossible (no API; the card says so).
+- **No history panel, conflict banner** in the web app. Find is disabled. Cancelling a running import is impossible (no API; the card says so).
 - Not verified in a real browser: upload via the file chooser/drag and drop, progress, the new shell layout. Real-browser e2e of
   upload -> edit -> undo on the REAL engine has not been written or run.
 - Task bar, Data Tables, charts, tools, export, keyboard help, accessibility audit: not started.
 
 ### What does not work yet
-- No upload UI, import panel, editing, history, operations, tables, charts (later PRs); the grid is read-only and reached only by URL for now. Frozen panes, column resize, copy/paste, fill handle are not built.
+- No history panel, operations, tables, charts (later PRs). Frozen panes, column resize, copy/paste, fill handle are not built.
 - Screen-reader behaviour of the grid was not tested with a screen reader; row headers are `aria-hidden`.
 - Unit/component tests run in jsdom; real-browser checks exist only as the manual `e2e/` scripts (Firefox only; Chrome and Safari were not tested). CSP with the production bundle and font loading were seen working in the native-stack run, not in CI.
 - Display preferences are not stored on the server.

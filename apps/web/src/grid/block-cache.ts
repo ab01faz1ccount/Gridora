@@ -12,6 +12,8 @@ interface Block {
   cells: (Cell | undefined)[]; // BLOCK_ROWS * BLOCK_COLS, row-major
   abort?: AbortController;
   failedAt?: number;
+  /** Changes that arrived while the block was loading; applied on top of the fetched data. */
+  pending?: Cell[];
 }
 
 export interface CellLookup {
@@ -27,6 +29,7 @@ export interface BlockCacheOptions {
 }
 
 const key = (br: number, bc: number) => `${br}:${bc}`;
+const isEmptyCell = (cell: Cell) => cell.v === undefined && cell.f === undefined;
 
 export class BlockCache {
   private blocks = new Map<string, Block>(); // insertion order = LRU order (oldest first)
@@ -34,6 +37,7 @@ export class BlockCache {
   private wanted: { br: number; bc: number }[] = [];
   private inFlight = 0;
   private _version = 0;
+  private lastRange: [number, number, number, number] | null = null;
   readonly maxBlocks: number;
   readonly maxInFlight: number;
   private readonly retryAfterMs: number;
@@ -42,7 +46,7 @@ export class BlockCache {
   stats = { requested: 0, aborted: 0, failed: 0, evicted: 0 };
 
   constructor(
-    private readonly source: DataSource,
+    private source: DataSource,
     opts: BlockCacheOptions = {},
   ) {
     this.maxBlocks = opts.maxBlocks ?? 200;
@@ -60,6 +64,14 @@ export class BlockCache {
   private bump(): void {
     this._version++;
     this.listeners.forEach((l) => l());
+  }
+
+  /**
+   * Swap the data source without dropping loaded blocks. Used when the sheet grows after an edit:
+   * the same cells are fetched from the same place, only the dimensions differ.
+   */
+  setSource(source: DataSource): void {
+    this.source = source;
   }
 
   get size(): number {
@@ -82,6 +94,7 @@ export class BlockCache {
    * are queued or in flight are cancelled; missing ones are requested nearest-first.
    */
   ensure(r0: number, r1: number, c0: number, c1: number): void {
+    this.lastRange = [r0, r1, c0, c1];
     const maxBr = Math.max(0, Math.ceil(this.source.rowCount / BLOCK_ROWS) - 1);
     const maxBc = Math.max(0, Math.ceil(this.source.colCount / BLOCK_COLS) - 1);
     const b0 = Math.max(0, Math.floor(r0 / BLOCK_ROWS));
@@ -156,6 +169,11 @@ export class BlockCache {
           const i = (cell.r - r0) * BLOCK_COLS + (cell.c - c0);
           if (i >= 0 && i < arr.length) arr[i] = cell;
         }
+        for (const cell of block.pending ?? []) {
+          const i = (cell.r - r0) * BLOCK_COLS + (cell.c - c0);
+          if (i >= 0 && i < arr.length) arr[i] = isEmptyCell(cell) ? undefined : cell;
+        }
+        block.pending = undefined;
         block.cells = arr;
         block.status = "loaded";
         block.abort = undefined;
@@ -186,19 +204,34 @@ export class BlockCache {
     }
   }
 
-  /** Overwrite cells in blocks that are loaded (used for server-returned changes). */
+  /**
+   * Overwrite cells with server-returned changes. Loaded blocks are updated in place; blocks that
+   * are still loading remember the change and apply it when they arrive (their response may have
+   * been computed before the change). Absent and failed blocks fetch fresh data anyway.
+   */
   patch(cells: Cell[]): void {
     let changed = false;
     for (const cell of cells) {
       const br = Math.floor(cell.r / BLOCK_ROWS);
       const bc = Math.floor(cell.c / BLOCK_COLS);
       const b = this.blocks.get(key(br, bc));
-      if (!b || b.status !== "loaded") continue;
+      if (!b) continue;
+      if (b.status === "loading") {
+        (b.pending ??= []).push(cell);
+        continue;
+      }
+      if (b.status !== "loaded") continue;
       const i = (cell.r - br * BLOCK_ROWS) * BLOCK_COLS + (cell.c - bc * BLOCK_COLS);
-      b.cells[i] = cell.v === undefined && cell.f === undefined ? undefined : cell;
+      b.cells[i] = isEmptyCell(cell) ? undefined : cell;
       changed = true;
     }
     if (changed) this.bump();
+  }
+
+  /** Forget everything and fetch again what was last asked for (after a conflict or a structural change). */
+  refresh(): void {
+    this.invalidate();
+    if (this.lastRange) this.ensure(...this.lastRange);
   }
 
   /** Forget everything (e.g. after a structural change); visible blocks reload on next ensure. */

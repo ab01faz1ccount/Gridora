@@ -254,3 +254,116 @@ describe("Grid scrolling and fetching", () => {
     expect(cellEls().some((e) => e.dataset.c === "0")).toBe(false);
   });
 });
+
+describe("Grid editing", () => {
+  async function setup(rtl = false) {
+    usePrefs.setState({ digits: "latin" });
+    const { src } = source(50, 5);
+    const onEdit = vi.fn();
+    const onClear = vi.fn();
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    const onSel = vi.fn();
+    render(<Grid source={src} rtl={rtl} viewport={VIEW} onEdit={onEdit} onClear={onClear} onUndo={onUndo}
+      onRedo={onRedo} onSelectionChange={onSel} />);
+    await waitFor(() => expect(screen.getByText("1001")).toBeInTheDocument()); // loaded
+    const user = userEvent.setup();
+    act(() => scroller().focus());
+    return { user, onEdit, onClear, onUndo, onRedo, onSel };
+  }
+  const editor = () => screen.queryByRole("textbox");
+
+  it("typing starts an edit that replaces the content; Enter saves and moves down", async () => {
+    const { user, onEdit, onSel } = await setup();
+    await user.keyboard("hi");
+    expect(editor()).toHaveValue("hi");
+    await user.keyboard("{Enter}");
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith(0, 0, "hi");
+    expect(editor()).toBeNull();
+    expect(onSel).toHaveBeenLastCalledWith(expect.objectContaining({ active: { r: 1, c: 0 } }));
+    expect(scroller()).toHaveFocus();
+  });
+
+  it("Tab saves and moves to the next column", async () => {
+    const { user, onEdit, onSel } = await setup();
+    await user.keyboard("5{Tab}");
+    expect(onEdit).toHaveBeenCalledWith(0, 0, "5");
+    expect(onSel).toHaveBeenLastCalledWith(expect.objectContaining({ active: { r: 0, c: 1 } }));
+  });
+
+  it("Escape throws the edit away", async () => {
+    const { user, onEdit } = await setup();
+    await user.keyboard("oops{Escape}");
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(editor()).toBeNull();
+    expect(scroller()).toHaveFocus();
+  });
+
+  it("F2 opens the cell as it is, and leaving it unchanged sends nothing", async () => {
+    const { user, onEdit } = await setup();
+    await user.keyboard("{F2}");
+    expect(editor()).toHaveValue("0");
+    await user.keyboard("{Enter}");
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("F2 then typing appends to the content", async () => {
+    const { user, onEdit } = await setup();
+    await user.keyboard("{F2}9{Enter}");
+    expect(onEdit).toHaveBeenCalledWith(0, 0, "09");
+  });
+
+  it("double click edits that cell", async () => {
+    const { user, onEdit } = await setup();
+    await user.dblClick(document.getElementById("gv-1-1")!);
+    expect(editor()).toHaveValue("1001");
+    await user.keyboard("7{Enter}");
+    expect(onEdit).toHaveBeenCalledWith(1, 1, "10017");
+  });
+
+  it("clicking another cell saves the edit exactly once", async () => {
+    const { user, onEdit } = await setup();
+    await user.keyboard("abc");
+    await user.click(document.getElementById("gv-2-2")!);
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith(0, 0, "abc");
+    expect(editor()).toBeNull();
+  });
+
+  it("arrow keys inside the editor move the caret, not the selection", async () => {
+    const { user, onSel } = await setup();
+    await user.keyboard("ab{ArrowLeft}{ArrowDown}");
+    expect(editor()).toBeInTheDocument();
+    expect(onSel).not.toHaveBeenCalled();
+  });
+
+  it("Persian text can be typed as the first character", async () => {
+    const { user, onEdit } = await setup(true);
+    await user.keyboard("سلام{Enter}");
+    expect(onEdit).toHaveBeenCalledWith(0, 0, "سلام");
+  });
+
+  it("Delete clears the whole selected range", async () => {
+    const { user, onClear } = await setup();
+    await user.keyboard("{Shift>}{ArrowDown}{ArrowRight}{/Shift}{Delete}");
+    expect(onClear).toHaveBeenCalledWith({ r0: 0, r1: 1, c0: 0, c1: 1 });
+  });
+
+  it("Ctrl+Z undoes, Ctrl+Y and Ctrl+Shift+Z redo", async () => {
+    const { user, onUndo, onRedo } = await setup();
+    await user.keyboard("{Control>}z{/Control}");
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Control>}y{/Control}");
+    await user.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+    expect(onRedo).toHaveBeenCalledTimes(2);
+  });
+
+  it("is read-only without onEdit: typing and Delete do nothing", async () => {
+    usePrefs.setState({ digits: "latin" });
+    const { src } = source(50, 5);
+    render(<Grid source={src} rtl={false} viewport={VIEW} />);
+    await waitFor(() => expect(screen.getByText("1001")).toBeInTheDocument());
+    act(() => scroller().focus());
+    await userEvent.setup().keyboard("x{Delete}");
+    expect(editor()).toBeNull();
+  });
+});
