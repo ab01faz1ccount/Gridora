@@ -82,7 +82,8 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | POST | `/tables/{id}/export` | v0.6.6: 202 `Job` (like a workbook export); **csv only** (UTF-8 with BOM, text starting with `= + - @` gets an apostrophe, reported at `GET /jobs/{id}/compatibility`); for xlsx use `to-sheet` then export the workbook; parquet is not offered |
 | POST | `/tables/{id}/operations/preview` | `Operation` whose target is `{kind:"data_table", table_id}` → `PreviewResult` |
 | POST | `/tables/{id}/operations` | `OperationRequest` → 202 `Job` (result_ref = history seq); writes a new immutable version of the same table; destructive operations need `confirm_destructive`; an operation that would create another table is refused (`operation.unsupported_output`) |
-| POST | `/tables/{id}/undo`, `/tables/{id}/redo` | `?base_seq` → `TableChangedResult`; only moves the current-version pointer (nothing is rewritten) |
+| POST | `/tables/{id}/undo` | `?base_seq` → `TableChangedResult`; only moves the current-version pointer (nothing is rewritten) |
+| POST | `/tables/{id}/redo` | same, forward |
 | GET | `/tables/{id}/history` | `HistoryEntry[]`, newest first |
 
 ## 7. Operations
