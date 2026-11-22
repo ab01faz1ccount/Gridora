@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from .conftest import Session, run_db
 from .helpers import import_csv
-from .isolation_cases import ISOLATION_CASES
+from .isolation_cases import _CHART, ISOLATION_CASES
 from .routes import implemented_routes
 
 
@@ -32,6 +32,9 @@ def test_every_case_is_404_for_another_user_and_changes_nothing(
     ws = alice.post("/api/v1/workspaces", json={"name": "alice-ws"}).json()["data"]["id"]
     ids = {"ws": ws, **import_csv(alice, ws, "x.csv", b"a,b\n1,2\n")}
     ids["table"] = _a_table_of(alice, ws)
+    made = alice.post(f"/api/v1/documents/{ids['wb']}/charts", json=_CHART(ids))
+    assert made.status_code == 201, made.text
+    ids["chart"] = made.json()["data"]["id"]
     for key, case in ISOLATION_CASES.items():
         r = case(bob, ids)
         assert r.status_code == 404, f"{key}: another user got {r.status_code}"

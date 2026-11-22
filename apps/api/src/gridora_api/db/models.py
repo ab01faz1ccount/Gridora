@@ -175,6 +175,22 @@ class DataTableRow(Base):
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
 
 
+class ChartRow(Base):
+    """A chart definition (contract ChartSpec) attached to a workbook or table document."""
+
+    __tablename__ = "charts"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    spec_json: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
 class JobRow(Base):
     __tablename__ = "jobs"
     __table_args__ = (
