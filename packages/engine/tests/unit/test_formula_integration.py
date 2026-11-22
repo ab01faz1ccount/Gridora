@@ -124,3 +124,34 @@ def test_array_formula_is_evaluated_over_its_range_and_follows_edits(tmp_path):
     import zipfile
     xml = zipfile.ZipFile(out).read("xl/worksheets/sheet1.xml").decode()
     assert 't="array"' in xml and 'ref="B1:B3"' in xml
+
+
+def test_formulas_without_cached_values_are_computed_on_first_read(tmp_path):
+    """Files saved by generators (openpyxl and similar) hold formulas but no results."""
+    rows = (
+        '<row r="1"><c r="A1"><v>3</v></c><c r="B1"><f>A1*2</f><v /></c><c r="C1"><f>SUM(A1:B1)</f><v /></c></row>'
+        '<row r="2"><c r="A2"><v>4</v></c><c r="B2"><f>A2*2</f><v /></c></row>'
+    )
+    eng = create_engine({})
+    h, wb, _ = eng.import_xlsx(make_xlsx(tmp_path / "nocache.xlsx", sheet_doc(rows)))
+    s = wb.sheets[0]
+    assert val(eng, h, s, 0, 1) == 6
+    assert val(eng, h, s, 0, 2) == 9
+    assert val(eng, h, s, 1, 1) == 8
+
+
+def test_cached_values_in_a_file_are_not_recomputed_on_read(tmp_path):
+    """A saved result is kept as saved until something it depends on changes."""
+    rows = '<row r="1"><c r="A1"><v>2</v></c><c r="B1"><f>A1*10</f><v>999</v></c></row>'
+    eng = create_engine({})
+    h, wb, _ = eng.import_xlsx(make_xlsx(tmp_path / "cached.xlsx", sheet_doc(rows)))
+    assert val(eng, h, wb.sheets[0], 0, 1) == 999
+
+
+def test_formula_with_an_empty_value_element_has_no_saved_result(tmp_path):
+    """openpyxl writes <f>..</f><v /> for every formula; that is "no result", not a broken number."""
+    rows = '<row r="1"><c r="A1"><v>5</v></c><c r="B1"><f>A1+1</f><v /></c></row>'
+    eng = create_engine({})
+    h, wb, rep = eng.import_xlsx(make_xlsx(tmp_path / "emptyv.xlsx", sheet_doc(rows)))
+    assert val(eng, h, wb.sheets[0], 0, 1) == 6
+    assert all(i.code != "xlsx.cell_value_invalid" for i in rep.items)
