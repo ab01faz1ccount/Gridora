@@ -123,3 +123,78 @@ def test_table_to_sheet_is_undoable_and_never_overwrites(tuser: Session) -> None
     assert d.cells() == before
     assert d.redo().status_code == 200
     assert d.cells() == cells
+
+
+# ------------------------------------------------------------------------------------ charts
+def _sheet_chart(d: Doc) -> dict[str, Any]:
+    return {
+        "document_id": d.wb,
+        "type": "bar",
+        "title": "تعداد به تفکیک شهر",
+        "source": {
+            "kind": "sheet_range",
+            "range": {"sheet_id": d.sheet, "r0": 0, "c0": 0, "r1": 2, "c1": 2},
+        },
+        "series": [{"value_col": "تعداد", "category_col": "شهر"}],
+    }
+
+
+def test_chart_crud_and_data_from_a_sheet_range(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    r = tuser.post(f"/api/v1/documents/{d.wb}/charts", json=_sheet_chart(d))
+    assert r.status_code == 201, r.text
+    chart = r.json()["data"]
+    assert chart["id"] and chart["document_id"] == d.wb
+
+    assert [c["id"] for c in tuser.get(f"/api/v1/documents/{d.wb}/charts").json()["data"]] == [
+        chart["id"]
+    ]
+    data = tuser.get(f"/api/v1/charts/{chart['id']}/data")
+    assert data.status_code == 200, data.text
+    body = data.json()["data"]
+    assert body["categories"] == ["تهران", "شیراز"]
+    assert body["series"][0]["values"] == [3, 4.5]
+
+    changed = {**_sheet_chart(d), "type": "line", "title": "x"}
+    put = tuser.put(f"/api/v1/charts/{chart['id']}", json=changed)
+    assert put.status_code == 200 and put.json()["data"]["type"] == "line"
+    assert tuser.delete(f"/api/v1/charts/{chart['id']}").status_code == 204
+    assert tuser.get(f"/api/v1/documents/{d.wb}/charts").json()["data"] == []
+    assert tuser.get(f"/api/v1/charts/{chart['id']}/data").status_code == 404
+
+
+def test_chart_with_an_unknown_column_is_a_typed_error(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    spec = _sheet_chart(d)
+    spec["series"] = [{"value_col": "nope", "category_col": "شهر"}]
+    cid = tuser.post(f"/api/v1/documents/{d.wb}/charts", json=spec).json()["data"]["id"]
+    r = tuser.get(f"/api/v1/charts/{cid}/data")
+    assert r.status_code == 400 and r.json()["error"]["code"] == "validation_failed", r.text
+
+
+def test_a_chart_source_must_live_in_its_own_document(tuser: Session) -> None:
+    a, b = Doc(tuser, "real"), Doc(tuser, "real")
+    other = _sheet_chart(b)  # b's sheet, offered to a's document
+    r = tuser.post(f"/api/v1/documents/{a.wb}/charts", json=other)
+    assert r.status_code == 400, r.text
+    assert r.json()["error"]["details"][0]["code"] == "chart.bad_source"
+    ws = tuser.get("/api/v1/workspaces").json()["data"][0]["id"]
+    t = _make(tuser, ws)
+    as_table = {**_sheet_chart(a), "source": {"kind": "data_table", "table_id": t.id}}
+    assert tuser.post(f"/api/v1/documents/{a.wb}/charts", json=as_table).status_code == 400
+
+
+def test_chart_over_a_data_table(tuser: Session) -> None:
+    ws = _ws(tuser)
+    t = _make(tuser, ws)
+    spec = {
+        "document_id": t.id,
+        "type": "bar",
+        "source": {"kind": "data_table", "table_id": t.id},
+        "series": [{"value_col": "qty", "category_col": "name"}],
+    }
+    r = tuser.post(f"/api/v1/documents/{t.id}/charts", json=spec)
+    assert r.status_code == 201, r.text
+    data = tuser.get(f"/api/v1/charts/{r.json()['data']['id']}/data")
+    assert data.status_code == 200, data.text
+    assert data.json()["data"]["series"][0]["values"] == [3, 1, 2]

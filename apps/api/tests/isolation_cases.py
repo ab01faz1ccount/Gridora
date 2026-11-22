@@ -10,6 +10,18 @@ Case = Callable[[Any, dict[str, str]], Any]
 
 CSV = {"file": ("x.csv", b"a,b\n1,2\n", "text/csv")}
 
+def _CHART(ids: dict[str, str]) -> dict[str, object]:  # noqa: N802
+    return {
+        "document_id": ids["wb"],
+        "type": "bar",
+        "source": {
+            "kind": "sheet_range",
+            "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 2, "c1": 2},
+        },
+        "series": [{"value_col": "تعداد", "category_col": "شهر"}],
+    }
+
+
 ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("GET", "/api/v1/workspaces/{id}"): lambda c, ids: c.get(f"/api/v1/workspaces/{ids['ws']}"),
     ("PATCH", "/api/v1/workspaces/{id}"): lambda c, ids: c.patch(
@@ -76,6 +88,19 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("POST", "/api/v1/tables/{id}/to-sheet"): lambda c, ids: c.post(
         f"/api/v1/tables/{ids['table']}/to-sheet",
         json={"workbook_id": ids["wb"], "sheet_id": ids["sheet"]},
+    ),
+    ("GET", "/api/v1/documents/{id}/charts"): lambda c, ids: c.get(
+        f"/api/v1/documents/{ids['wb']}/charts"
+    ),
+    ("POST", "/api/v1/documents/{id}/charts"): lambda c, ids: c.post(
+        f"/api/v1/documents/{ids['wb']}/charts", json=_CHART(ids)
+    ),
+    ("PUT", "/api/v1/charts/{id}"): lambda c, ids: c.put(
+        f"/api/v1/charts/{ids['chart']}", json=_CHART(ids)
+    ),
+    ("DELETE", "/api/v1/charts/{id}"): lambda c, ids: c.delete(f"/api/v1/charts/{ids['chart']}"),
+    ("GET", "/api/v1/charts/{id}/data"): lambda c, ids: c.get(
+        f"/api/v1/charts/{ids['chart']}/data"
     ),
     ("GET", "/api/v1/documents/{id}/history"): lambda c, ids: c.get(
         f"/api/v1/documents/{ids['wb']}/history"

@@ -13,9 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.errors import DomainError
-from ..models import DataTableRow, JobRow, StoredFile, WorkbookRow, Workspace
+from ..models import ChartRow, DataTableRow, Document, JobRow, StoredFile, WorkbookRow, Workspace
 
-M = TypeVar("M", Workspace, StoredFile, WorkbookRow, JobRow, DataTableRow)
+M = TypeVar("M", Workspace, StoredFile, WorkbookRow, JobRow, DataTableRow, ChartRow, Document)
 
 
 def parse_id(raw: str) -> uuid.UUID:
