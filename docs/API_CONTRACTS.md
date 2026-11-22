@@ -74,10 +74,10 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET/POST | `/workspaces/{id}/tables` | create from file or empty |
+| GET/POST | `/workspaces/{id}/tables` | v0.6.2: list; create from `{name, columns, rows}` (≤10 000 rows; larger data comes from a range or file). Needs the real dataops |
 | GET | `/tables/{id}` | metadata + columns |
-| GET | `/tables/{id}/rows?offset&limit&sort` | paged rows |
-| POST | `/tables/from-range` | `{workbook_id, range, header_row, dtype_overrides?}` (supports `preview:true`) |
+| GET | `/tables/{id}/rows?offset&limit&sort` | `TableRows`; limit ≤ 1000; `sort=-col` for descending |
+| POST | `/tables/from-range` | `{workbook_id, range, header_row, dtype_overrides?}` (supports `preview:true` → `TablePreview`, nothing stored); `name?`; a snapshot table whose `source` records the workbook and range |
 | POST | `/tables/{id}/to-sheet` | `{workbook_id, sheet_id?|new_sheet_name, anchor}` |
 | POST | `/tables/{id}/export` | csv / xlsx / parquet |
 
