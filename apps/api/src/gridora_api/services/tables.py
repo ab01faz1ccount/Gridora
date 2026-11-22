@@ -12,9 +12,9 @@ import uuid
 from typing import Any
 
 from gridora_contracts.models import (
-    Column,
     CellPatchDelta,
     CellsChangedResult,
+    Column,
     CreateTableRequest,
     DataTable,
     ErrorDetail,
