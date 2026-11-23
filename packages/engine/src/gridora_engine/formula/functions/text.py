@@ -5,7 +5,7 @@ from typing import Any
 
 from .. import xlerrors as E
 from ..calendars import normalize
-from ..numfmt import format_value
+from ..numfmt import format_text, format_value, split_sections
 from ..values import (
     Arr,
     XlRaise,
@@ -206,9 +206,11 @@ def f_text(ctx: Any, a: Any, fmt: Any) -> str:
     if isinstance(v, str):
         n = parse_number(v)
         if n is None:
-            secs = code.split(";")
+            secs = split_sections(code)
             if len(secs) >= 4:
-                return secs[3].replace("@", v)
+                return format_text(secs[3], v)
+            if len(secs) == 1 and "@" in secs[0]:
+                return format_text(secs[0], v)
             return v
         v = n
     if isinstance(v, bool):
