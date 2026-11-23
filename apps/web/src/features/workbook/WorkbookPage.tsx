@@ -14,6 +14,7 @@ import { columnLetters } from "@/grid/geometry";
 import { boundsOf, single, type Selection } from "@/grid/selection";
 import { cellRaw, summarize } from "@/grid/summary";
 import { CompatPanel } from "@/features/import/CompatPanel";
+import { OperationPanel } from "@/features/operations/OperationPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { useT } from "@/i18n";
 import { formatNumber } from "@/i18n/format";
@@ -121,6 +122,19 @@ function WorkbookView({
   const ed = useSyncExternalStore(editor.subscribe, editor.getSnapshot);
   const version = useSyncExternalStore(cache.subscribe, cache.getVersion);
   const [sel, setSel] = useState<Selection>(single({ r: 0, c: 0 }));
+  const [taskQuery, setTaskQuery] = useState("");
+  const taskRef = useRef<HTMLInputElement>(null);
+  // Ctrl+K (any keyboard layout) jumps to "what do you want to do?"
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyK") {
+        e.preventDefault();
+        taskRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const active = sel.active;
   const address = `${columnLetters(active.c)}${active.r + 1}`;
@@ -171,6 +185,26 @@ function WorkbookView({
           </Button>
         ) : null}
       </header>
+      <form className="wbs-task" role="search" onSubmit={(e) => {
+        e.preventDefault();
+        setPanel("operations");
+      }}>
+        <input ref={taskRef} type="search" className="wbs-task-input" value={taskQuery}
+          aria-label={t("taskbar.label")} placeholder={t("taskbar.placeholder")}
+          onChange={(e) => {
+            setTaskQuery(e.target.value);
+            setPanel("operations");
+          }} />
+        <Button onClick={() => setPanel(panel === "operations" ? null : "operations")} aria-pressed={panel === "operations"}>
+          {t("taskbar.all")}
+        </Button>
+      </form>
+      {panel === "operations" ? (
+        <aside className="wbs-panel" aria-label={t("opPanel.title")}>
+          <OperationPanel workbookId={editor.workbookId} sheet={sheet} bounds={b} cache={cache} editor={editor}
+            query={taskQuery} onClose={() => setPanel(null)} />
+        </aside>
+      ) : null}
       {ed.conflict ? (
         <div className="wbs-conflict" role="alert">
           <div>

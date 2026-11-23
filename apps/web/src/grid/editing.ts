@@ -2,7 +2,9 @@
 // Requests are strictly serialized (each one needs the previous one's history seq as `base_seq`),
 // and what the server returns (`cells` and `others`) is applied to the block caches of the
 // sheets it belongs to, so the screen shows exactly what the engine computed.
-import type { Cell, CellEdit, CellEditRequest, CellsChangedResult, HistoryEntry } from "@contracts";
+import type {
+  Cell, CellEdit, CellEditRequest, CellsChangedResult, HistoryEntry, Job, Operation, OperationRequest,
+} from "@contracts";
 import { api, ApiError } from "@/api/client";
 import { BlockCache } from "./block-cache";
 import type { DataSource } from "./datasource";
@@ -23,6 +25,8 @@ import type { RangeBounds } from "./selection";
 export const MAX_EDITS = 50_000;
 const HISTORY_PAGE = 100;
 const HISTORY_MAX_PAGES = 50;
+/** An operation job is polled for about ten minutes at most. */
+const JOB_POLLS = 400;
 
 /** One block cache per sheet, kept while the workbook is open so switching tabs does not refetch. */
 export class SheetCaches {
@@ -230,6 +234,54 @@ export class WorkbookEditor {
         throw e;
       }
     });
+  }
+
+  /**
+   * Applies a data operation (sort, remove duplicates, ...) to a range: one history entry. The server
+   * answers at once for a quick operation, or with a job that is polled until it ends.
+   */
+  operate(operation: Operation, confirmDestructive: boolean): Promise<void> {
+    return this.enqueue(async () => {
+      try {
+        await this.load();
+        const body: OperationRequest = {
+          base_seq: headOf(this.history),
+          operation,
+          confirm_destructive: confirmDestructive,
+        };
+        const res = await api.post<CellsChangedResult | Job>(`/documents/${this.workbookId}/operations`, body);
+        if ("history_entry" in res) {
+          this.history = afterEdit(this.history, res.history_entry.seq);
+          this.apply(res);
+        } else {
+          await this.waitForJob(res.id);
+          this.loaded = null; // the job wrote history entries of its own: read them
+          this.caches.refreshAll();
+          await this.load();
+        }
+        this.onChanged();
+      } catch (e) {
+        await this.resync(e);
+        throw e;
+      }
+    });
+  }
+
+  private async waitForJob(id: string): Promise<void> {
+    for (let i = 0; i < JOB_POLLS; i++) {
+      const job = await api.get<Job>(`/jobs/${id}`);
+      if (job.status === "succeeded") return;
+      if (job.status === "failed") {
+        throw new ApiError({
+          code: job.error?.code ?? "internal_error",
+          message: job.error?.message ?? "operation failed",
+          status: 0,
+          details: job.error?.details,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(2000, 300 + 100 * i)));
+    }
+    throw new ApiError({ code: "internal_error", message: "operation timed out", status: 0 });
   }
 
   dismissConflict(): void {
