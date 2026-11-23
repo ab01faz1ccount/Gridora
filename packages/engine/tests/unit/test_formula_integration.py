@@ -207,3 +207,20 @@ def test_spill_is_recognised_after_replaying_a_delta(tmp_path):
     eng2.apply_delta(h2, d.model_copy(update={"sheet_id": s2.id}), inverse=False)  # a rebuilt working copy
     eng2.apply_cell_edits(h2, s2.id, [nm(0, 0, 4)])
     assert _col(eng2, h2, s2, 2)[2:6] == [1.0, 2.0, 3.0, 4.0]
+
+
+def test_number_format_conditions_text_sections_and_literal_only_sections(tmp_path):
+    eng, h, s = book(tmp_path)
+    cases = {
+        'TEXT(5,"[=5]""five"";0")': "five",
+        'TEXT(50,"[<10]""small"";[>=10]""big""")': "big",
+        'TEXT(5,"[<10]""small"";[>=10]""big""")': "small",
+        'TEXT("abc","@@")': "abcabc",
+        'TEXT("abc","""x""@")': "xabc",
+        'TEXT(5,"@")': "5",
+        'TEXT(0,"#,##0;;""zero""")': "zero",
+        'TEXT(-0.5,"0.0;(0.0)")': "(0.5)",
+    }
+    for i, (f, want) in enumerate(cases.items()):
+        eng.apply_cell_edits(h, s.id, [fx(20 + i, 0, f)])
+        assert val(eng, h, s, 20 + i, 0) == want, f

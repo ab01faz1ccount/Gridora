@@ -64,15 +64,64 @@ def format_value(v: float, code: str, date1904: bool = False, cal: str = "gregor
     if code.strip().lower() in ("", "general"):
         return general_text(v)
     secs = split_sections(code)
-    sec = secs[0]
-    neg_section = False
-    if v < 0 and len(secs) > 1:
-        sec, neg_section = secs[1], True
-    elif v == 0 and len(secs) > 2:
-        sec = secs[2]
+    sec, conditional = _pick_section(v, secs)
+    neg_section = v < 0 and not conditional and len(secs) > 1
     if is_date_code(sec):
         return _format_date(v, sec, date1904, cal)
-    return _format_number(-v if (neg_section or (v < 0 and len(secs) > 1)) and neg_section else v, sec, neg_section)
+    if "@" in re.sub(r'"[^"]*"|\\.', "", sec):  # a text section applied to a number
+        return format_text(sec, general_text(v))
+    return _format_number(-v if neg_section else v, sec, neg_section)
+
+
+_COND = re.compile(r"^\s*\[\s*(<=|>=|<>|<|>|=)\s*(-?[0-9.]+(?:[eE][+-]?\d+)?)\s*\]")
+
+
+def _cond(sec: str) -> tuple[str, float] | None:
+    m = _COND.match(re.sub(r"\[(?:Red|Black|Blue|Green|Cyan|Magenta|White|Yellow|Color\d+)\]", "", sec, flags=re.IGNORECASE))
+    return (m.group(1), float(m.group(2))) if m else None
+
+
+def _holds(v: float, c: tuple[str, float]) -> bool:
+    op, n = c
+    return {"<": v < n, ">": v > n, "<=": v <= n, ">=": v >= n, "=": v == n, "<>": v != n}[op]
+
+
+def _pick_section(v: float, secs: list[str]) -> tuple[str, bool]:
+    """The section of a number format that applies to `v` (plain: positive; negative; zero; conditions win)."""
+    c0 = _cond(secs[0])
+    c1 = _cond(secs[1]) if len(secs) > 1 else None
+    if c0 is not None or c1 is not None:
+        if c0 is not None and _holds(v, c0):
+            return secs[0], True
+        if len(secs) > 1 and c1 is not None and _holds(v, c1):
+            return secs[1], True
+        if len(secs) > 2:
+            return secs[2], True
+        if len(secs) == 2 and c1 is None:
+            return secs[1], True  # "[>100]0;0": everything else
+        return secs[0], True
+    if v < 0 and len(secs) > 1:
+        return secs[1], False
+    if v == 0 and len(secs) > 2:
+        return secs[2], False
+    return secs[0], False
+
+
+def format_text(sec: str, v: str) -> str:
+    """A text section: `@` stands for the text, quoted and escaped characters are literal."""
+    out: list[str] = []
+    for m in _TOKEN.finditer(sec):
+        if m.group("q") is not None:
+            out.append(m.group("q"))
+        elif m.group("esc") is not None:
+            out.append(m.group("esc"))
+        elif m.group("sp") is not None:
+            out.append(" ")
+        elif m.group("ch") == "@":
+            out.append(v)
+        elif m.group("ch") is not None:
+            out.append(m.group("ch"))
+    return "".join(out)
 
 
 # -- numbers ----------------------------------------------------------------------------------------
@@ -127,6 +176,8 @@ def _format_number(v: float, sec: str, explicit_neg: bool) -> str:
     rounded = d.quantize(Decimal(1).scaleb(-nfrac), rounding=ROUND_HALF_UP)
     s_int, _, s_frac = f"{rounded:f}".partition(".")
     s_int = s_int.lstrip("0")
+    if not pat:  # no digit placeholders: the section is only text
+        s_int = s_frac = ""
     is_zero = rounded == 0
     out = _layout(toks, s_int, s_frac, grouping)
     return ("-" + out) if (neg and not is_zero and not explicit_neg) else out
