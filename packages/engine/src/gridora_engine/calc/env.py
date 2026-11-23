@@ -79,6 +79,11 @@ class WorkbookEnv:
     def reset_clock(self) -> None:
         self._now = None
 
+    def is_hidden_row(self, s: int, r: int) -> bool:
+        lazy = self.state.sheets[s].lazy
+        src = getattr(lazy, "source", None)
+        return src is not None and r in src.hidden_rows
+
     def is_subtotal_cell(self, s: int, r: int, c: int) -> bool:
         return self.calc.is_subtotal((s << 40) | (r << 14) | c)
 

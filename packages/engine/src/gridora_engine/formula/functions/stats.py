@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import re
 import statistics
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from .. import xlerrors as E
@@ -20,7 +20,7 @@ from .helpers import matrix_rows, num, numbers, opt_num, scalar, wildcard_to_reg
 from .registry import fn
 
 
-def _nums_in(args: tuple) -> list[float]:
+def _nums_in(args: tuple[Any, ...]) -> list[float]:
     return list(numbers(args))
 
 
@@ -481,7 +481,7 @@ def make_matcher(criteria: Scalar) -> Callable[[Scalar], bool]:
         return lambda v: isinstance(v, str) and v.lower() == low
     if op == "<>":
         return lambda v: not (isinstance(v, str) and v.lower() == low)
-    cmpf = {"<": lambda c: c < 0, ">": lambda c: c > 0, "<=": lambda c: c <= 0, ">=": lambda c: c >= 0}[op]
+    cmpf: Callable[[int], bool] = {"<": lambda c: c < 0, ">": lambda c: c > 0, "<=": lambda c: c <= 0, ">=": lambda c: c >= 0}[op]
     return lambda v: isinstance(v, str) and cmpf((v.lower() > low) - (v.lower() < low))
 
 
@@ -504,11 +504,11 @@ def _numeric_op(op: str, n: float, raw: str) -> Callable[[Scalar], bool]:
         return lambda v: _numeq(v, n)
     if op == "<>":
         return lambda v: not _numeq(v, n)
-    f = {"<": lambda x: x < n, ">": lambda x: x > n, "<=": lambda x: x <= n, ">=": lambda x: x >= n}[op]
+    f: Callable[[float], bool] = {"<": lambda x: x < n, ">": lambda x: x > n, "<=": lambda x: x <= n, ">=": lambda x: x >= n}[op]
     return lambda v: isnum(v) and f(float(v))
 
 
-def _crit_pairs(ctx: Any, args: tuple) -> list[tuple[Any, Callable[[Scalar], bool]]]:
+def _crit_pairs(ctx: Any, args: tuple[Any, ...]) -> list[tuple[Any, Callable[[Scalar], bool]]]:
     if len(args) % 2:
         raise XlRaise(E.VALUE)
     out = []
@@ -526,7 +526,7 @@ def _crit_pairs(ctx: Any, args: tuple) -> list[tuple[Any, Callable[[Scalar], boo
     return out
 
 
-def _matching_cells(pairs: list[tuple[Any, Callable[[Scalar], bool]]]):
+def _matching_cells(pairs: list[tuple[Any, Callable[[Scalar], bool]]]) -> Iterator[tuple[int, int]]:
     """Yield (i, j) of every cell position that satisfies all criteria."""
     first = pairs[0][0]
     cols = [(r.to_rows(), m) for r, m in pairs]
@@ -560,7 +560,8 @@ def _sum_range(sum_rng: Any, first: Any) -> list[list[Scalar]]:
     return out
 
 
-def _agg_if(ctx: Any, sum_rng: Any, pairs, fnc):
+def _agg_if(ctx: Any, sum_rng: Any, pairs: list[tuple[Any, Callable[[Scalar], bool]]],
+            fnc: Callable[[list[float]], float]) -> float:
     vals = _sum_range(sum_rng, pairs[0][0])
     picked: list[float] = []
     for i, j in _matching_cells(pairs):

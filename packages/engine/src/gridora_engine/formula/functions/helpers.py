@@ -62,7 +62,7 @@ def iter_cells(v: Any) -> Iterator[Scalar]:
         yield v
 
 
-def numbers(args: tuple, *, count_text_in_refs: bool = False) -> Iterator[float]:
+def numbers(args: tuple[Any, ...], *, count_text_in_refs: bool = False) -> Iterator[float]:
     """Numbers as SUM/AVERAGE/MAX see them: in matrices only real numbers (errors raise);
     direct arguments are coerced (text -> number or #VALUE!, TRUE -> 1)."""
     for a in args:

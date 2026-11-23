@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -488,7 +489,7 @@ def parse(text: str) -> Node:
     return node
 
 
-def walk(node: Node):
+def walk(node: Node) -> Iterator[Node]:
     """Yield every node of the tree (pre-order)."""
     stack = [node]
     while stack:
@@ -523,9 +524,12 @@ def translate(text: str, d_row: int, d_col: int) -> str:
 
 def _shift_area(area: str, dr: int, dc: int) -> str:
     parts = area.split(":")
-    shifted = [_shift_part(p, dr, dc) for p in parts]
-    if any(s is None for s in shifted):
-        return "#REF!"
+    shifted: list[str] = []
+    for p in parts:
+        sp = _shift_part(p, dr, dc)
+        if sp is None:
+            return "#REF!"
+        shifted.append(sp)
     return ":".join(shifted)
 
 
@@ -565,7 +569,7 @@ def _shift_part(p: str, dr: int, dc: int) -> str | None:
     return p
 
 
-def substitute(node: Node, fn) -> Node:
+def substitute(node: Node, fn: Callable[[Node], Node]) -> Node:
     """Rebuild the tree with fn(leaf) applied to Ref/StructRef/Name leaves (fn returns a node)."""
     if isinstance(node, (Ref, StructRef, Name)):
         return fn(node)

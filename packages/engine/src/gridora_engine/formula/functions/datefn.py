@@ -110,7 +110,8 @@ def f_today(ctx: Any) -> float:
 
 @fn("NOW", 0, 0, volatile=True)
 def f_now(ctx: Any) -> float:
-    return ctx.env.now_serial()
+    now: float = ctx.env.now_serial()
+    return now
 
 
 @fn("YEAR", 1, 1)
@@ -309,7 +310,7 @@ def f_networkdays_intl(ctx: Any, a: Any, b: Any, w: Any = None, h: Any = None) -
     return _networkdays(ctx, a, b, h, _weekend_set(ctx, w), False)
 
 
-def _networkdays(ctx, a, b, h, weekend_sun0, sun_first) -> float:
+def _networkdays(ctx: Any, a: Any, b: Any, h: Any, weekend_sun0: Any, sun_first: bool) -> float:
     d1904 = _d1904(ctx)
     s, e = math.floor(_serial_arg(ctx, a)), math.floor(_serial_arg(ctx, b))
     hol = _holidays(ctx, h)
@@ -336,7 +337,7 @@ def f_workday_intl(ctx: Any, a: Any, days: Any, w: Any = None, h: Any = None) ->
     return _workday(ctx, a, days, h, _weekend_set(ctx, w), False)
 
 
-def _workday(ctx, a, days, h, weekend, sun_first) -> float:
+def _workday(ctx: Any, a: Any, days: Any, h: Any, weekend: Any, sun_first: bool) -> float:
     d1904 = _d1904(ctx)
     cur = math.floor(_serial_arg(ctx, a))
     n = integer(ctx, days)

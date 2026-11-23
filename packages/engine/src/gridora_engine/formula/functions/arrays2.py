@@ -55,7 +55,7 @@ def f_drop(ctx: Any, a: Any, rows: Any, cols: Any = None) -> Arr:
     return Arr(out)
 
 
-def _pick(ctx: Any, args: tuple, n: int) -> list[int]:
+def _pick(ctx: Any, args: tuple[Any, ...], n: int) -> list[int]:
     out = []
     for a in args:
         for row in _rows(a):

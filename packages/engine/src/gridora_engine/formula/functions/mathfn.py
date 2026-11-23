@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 from typing import Any
 
 from .. import xlerrors as E
@@ -241,7 +242,8 @@ def f_pi(ctx: Any) -> float:
     return math.pi
 
 
-def _trig(name: str, f, domain=None):
+def _trig(name: str, f: Callable[[float], float],
+          domain: Callable[[float], bool] | None = None) -> Callable[..., float]:
     @fn(name, 1, 1)
     def _t(ctx: Any, a: Any) -> float:
         x = num(ctx, a)
@@ -386,14 +388,16 @@ def f_subtotal(ctx: Any, code: Any, *refs: Any) -> Any:
     if name is None:
         raise XlRaise(E.VALUE)
     skip = getattr(ctx.env, "is_subtotal_cell", None)
+    hidden = getattr(ctx.env, "is_hidden_row", None) if n > 100 else None  # 101-111 ignore hidden rows
     filtered: list[Any] = []
     for r in refs:
-        if isinstance(r, RangeVal) and skip is not None:
+        if isinstance(r, RangeVal) and (skip is not None or hidden is not None):
             rows = []
             for i in range(r.nrows):
                 row = []
                 for j in range(r.ncols):
-                    row.append(None if skip(r.sheet, r.r0 + i, r.c0 + j) else r.at(i, j))
+                    row.append(None if (skip is not None and skip(r.sheet, r.r0 + i, r.c0 + j))
+                               or (hidden is not None and hidden(r.sheet, r.r0 + i)) else r.at(i, j))
                 rows.append(row)
             filtered.append(Arr(rows))
         else:

@@ -290,7 +290,8 @@ def f_weibull(ctx: Any, x: Any, a: Any, b: Any, cum: Any) -> float:
     _need(v >= 0 and al > 0 and be > 0)
     if _cum(ctx, cum):
         return 1 - math.exp(-((v / be) ** al))
-    return al / be ** al * v ** (al - 1) * math.exp(-((v / be) ** al))
+    res: float = al / be ** al * v ** (al - 1) * math.exp(-((v / be) ** al))
+    return res
 
 
 @fn("LOGNORM.DIST", 4, 4)
@@ -378,7 +379,7 @@ def _percentrank(ctx: Any, arr: Any, x: Any, sig: Any, *, exc: bool) -> float:
     else:
         rank = i + (xv - v[i]) / (v[i + 1] - v[i])
     r = (rank + 1) / (n + 1) if exc else (rank / (n - 1) if n > 1 else 1.0)
-    f = 10 ** digits
+    f: float = 10 ** digits
     return math.floor(r * f + 1e-9) / f
 
 
@@ -395,7 +396,7 @@ def f_skew_p(ctx: Any, *args: Any) -> float:
     return math.fsum(((x - m) / s) ** 3 for x in v) / n
 
 
-def _va(args: tuple) -> list[float]:
+def _va(args: tuple[Any, ...]) -> list[float]:
     return list(numbers(args, count_text_in_refs=True))
 
 
