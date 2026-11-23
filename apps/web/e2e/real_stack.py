@@ -229,6 +229,26 @@ def run(p):
     check(wait_cell(page, 0, 0, "215.5"), "XLSX: undo also restores the other sheet (=Sales!F2*2 = 107.75*2)")
     page.screenshot(path=f"{SHOTS}/xlsx-other.png")
 
+    # ---------------- dynamic array: spill ----------------
+    page.get_by_role("tab", name="Sales").click()
+    grid_ready(page)
+    page.get_by_role("grid").focus()
+    goto_cell(page, 10, 8)
+    page.keyboard.type("=SEQUENCE(3)")
+    page.keyboard.press("Enter")
+    check(wait_cell(page, 10, 8, "1") and wait_cell(page, 11, 8, "2") and wait_cell(page, 12, 8, "3"),
+          "spill: =SEQUENCE(3) fills three cells (the server sent the neighbours)")
+    goto_cell(page, 11, 8)
+    page.keyboard.type("x")
+    page.keyboard.press("Enter")
+    check(wait_cell(page, 10, 8, "#SPILL!") and wait_cell(page, 12, 8, ""), "spill: a value in the way gives #SPILL! and the rest is emptied")
+    page.keyboard.press("Control+Z")
+    check(wait_cell(page, 10, 8, "1") and wait_cell(page, 12, 8, "3"), "spill: undo of the blocking value restores the spill")
+    page.keyboard.press("Control+Z")
+    check(wait_cell(page, 10, 8, "") and wait_cell(page, 12, 8, ""), "spill: undo of the formula removes the whole spill")
+    page.keyboard.press("Control+Y")
+    check(wait_cell(page, 12, 8, "3"), "spill: redo brings the spill back")
+
     # expected: the 401 of the "who am I" probe before sign-in, and the 409 this script causes on purpose
     bad = [e for e in errors if "favicon" not in e and "status of 401" not in e and "status of 409" not in e]
     check(not bad, f"no console errors or page errors ({bad[:3]})")

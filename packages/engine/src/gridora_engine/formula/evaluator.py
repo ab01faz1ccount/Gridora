@@ -129,6 +129,20 @@ def evaluate_array_formula(node: Node, env: Env, sheet: int, row: int, col: int)
     return v
 
 
+def evaluate_dynamic(node: Node, env: Env, sheet: int, row: int, col: int) -> Arr | Scalar:
+    """Like `evaluate_formula`, but a result with more than one cell is returned whole (it spills)."""
+    ctx = Ctx(env, sheet, row, col, arr=False)
+    try:
+        v = evaluate(node, ctx)
+    except XlRaise as e:
+        return e.err
+    except RecursionError:
+        return E.CALC
+    if isinstance(v, Arr) and v.rows and v.rows[0] and (len(v.rows) > 1 or len(v.rows[0]) > 1):
+        return v
+    return final_value(v, ctx)
+
+
 def parse_cached(text: str, _cache: dict[str, Node | None] = {}) -> Node | None:  # noqa: B006
     """Parse with a small process-wide memo; None when the text does not parse."""
     if text in _cache:
