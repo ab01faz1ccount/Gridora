@@ -1,7 +1,7 @@
 """Env implementation over a WorkbookState (what the formula evaluator reads through)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ..formula import xlerrors as E
@@ -71,7 +71,7 @@ class WorkbookEnv:
     def now_serial(self) -> float:
         if self._now is None:
             fixed = self.calc.now
-            n = fixed() if fixed is not None else datetime.now()
+            n = fixed() if fixed is not None else datetime.now(UTC).astimezone()
             base = ymd_to_serial(n.year, n.month, n.day, self.date1904) or 0.0
             self._now = base + (n.hour * 3600 + n.minute * 60 + n.second) / 86400
         return self._now
