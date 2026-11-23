@@ -358,6 +358,11 @@ class GridoraEngine:
         for r, c in cells:
             key = (r << 14) | c
             calc.set_formula(sheet.index, key, sheet.formulas.get(key))
+        calc.orphans.clear()  # the delta already restored the spilled cells
+        for r, c in cells:
+            fk = (sheet.index << 40) | (r << 14) | c
+            if fk in calc.candidates:
+                calc.adopt_spill(fk)
 
     def _before_bulk(self, state: WorkbookState) -> None:
         """Load every formula sheet completely BEFORE a bulk write: a later full parse of a lazy sheet

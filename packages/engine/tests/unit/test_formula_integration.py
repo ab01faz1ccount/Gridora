@@ -169,3 +169,41 @@ def test_subtotal_101_to_111_skip_hidden_rows_but_1_to_11_do_not(tmp_path):
     assert val(eng, h, s, 10, 0) == 150.0
     assert val(eng, h, s, 11, 0) == 90.0
     assert val(eng, h, s, 12, 0) == 3.0
+
+
+def _col(eng, h, s, c, n=8):
+    return [val(eng, h, s, r, c) for r in range(n)]
+
+
+def test_spill_grows_shrinks_blocks_and_undoes(tmp_path):
+    eng, h, s = book(tmp_path)  # A1 = 2, B1 = A1*10
+    d = eng.apply_cell_edits(h, s.id, [fx(2, 2, "SEQUENCE(A1)"), fx(0, 3, "SUM(C3:C9)")])
+    assert _col(eng, h, s, 2)[2:5] == [1.0, 2.0, None]
+    assert val(eng, h, s, 0, 3) == 3.0
+    eng.apply_cell_edits(h, s.id, [nm(0, 0, 5)])  # grows: cells that a formula reads are filled and it follows
+    assert _col(eng, h, s, 2)[2:7] == [1.0, 2.0, 3.0, 4.0, 5.0]
+    assert val(eng, h, s, 0, 3) == 15.0
+    eng.apply_cell_edits(h, s.id, [nm(0, 0, 2)])  # shrinks: the extra cells are emptied
+    assert _col(eng, h, s, 2)[2:7] == [1.0, 2.0, None, None, None]
+    assert val(eng, h, s, 0, 3) == 3.0
+    eng.apply_cell_edits(h, s.id, [nm(3, 2, 99)])  # a value in the way
+    eng.apply_cell_edits(h, s.id, [nm(0, 0, 4)])
+    assert cell(eng, h, s, 2, 2).v.e == "#SPILL!" and val(eng, h, s, 3, 2) == 99.0
+    eng.apply_cell_edits(h, s.id, [CellEdit(r=3, c=2)])  # in the way no more: it spills again
+    assert _col(eng, h, s, 2)[2:6] == [1.0, 2.0, 3.0, 4.0]
+    d2 = eng.apply_cell_edits(h, s.id, [nm(2, 2, 7)])  # replacing the formula takes its output away
+    assert _col(eng, h, s, 2)[2:6] == [7.0, None, None, None]
+    eng.apply_delta(h, d2, inverse=True)  # undo brings formula and output back
+    assert _col(eng, h, s, 2)[2:6] == [1.0, 2.0, 3.0, 4.0]
+    eng.apply_cell_edits(h, s.id, [nm(0, 0, 3)])  # the formula still owns its range after undo
+    assert _col(eng, h, s, 2)[2:6] == [1.0, 2.0, 3.0, None]
+    assert d is not None
+
+
+def test_spill_is_recognised_after_replaying_a_delta(tmp_path):
+    eng, h, s = book(tmp_path)
+    d = eng.apply_cell_edits(h, s.id, [fx(2, 2, "SEQUENCE(A1)")])
+    eng2, h2, s2 = book(tmp_path)
+    eng2.apply_delta(h2, d.model_copy(update={"sheet_id": s2.id}), inverse=False)  # a rebuilt working copy
+    eng2.apply_cell_edits(h2, s2.id, [nm(0, 0, 4)])
+    assert _col(eng2, h2, s2, 2)[2:6] == [1.0, 2.0, 3.0, 4.0]
