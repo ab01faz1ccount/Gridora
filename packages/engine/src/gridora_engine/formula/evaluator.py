@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -144,34 +145,29 @@ def parse_cached(text: str, _cache: dict[str, Node | None] = {}) -> Node | None:
 
 # -- core ---------------------------------------------------------------------------------------------------
 def evaluate(node: Node, ctx: Ctx) -> Any:
-    t = type(node)
-    if t is Num:
+    if isinstance(node, (Num, Str, Bool)):
         return node.v
-    if t is Str:
-        return node.v
-    if t is Bool:
-        return node.v
-    if t is Ref:
+    if isinstance(node, Ref):
         return resolve_ref(node, ctx)
-    if t is Binary:
+    if isinstance(node, Binary):
         return eval_binary(node, ctx)
-    if t is Func:
+    if isinstance(node, Func):
         return call_function(node, ctx)
-    if t is Unary:
+    if isinstance(node, Unary):
         v = to_scalar_or_arr(evaluate(node.x, ctx), ctx)
         if node.op == "-":
             return map_unary(v, lambda x: -to_num(x))
         return v
-    if t is Percent:
+    if isinstance(node, Percent):
         v = to_scalar_or_arr(evaluate(node.x, ctx), ctx)
         return map_unary(v, lambda x: to_num(x) / 100)
-    if t is Err:
+    if isinstance(node, Err):
         return BY_CODE.get(node.code, E.VALUE)
-    if t is ArrayLit:
+    if isinstance(node, ArrayLit):
         return Arr([[evaluate(c, ctx) for c in row] for row in node.rows])
-    if t is Name:
+    if isinstance(node, Name):
         return eval_name(node, ctx)
-    if t is Missing:
+    if isinstance(node, Missing):
         return None
     raise XlRaise(E.VALUE)
 
@@ -229,13 +225,13 @@ def to_scalar_or_arr(v: Any, ctx: Ctx) -> Any:
     return v
 
 
-def map_unary(v: Any, f) -> Any:
+def map_unary(v: Any, f: Callable[[Any], Any]) -> Any:
     if isinstance(v, Arr):
         return Arr([[_safe(f, x) for x in row] for row in v.rows])
     return _safe(f, v)
 
 
-def _safe(f, x):
+def _safe(f: Callable[[Any], Any], x: Any) -> Any:
     if isinstance(x, XlError):
         return x
     try:
@@ -339,7 +335,7 @@ def broadcast(a: Any, b: Any, op: str) -> Arr:
 _MISSING = object()
 
 
-def _pick(rows, n, m, i, j):
+def _pick(rows: list[list[Any]], n: int, m: int, i: int, j: int) -> Any:
     ii = 0 if n == 1 else i
     jj = 0 if m == 1 else j
     if ii >= n or jj >= m:

@@ -114,6 +114,7 @@ class SheetSource:
         self.max_span_col = 0
         self.formula_count = 0
         self.noval_count = 0  # formulas saved without a result (files from generators such as openpyxl)
+        self.hidden_rows: set[int] = set()  # rows with hidden="1" (SUBTOTAL 101-111 skips them)
         self.shared_count = 0
         self.array_count = 0
         self.metadata_count = 0
@@ -198,6 +199,9 @@ def _scan(src: SheetSource, limits: ResourceLimits, deadline: Deadline) -> None:
             sp = SPANS_ATTR.search(m.group(1))
             if sp:
                 src.max_span_col = max(src.max_span_col, int(sp.group(2)))
+            attrs = m.group(1)
+            if b"hidden=" in attrs and (b'hidden="1"' in attrs or b'hidden="true"' in attrs):
+                src.hidden_rows.add(r)
             src.row_nums.append(r)
             src.row_starts.append(m.start())
             last = r

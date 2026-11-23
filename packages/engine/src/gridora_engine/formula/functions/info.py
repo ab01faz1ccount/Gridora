@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from .. import xlerrors as E
@@ -9,7 +10,7 @@ from .helpers import scalar
 from .registry import fn
 
 
-def _is(name: str, pred):
+def _is(name: str, pred: Callable[[Any], bool]) -> Callable[..., bool]:
     @fn(name, 1, 1)
     def _f(ctx: Any, a: Any) -> bool:
         return pred(scalar(ctx, a))

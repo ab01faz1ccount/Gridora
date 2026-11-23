@@ -12,7 +12,7 @@ from .registry import fn
 def _pmt(rate: float, nper: float, pv: float, fv: float, typ: int) -> float:
     if rate == 0:
         return -(pv + fv) / nper
-    f = (1 + rate) ** nper
+    f: float = (1 + rate) ** nper
     return -(rate * (pv * f + fv)) / ((1 + rate * typ) * (f - 1))
 
 
@@ -30,7 +30,7 @@ def f_fv(ctx: Any, rate: Any, nper: Any, pmt: Any, pv: Any = None, typ: Any = No
     pvv, t = opt_num(ctx, pv, 0), int(opt_num(ctx, typ, 0) != 0)
     if r == 0:
         return -(pvv + p * n)
-    f = (1 + r) ** n
+    f: float = (1 + r) ** n
     return -(pvv * f + p * (1 + r * t) * (f - 1) / r)
 
 
@@ -40,7 +40,7 @@ def f_pv(ctx: Any, rate: Any, nper: Any, pmt: Any, fv: Any = None, typ: Any = No
     fvv, t = opt_num(ctx, fv, 0), int(opt_num(ctx, typ, 0) != 0)
     if r == 0:
         return -(fvv + p * n)
-    f = (1 + r) ** n
+    f: float = (1 + r) ** n
     return -(fvv + p * (1 + r * t) * (f - 1) / r) / f
 
 
@@ -62,7 +62,7 @@ def f_nper(ctx: Any, rate: Any, pmt: Any, pv: Any, fv: Any = None, typ: Any = No
 def _ipmt_end(r: float, k: float, pv: float, pay: float) -> float:
     if r == 0:
         return 0.0
-    f = (1 + r) ** (k - 1)
+    f: float = (1 + r) ** (k - 1)
     balance = pv * f + pay * (f - 1) / r
     return -balance * r
 
@@ -143,7 +143,7 @@ def f_rate(ctx: Any, nper: Any, pmt: Any, pv: Any, fv: Any = None, typ: Any = No
     def f(x: float) -> float:
         if abs(x) < 1e-12:
             return pvv + p * n + fvv
-        g = (1 + x) ** n
+        g: float = (1 + x) ** n
         return pvv * g + p * (1 + x * t) * (g - 1) / x + fvv
 
     for _ in range(200):

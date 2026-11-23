@@ -115,7 +115,7 @@ def t_cdf(t: float, df: float) -> float:
 
 
 def t_pdf(t: float, df: float) -> float:
-    return math.exp(math.lgamma((df + 1) / 2) - math.lgamma(df / 2)) / math.sqrt(df * math.pi) * (1 + t * t / df) ** (-(df + 1) / 2)
+    return math.exp(math.lgamma((df + 1) / 2) - math.lgamma(df / 2)) / math.sqrt(df * math.pi) * float((1 + t * t / df) ** (-(df + 1) / 2))
 
 
 def t_inv(p: float, df: float) -> float:

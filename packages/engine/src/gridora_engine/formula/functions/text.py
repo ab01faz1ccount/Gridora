@@ -195,7 +195,8 @@ def f_numbervalue(ctx: Any, a: Any, dec: Any = None, grp: Any = None) -> float:
     n = parse_number(s)
     if n is None:
         raise XlRaise(E.VALUE)
-    return n / (100 ** pct)
+    scale: float = 100 ** pct
+    return n / scale
 
 
 @fn("TEXT", 2, 2)

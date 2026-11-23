@@ -98,7 +98,7 @@ _XLSX = (
             "{count} sheet(s) have frozen panes; they are read and kept.",
             tests=("test_rtl_frozen_hidden_and_defined_names",)),
     Feature("xlsx.formulas_not_recalculated", "partial", "formula text and cached values shown",
-            "About {count} formula cell(s): formulas and their saved results are shown, but Gridora cannot recalculate them yet.",
+            "About {count} formula cell(s): formulas and their saved results are shown; Gridora recalculates them after an edit, except unsupported functions, data tables and spilled ranges.",
             tests=("test_import_values_types_dates_formulas_styles",)),
     Feature("xlsx.shared_formula", "partial", "cached values shown; dependent formula text not shown",
             "About {count} shared formula group(s): dependent cells show saved results but not their formula text; cells that belong to a group cannot be edited yet.",

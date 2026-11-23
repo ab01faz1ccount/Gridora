@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import xlerrors as E
+from ..parser import Node
 from ..values import Arr, RangeVal, XlRaise, check, compare, is_matrix, to_bool
 from ..xlerrors import XlError
 from .helpers import boolean
@@ -10,7 +11,7 @@ from .registry import fn
 
 
 @fn("IF", 2, 3, lazy=True)
-def f_if(ctx: Any, nodes: list) -> Any:
+def f_if(ctx: Any, nodes: list[Node]) -> Any:
     cond = ctx.ev(nodes[0])
     if isinstance(cond, (Arr, RangeVal)) and ctx.arr:
         return _if_array(ctx, nodes, cond)
@@ -22,12 +23,12 @@ def f_if(ctx: Any, nodes: list) -> Any:
     return False
 
 
-def _if_array(ctx: Any, nodes: list, cond: Any) -> Arr:
+def _if_array(ctx: Any, nodes: list[Node], cond: Any) -> Arr:
     rows = cond.to_rows()
     a = ctx.ev(nodes[1])
     b = ctx.ev(nodes[2]) if len(nodes) == 3 else False
 
-    def pick(v, i, j):
+    def pick(v: Any, i: int, j: int) -> Any:
         if isinstance(v, (Arr, RangeVal)):
             ii = 0 if v.nrows == 1 else i
             jj = 0 if v.ncols == 1 else j
@@ -52,7 +53,7 @@ def _if_array(ctx: Any, nodes: list, cond: Any) -> Arr:
 
 
 @fn("IFERROR", 2, 2, lazy=True)
-def f_iferror(ctx: Any, nodes: list) -> Any:
+def f_iferror(ctx: Any, nodes: list[Node]) -> Any:
     v = ctx.ev(nodes[0])
     s = v if is_matrix(v) and ctx.arr else ctx.scalar(v)
     if isinstance(s, XlError):
@@ -64,7 +65,7 @@ def f_iferror(ctx: Any, nodes: list) -> Any:
 
 
 @fn("IFNA", 2, 2, lazy=True)
-def f_ifna(ctx: Any, nodes: list) -> Any:
+def f_ifna(ctx: Any, nodes: list[Node]) -> Any:
     s = ctx.scalar(ctx.ev(nodes[0]))
     if s == E.NA:
         return ctx.ev(nodes[1])
@@ -72,7 +73,7 @@ def f_ifna(ctx: Any, nodes: list) -> Any:
 
 
 @fn("IFS", 2, -1, lazy=True)
-def f_ifs(ctx: Any, nodes: list) -> Any:
+def f_ifs(ctx: Any, nodes: list[Node]) -> Any:
     if len(nodes) % 2:
         raise XlRaise(E.VALUE)
     for i in range(0, len(nodes), 2):
@@ -81,7 +82,7 @@ def f_ifs(ctx: Any, nodes: list) -> Any:
     raise XlRaise(E.NA)
 
 
-def _bools(args: tuple) -> list[bool]:
+def _bools(args: tuple[Any, ...]) -> list[bool]:
     out: list[bool] = []
     seen = False
     for a in args:
@@ -138,7 +139,7 @@ def f_false(ctx: Any) -> bool:
 
 
 @fn("SWITCH", 3, -1, lazy=True)
-def f_switch(ctx: Any, nodes: list) -> Any:
+def f_switch(ctx: Any, nodes: list[Node]) -> Any:
     target = check(ctx.scalar(ctx.ev(nodes[0])))
     rest = nodes[1:]
     pairs, default = (rest, None) if len(rest) % 2 == 0 else (rest[:-1], rest[-1])
@@ -152,7 +153,7 @@ def f_switch(ctx: Any, nodes: list) -> Any:
 
 
 @fn("CHOOSE", 2, -1, lazy=True)
-def f_choose(ctx: Any, nodes: list) -> Any:
+def f_choose(ctx: Any, nodes: list[Node]) -> Any:
     from ..values import to_int
 
     i = to_int(check(ctx.scalar(ctx.ev(nodes[0]))))

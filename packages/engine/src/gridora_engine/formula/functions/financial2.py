@@ -21,7 +21,8 @@ def f_rri(ctx: Any, n: Any, pv: Any, fv: Any) -> float:
     _need(nn > 0 and p != 0)
     r = f / p
     _need(r >= 0)
-    return r ** (1 / nn) - 1
+    res: float = r ** (1 / nn) - 1
+    return res
 
 
 @fn("EFFECT", 2, 2)
@@ -35,7 +36,8 @@ def f_effect(ctx: Any, nom: Any, n: Any) -> float:
 def f_nominal(ctx: Any, eff: Any, n: Any) -> float:
     r, k = num(ctx, eff), math.floor(num(ctx, n))
     _need(r > 0 and k >= 1)
-    return k * ((1 + r) ** (1 / k) - 1)
+    res: float = k * ((1 + r) ** (1 / k) - 1)
+    return res
 
 
 @fn("SYD", 4, 4)
@@ -118,7 +120,8 @@ def f_mirr(ctx: Any, vals: Any, fin: Any, rein: Any) -> float:
         raise XlRaise(E.DIV0)
     fv_pos = sum(v * (1 + rr) ** (n - 1 - i) for i, v in pos)
     pv_neg = sum(v / (1 + fr) ** i for i, v in neg)
-    return (fv_pos / -pv_neg) ** (1 / (n - 1)) - 1
+    res: float = (fv_pos / -pv_neg) ** (1 / (n - 1)) - 1
+    return res
 
 
 def _dated(vals: Any, dates: Any) -> tuple[list[float], list[float]]:
@@ -141,7 +144,8 @@ def f_xnpv(ctx: Any, rate: Any, vals: Any, dates: Any) -> float:
     r = num(ctx, scalar(ctx, rate))
     _need(r > -1)
     v, d = _dated(vals, dates)
-    return sum(x / (1 + r) ** ((di - d[0]) / 365) for x, di in zip(v, d, strict=True))
+    res: float = sum(x / (1 + r) ** ((di - d[0]) / 365) for x, di in zip(v, d, strict=True))
+    return res
 
 
 @fn("XIRR", 2, 3, arr=True)
@@ -153,7 +157,8 @@ def f_xirr(ctx: Any, vals: Any, dates: Any, guess: Any = None) -> float:
     _need(r > -1)
 
     def f(x: float) -> float:
-        return sum(a / (1 + x) ** ((di - d[0]) / 365) for a, di in zip(v, d, strict=True))
+        res: float = sum(a / (1 + x) ** ((di - d[0]) / 365) for a, di in zip(v, d, strict=True))
+        return res
 
     for _ in range(200):
         h = 1e-7

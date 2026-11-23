@@ -14,4 +14,6 @@ from . import (  # noqa: F401
     stats2,
     text,
 )
-from .registry import REGISTRY, FuncSpec, fn  # noqa: F401
+from .registry import REGISTRY, FuncSpec, fn
+
+__all__ = ["REGISTRY", "FuncSpec", "fn"]

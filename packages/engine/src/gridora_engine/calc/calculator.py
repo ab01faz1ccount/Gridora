@@ -502,7 +502,7 @@ class Calculator:
                 sheet.shared_si.pop(k, None)
                 if t is not None:
                     set_cell(sheet, k >> 14, k & 0x3FFF, (tag, val, style, t))
-            sheet._shared_cache = None
+            sheet._shared_cache = None  # type: ignore[attr-defined]  # dynamic cache slot, same as model/shared.py
 
     # -- reporting ------------------------------------------------------------------------------------
     def findings(self) -> dict[str, Any]:

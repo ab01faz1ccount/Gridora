@@ -44,3 +44,12 @@ Legend: Planned · In progress · Implemented · Tested · Integrated. "Verified
 | `apps/web` | In progress: sign-in, workspaces, grid benchmark work | **CI red on main** (lint) | No | No import UI, operations, charts, history |
 | `deploy/` | Implemented per Agent 3 (compose, nginx, backup/restore, runbook) | Not verified by me | Stub engine only | Never run with the real engine |
 | CI | Four module workflows plus contracts | Runs on every PR | n/a | web workflow red |
+
+## Status update (2026-11-23): steps 6, 7 and 8
+
+- **6 (web import UI, lint)**: done; lint green; checked in a real browser against the real engine (`apps/web/e2e/real_stack.py`, 28 checks).
+- **7 (hardening)**: compose defaults to the real engine and the API image installs `packages/engine` and `packages/dataops`; backup/restore drill passed on live data; 100,000-row measurements in [`LIMITS.md`](LIMITS.md) (`apps/web/e2e/perf_real.py`). **Docker images were never built here** (no daemon): the first `docker compose up --build` is still the open check.
+- **8 (formula gaps)**:
+  - Done: `SUBTOTAL` 101-111 skip rows hidden in the file (`hidden="1"`); formulas saved without results (openpyxl and similar) are computed at import; `mypy --strict` passes on `formula/` and `calc/` without the old relaxations (one targeted `type: ignore`).
+  - Checked and already right: `MODE` (incl. `#N/A` without repeats), `SUMIF` wildcards and `<>`, `XLOOKUP` match modes and search order, common `TEXT` formats (`#,##0.00`, `%`, sections, `[>1000]`, `E+`, fractions, padding).
+  - **Not done** (needs design, not a patch): spilled ranges (a dynamic-array formula writes only its top-left cell; neighbours, `#SPILL!` collisions, `A1#` and undo of cells outside the edit are missing), data tables (`TABLE()`), `GETPIVOTDATA`/cube functions (no pivot or OLAP model), web functions (`WEBSERVICE`, `FILTERXML`: refused on purpose, the engine has no network access), `SUBTOTAL` for rows hidden by an AutoFilter, and the full list of exotic number-format codes.

@@ -155,3 +155,17 @@ def test_formula_with_an_empty_value_element_has_no_saved_result(tmp_path):
     h, wb, rep = eng.import_xlsx(make_xlsx(tmp_path / "emptyv.xlsx", sheet_doc(rows)))
     assert val(eng, h, wb.sheets[0], 0, 1) == 6
     assert all(i.code != "xlsx.cell_value_invalid" for i in rep.items)
+
+
+def test_subtotal_101_to_111_skip_hidden_rows_but_1_to_11_do_not(tmp_path):
+    hid = ' hidden="1"'
+    rows = "".join(
+        f'<row r="{i}"{hid if i in (2, 4) else ""}><c r="A{i}"><v>{i * 10}</v></c></row>' for i in range(1, 6)
+    )
+    eng = create_engine({})
+    h, wb, _ = eng.import_xlsx(make_xlsx(tmp_path / "h.xlsx", sheet_doc(rows, "")))
+    s = wb.sheets[0]
+    eng.apply_cell_edits(h, s.id, [fx(10, 0, "SUBTOTAL(9,A1:A5)"), fx(11, 0, "SUBTOTAL(109,A1:A5)"), fx(12, 0, "SUBTOTAL(103,A1:A5)")])
+    assert val(eng, h, s, 10, 0) == 150.0
+    assert val(eng, h, s, 11, 0) == 90.0
+    assert val(eng, h, s, 12, 0) == 3.0

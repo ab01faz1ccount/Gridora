@@ -30,10 +30,3 @@ strict = true
 python_version = "3.11"
 plugins = ["pydantic.mypy"]
 mypy_path = "$MYPY_CONFIG_FILE_DIR/../../contracts/python"
-
-# E7 formula core: a dynamically-typed AST evaluator (nodes dispatched by class, values are
-# float|str|bool|XlError|Arr). Strict generic/Any/union checks are relaxed for these modules
-# only; typing them fully is tracked as follow-up. Everything else stays strict.
-[[tool.mypy.overrides]]
-module = ["gridora_engine.formula.*", "gridora_engine.calc.*"]
-disable_error_code = ["union-attr", "no-any-return", "type-arg", "no-untyped-def", "no-untyped-call", "has-type", "attr-defined", "arg-type", "var-annotated"]

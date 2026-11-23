@@ -19,7 +19,9 @@ _TOKEN = re.compile(
 
 
 def split_sections(code: str) -> list[str]:
-    parts, cur, inq = [], [], False
+    parts: list[str] = []
+    cur: list[str] = []
+    inq = False
     for ch in code:
         if ch == '"':
             inq = not inq
@@ -312,7 +314,7 @@ def _format_fraction(d: Decimal, toks: list[re.Match[str]], negative: bool) -> s
     return ("-" + s) if negative and (ip or n) else s
 
 
-def _assemble_literal(toks, digits: str, negative: bool, simple: bool) -> str:
+def _assemble_literal(toks: list[re.Match[str]], digits: str, negative: bool, simple: bool) -> str:
     out: list[str] = []
     placed = False
     for m in toks:
@@ -405,7 +407,7 @@ def _format_date(v: float, sec: str, date1904: bool, cal: str = "gregorian") -> 
     return "".join(out)
 
 
-def _is_minute(toks, idx: int) -> bool:
+def _is_minute(toks: list[re.Match[str]], idx: int) -> bool:
     """'m' is minutes when the nearest date/time token before it is h, or the next one is s."""
     for t in reversed(toks[:idx]):
         g = t.group("date")

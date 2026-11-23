@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 from .. import xlerrors as E
+from ..parser import Node
 from ..refs import cell_text
 from ..values import (
     Arr,
@@ -48,7 +50,7 @@ def _vector(a: Any) -> list[Scalar]:
     return list(a.iter_values())
 
 
-def _exact_matcher(look: Scalar):
+def _exact_matcher(look: Scalar) -> Callable[[Scalar], bool]:
     if isinstance(look, str) and ("*" in look or "?" in look or "~" in look):
         rx = re.compile(wildcard_to_regex(look), re.IGNORECASE | re.DOTALL)
         return lambda v: isinstance(v, str) and rx.fullmatch(v) is not None
@@ -300,7 +302,7 @@ def f_xmatch(ctx: Any, look: Any, arr: Any, mm: Any = None, sm: Any = None) -> f
 
 
 @fn("XLOOKUP", 3, 6, lazy=True)
-def f_xlookup(ctx: Any, nodes: list) -> Any:
+def f_xlookup(ctx: Any, nodes: list[Node]) -> Any:
     ev = ctx.ev
     v = check(scalar(ctx, ev(nodes[0])))
     look = ev(nodes[1], True)
@@ -338,8 +340,8 @@ def f_unique(ctx: Any, a: Any, by_col: Any = None, once: Any = None) -> Arr:
     bc = by_col is not None and boolean(ctx, by_col)
     ex = once is not None and boolean(ctx, once)
     items = [list(c) for c in zip(*rows)] if bc else rows
-    seen: dict[tuple, int] = {}
-    order: list[tuple] = []
+    seen: dict[tuple[Any, ...], int] = {}
+    order: list[tuple[Any, ...]] = []
     for it in items:
         k = tuple(_key(x) for x in it)
         if k not in seen:
@@ -347,7 +349,7 @@ def f_unique(ctx: Any, a: Any, by_col: Any = None, once: Any = None) -> Arr:
             order.append(k)
         seen[k] += 1
     out = []
-    used: set[tuple] = set()
+    used: set[tuple[Any, ...]] = set()
     for it in items:
         k = tuple(_key(x) for x in it)
         if k in used:
@@ -374,7 +376,7 @@ def f_sort(ctx: Any, a: Any, idx: Any = None, order: Any = None, by_col: Any = N
     return Arr([list(c) for c in zip(*items)]) if bc else Arr(items)
 
 
-def _sort_key(v: Scalar):
+def _sort_key(v: Scalar) -> tuple[int, Any]:
     k = _kind(v)
     if k == -1:
         return (3, 0)
