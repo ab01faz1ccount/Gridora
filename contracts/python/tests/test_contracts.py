@@ -1,4 +1,4 @@
-"""Contract smoke tests. Agents must keep these green; Agent 0 owns changes."""
+"""Contract smoke tests. Agents must keep these green; the maintainer owns changes."""
 from datetime import datetime, timezone
 
 import pytest

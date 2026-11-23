@@ -97,7 +97,7 @@ class GridoraEngine:
         if state is not None:
             state.close()
 
-    # -- contract methods not implemented yet (PLAN.md §15) -----------------------------------
+    # -- contract methods not implemented yet (DESIGN.md §15) -----------------------------------
     def import_xlsx(
         self, path: Path, *, file_id: str | None = None
     ) -> tuple[WorkbookHandle, Workbook, CompatibilityReport]:

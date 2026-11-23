@@ -1,5 +1,5 @@
 // Shared data contracts for the web app. Mirrors contracts/python/gridora_contracts/models.py.
-// Owned by Agent 0 — propose changes via a CONTRACT_CHANGE note in the PR.
+// Owned by the maintainer — propose changes via a CONTRACT_CHANGE note in the PR.
 // Rows/cols are 0-based. IDs are UUID strings. Timestamps are ISO-8601 UTC.
 
 export const SCHEMA_VERSION = 1;

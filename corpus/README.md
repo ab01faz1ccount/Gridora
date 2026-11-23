@@ -1,6 +1,6 @@
 # Test corpus
 
-Real-world and hostile OOXML files for Agent 1's engine tests (import, round trip, compatibility report, limits).
+Real-world and hostile OOXML files for the engine tests (import, round trip, compatibility report, limits).
 
 - `apache-poi/` — 29 workbooks from Apache POI `test-data/spreadsheet/` (commit in `manifest.json`). Licence: Apache-2.0 (`LICENSE-Apache-2.0.txt`, `NOTICE-Apache-POI.txt`). Chosen for features: pivots, charts, VBA (`.xlsm`, never executed), tables and structured references, conditional formatting, data validation, external links, array formulas, 1904 dates, large cell counts.
 - `hostile/` — 18 corrupt, fuzzer-minimized or encrypted files. Expected result: a typed rejection or a report, never a crash or hang.

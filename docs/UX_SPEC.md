@@ -1,6 +1,6 @@
 # Gridora — UX Specification (v1)
 
-Owner: Agent 0. Implementer: Agent 3 (`apps/web`), with Agent 2 supplying operation metadata. Status: **specification, not yet implemented.** Written 2026-11-17 against `main` after PR 7 (grid) and before PR 8 (import UI).
+Owner: the maintainer. Implementer: the platform module (`apps/web`), with the dataops module supplying operation metadata. Status: **specification, not yet implemented.** Written 2026-11-17 against `main` after PR 7 (grid) and before PR 8 (import UI).
 
 This document says how the product should *feel and flow*. Technical grid, RTL, state and API decisions stay in `apps/PLAN.md`; where they overlap, `apps/PLAN.md` wins on mechanics and this file wins on user-visible behaviour. The owner will refine this after hands-on testing; every section marked **[TEST]** is a place where real use should overrule my guesses.
 
@@ -46,7 +46,7 @@ This document says how the product should *feel and flow*. Technical grid, RTL, 
 
 - **Search box "What do you want to do?"** searches the operation catalog by *Persian task phrases*, not only operation names: typing "تکراری" finds *Remove duplicates*; "مجموع هر شهر" finds *Group and total*. Results show the Persian title, one-line description and an example. Enter opens the operation panel.
 - **Suggested chips** (3–6) change with the selection: a column of text → Sort, Clean text, Split; a numeric range → Sort, Total, Chart; a whole table-like range with a header → Filter, Remove duplicates, Group; a cell with an error → "Explain this error".
-- The chips and search results come from `OperationDescriptor` plus the i18n catalog (keywords/synonyms keys, see `docs/reviews/REVIEW_5_ORDERS.md`). The client never hard-codes the list of operations.
+- The chips and search results come from `OperationDescriptor` plus the i18n catalog (keywords/synonyms keys). The client never hard-codes the list of operations.
 
 ## 4. Core flows (acceptance scenarios; each must be walkable in the browser)
 
@@ -117,15 +117,15 @@ Ribbon, macros UI, add-ins, pivot-table *editor* (pivots in files are preserved;
 
 ## 11. Mapping to work (so the spec does not float)
 
-| Agent 3 PR | UX content it must include | Depends on |
+| the platform module PR | UX content it must include | Depends on |
 |---|---|---|
-| 8 `web-import` | F1, empty state, job card, compatibility panel, unsupported-format messages | Agent 1 report fields |
-| (wire real engine) | F1/F2 with `GRIDORA_ENGINE=real`, e2e upload → window → edit → undo | Agent 1 E5/E6 |
+| 8 `web-import` | F1, empty state, job card, compatibility panel, unsupported-format messages | the engine module report fields |
+| (wire real engine) | F1/F2 with `GRIDORA_ENGINE=real`, e2e upload → window → edit → undo | the engine module E5/E6 |
 | 10 `web-edit` | F2, history panel, conflict banner, save status | api-history |
-| 11 `web-operations` | task bar, §5 panel, F3, F4, toasts with Undo | Agent 2 descriptor metadata |
+| 11 `web-operations` | task bar, §5 panel, F3, F4, toasts with Undo | the dataops module descriptor metadata |
 | later | F5 charts, F6 export, F7 Tools, Data Tables view | slices 5–8 |
 
-Agent 3: do **not** build the task bar or the operation panel before PR 11; build the shell regions (top bar, formula bar, side panel host, sheet tabs, status bar) in PR 8/10 so nothing is rebuilt later.
+the platform module: do **not** build the task bar or the operation panel before PR 11; build the shell regions (top bar, formula bar, side panel host, sheet tabs, status bar) in PR 8/10 so nothing is rebuilt later.
 
 ## 12. Owner test protocol (when the first integrated build exists) **[TEST]**
 
@@ -138,7 +138,7 @@ Run on a real laptop, Persian UI, with the corpus files in `corpus/private/` and
 5. Open the `.xls` file and a corrupt file from `corpus/hostile/`: is the message understandable?
 6. Export and open the result in real Excel: any repair prompt?
 
-Record results in a file `docs/reviews/UX_TEST_1.md` (template: task, result, time, notes, severity). Severity scale: **blocker** (cannot complete), **major** (completes with confusion), **minor** (cosmetic).
+Record results in a file `docs/UX_TEST_1.md` (template: task, result, time, notes, severity). Severity scale: **blocker** (cannot complete), **major** (completes with confusion), **minor** (cosmetic).
 
 ## 13. Open questions for the owner
 

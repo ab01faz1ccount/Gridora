@@ -1,4 +1,4 @@
-"""Patch edited rows into the ORIGINAL worksheet bytes (PLAN.md 5.3).
+"""Patch edited rows into the ORIGINAL worksheet bytes (DESIGN.md 5.3).
 
 Everything outside the rows that contain edited cells is copied byte for byte (prefix, suffix,
 untouched rows, unedited cells inside a rebuilt row). Edited cells are regenerated; edited text is

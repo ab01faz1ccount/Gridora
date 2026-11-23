@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // contracts are imported, never copied (apps/PLAN.md 3.1)
+      // contracts are imported, never copied (apps/DESIGN.md 3.1)
       "@contracts": here("../../contracts/typescript/index.ts"),
       "@": here("./src"),
     },

@@ -1,4 +1,4 @@
-"""OPC package model: ordered parts, content types, relationships (PLAN.md section 5).
+"""OPC package model: ordered parts, content types, relationships (DESIGN.md section 5).
 
 Only `[Content_Types].xml` and `.rels` parts are parsed here. Every other part is opaque bytes
 that stay in the source archive until written (state "clean") - this is what makes unknown

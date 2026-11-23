@@ -1,7 +1,7 @@
 ## What and why
 
 ## Module / folder touched
-- [ ] Only my allowed folders (see agents/AGENT_N_*.md)
+- [ ] Module boundaries respected (docs/CONTRIBUTING.md)
 
 ## Contract impact
 - [ ] None
@@ -22,4 +22,4 @@
 ## Known limitations (be honest)
 
 ## Status table update
-- [ ] `docs/INTEGRATION_PLAN.md` updated truthfully
+- [ ] `docs/REFERENCE.md` and `docs/ROADMAP.md` still match

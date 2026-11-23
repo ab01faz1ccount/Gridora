@@ -1,31 +1,60 @@
 # Gridora
 
-A self-hosted, browser-based spreadsheet and data platform. The goal: give people who are not comfortable with complex software access to powerful Excel-style capabilities through graphical controls, while keeping advanced operations available.
+A self-hosted, browser-based spreadsheet and data platform for people who want the power of Excel without its complexity. It runs entirely inside your own network: no external services, no AI features, nothing leaves the server.
 
-> **Status: Phases 1–2 prepared (architecture, contracts, agent briefs).** There is no runnable application yet. This README only claims what exists.
+The interface is Persian-first and right-to-left, with Jalali calendar support, Persian and Arabic-Indic digits, and Persian-aware sorting and text cleaning. English works too.
 
-**UI language:** Persian-first with RTL from day one. **Accounts:** local. **Upload limit:** 100 MB.
+## What you can do
 
-## Principles
+- **Open and edit workbooks.** Upload `.xlsx`, `.xlsm` or `.csv` (up to 100 MB). A virtualized grid keeps 100,000+ rows fast; edits are saved as you go, with unlimited undo and redo and a readable history.
+- **Use formulas.** About 400 functions, dynamic arrays (`FILTER`, `SORT`, `UNIQUE`, `SEQUENCE` and friends that spill into neighbouring cells), Excel number formats, and a calendar mode (Jalali by default, Gregorian or Hijri on request).
+- **Clean and analyse data with buttons, not formulas.** Sort, filter, remove duplicates, find and replace, fill, clean text (including Persian/Arabic letter and digit normalisation), split and merge columns, change types, computed columns, group and total, pivot, unpivot, join, calendar conversion. Every operation shows a preview and what it will change before you apply it, and can be undone.
+- **Work with Data Tables.** Large, tidy tables stored as versioned Parquet, kept separate from sheets but connected to them. Every change is a new version you can go back to.
+- **Make charts** (bar, line, pie, scatter, area) from a sheet range or a Data Table.
+- **Reuse your work.** Save a sequence of operations as a tool with named inputs, and run it again on other data.
+- **Export** to `.xlsx` or `.csv`, with a report of anything that could not be carried over.
 
-- Runs inside your own network. No external services, no AI features, no data leaves the server.
-- Honest about Excel compatibility: nothing is called "supported" until it is verified, and unsupported content is reported, never silently dropped.
-- Workbooks (sheets) and structured Data Tables are both first-class, and data can move between them.
-- Every change is a recorded operation: undo/redo, history, and reusable workflows come from the same mechanism.
+Every capability above is available through the HTTP API. Which of them already have a screen in the web interface is listed in the [roadmap](docs/ROADMAP.md).
 
-## Phase READMEs
+## Excel compatibility
 
-| Phase | Document | State |
+Gridora reads and writes standard Excel files and keeps what it does not understand (pivot tables, charts, macros, conditional formats and more) byte for byte instead of dropping it. Every import and export produces a compatibility report listing what was preserved, what is editable and what is not. Gridora does not claim full Excel compatibility; the tested behaviour is what [the compatibility strategy](docs/COMPATIBILITY_STRATEGY.md), the report and the [test corpus](corpus/README.md) show. VBA is preserved and never run.
+
+## Install
+
+You need Docker with Compose.
+
+```bash
+cd deploy
+cp .env.example .env            # set POSTGRES_PASSWORD (letters and digits) and the first admin
+./scripts/make-dev-cert.sh      # self-signed certificate for a trial; see deploy/TLS.md for real ones
+docker compose up -d --build
+docker compose ps               # wait until api, nginx and postgres are healthy
+```
+
+Open `https://localhost`, sign in with the admin from `.env`, then remove the bootstrap variables from `.env` and run `docker compose up -d` again. More users: `docker compose exec api python -m gridora_api.cli create-user --username NAME --password-stdin`. Backups, restore, upgrades and logs: [deploy/RUNBOOK.md](deploy/RUNBOOK.md).
+
+## How it is built
+
+One FastAPI process imports two Python packages through typed interfaces; a React + TypeScript app talks to it over REST; PostgreSQL holds accounts, metadata and history; files and Data Table versions live on disk. Nginx terminates TLS.
+
+| Part | Folder | Role |
 |---|---|---|
-| 1 — Architecture & contracts | [docs/phases/PHASE-1.md](docs/phases/PHASE-1.md) | Done (documents) |
-| 2 — Agent plans & engine spike | [docs/phases/PHASE-2.md](docs/phases/PHASE-2.md) | Done (plans approved; spike partly open, see ADR-003) |
-| 3 — Build & integrate | [docs/phases/PHASE-3.md](docs/phases/PHASE-3.md) | **In progress** (no end-to-end flow yet) |
-| 4 — Harden & ship | [docs/phases/PHASE-4.md](docs/phases/PHASE-4.md) | Planned |
+| Workbook engine | [packages/engine](packages/engine) | Cell model, XLSX/CSV import and export, formulas, edits and undo deltas, compatibility report |
+| Data operations | [packages/dataops](packages/dataops) | Operations, pipelines, tools, Data Tables, chart data, Persian text and calendar handling |
+| API | [apps/api](apps/api) | Accounts, workspaces, jobs, history, composition of the two packages |
+| Web app | [apps/web](apps/web) | Persian-first RTL interface |
+| Contracts | [contracts](contracts) | The shared types and interfaces every module obeys |
+| Deployment | [deploy](deploy) | Docker Compose: nginx, api, postgres, backup |
+| Test corpus | [corpus](corpus) | Real-world and hostile workbooks with a manifest |
 
-## For the agents
-
-Start at [agents/README.md](agents/README.md), then your own brief and [docs/WORKFLOW.md](docs/WORKFLOW.md). Shared types live in [contracts/](contracts/).
+Uploads are treated as hostile: files are validated before parsing, parsed with size, ratio and depth limits, never extracted to disk and never executed.
 
 ## Documentation
 
-[Architecture](docs/ARCHITECTURE.md) · [Requirements](docs/PRODUCT_REQUIREMENTS.md) · [Data model](docs/DATA_MODEL.md) · [API contracts](docs/API_CONTRACTS.md) · [Module boundaries](docs/MODULE_BOUNDARIES.md) · [Integration plan & status](docs/INTEGRATION_PLAN.md) · [Compatibility](docs/COMPATIBILITY_STRATEGY.md) · [Security](docs/SECURITY_MODEL.md) · [Testing](docs/TESTING_STRATEGY.md) · [Decisions](docs/DECISIONS.md) · [Workflow](docs/WORKFLOW.md) · [Review checklist](docs/REVIEW_CHECKLIST.md) · [Persian/RTL spec](docs/I18N_SPEC.md) · [Operations catalog](docs/OPERATIONS_CATALOG.md) · [Engine spike plan](docs/ENGINE_SPIKE_PLAN.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Project reference](docs/REFERENCE.md) — what every module does, in detail
+- [Roadmap](docs/ROADMAP.md) — status and what remains
+- [Architecture](docs/ARCHITECTURE.md) · [Data model](docs/DATA_MODEL.md) · [API contracts](docs/API_CONTRACTS.md) · [Module boundaries](docs/MODULE_BOUNDARIES.md)
+- [Compatibility](docs/COMPATIBILITY_STRATEGY.md) · [Security](docs/SECURITY_MODEL.md) · [Limits and measured performance](docs/LIMITS.md)
+- [UX specification](docs/UX_SPEC.md) · [Persian/RTL specification](docs/I18N_SPEC.md) · [Operations catalog](docs/OPERATIONS_CATALOG.md)
+- [Decisions](docs/DECISIONS.md) · [Testing](docs/TESTING_STRATEGY.md) · [Contributing](docs/CONTRIBUTING.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)

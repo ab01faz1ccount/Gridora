@@ -1,8 +1,10 @@
-# Agent 3 — Implementation Plan (Step 0)
+> **Design record.** Written before the implementation and kept for the reasoning behind it. Where it disagrees with the code or with `docs/REFERENCE.md`, the code and `docs/REFERENCE.md` are right.
 
-Owner: Agent 3. Scope: `apps/web/`, `apps/api/`, `deploy/`.
-Status: **PLAN v2 (revised after `docs/reviews/PHASE2_REVIEW.md`). No implementation is claimed to work until a test proves it.**
-Verdict from Agent 0: *approved with conditions* C3.1–C3.3, all applied below. Working against `contracts/` **v0.2.0**.
+# the platform module — Implementation Plan (Step 0)
+
+Owner: the platform module. Scope: `apps/web/`, `apps/api/`, `deploy/`.
+Design record written before implementation; see the banner above.
+Verdict from the maintainer: *approved with conditions* C3.1–C3.3, all applied below. Working against `contracts/` **v0.2.0**.
 
 ### Changes in v2
 - **C3.1** ProcessPool import isolation removed from v1 (ADR-011). Imports run in a worker thread with the engine's limits plus a timeout; process isolation is a documented Phase 4 limitation (§2.7).
@@ -11,7 +13,7 @@ Verdict from Agent 0: *approved with conditions* C3.1–C3.3, all applied below.
 - Contract v0.2.0 adopted everywhere (§2.9, §2.10, §3.3, §3.5, §10): `AuthResult`, `CellsChangedResult`, `base_seq`, window cap 1000 × 100, factory entry points + `PathResolver`, `FormattingEngine` feature detection, `Operation.extra_targets`, `GET /operations/i18n`.
 - §10 now records the decision on each of my CONTRACT_CHANGE requests and the few follow-ups that remain.
 
-Inputs read: `agents/AGENT_3_PLATFORM.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `docs/SECURITY_MODEL.md`, `docs/MODULE_BOUNDARIES.md`, `docs/I18N_SPEC.md`, `docs/TESTING_STRATEGY.md`, `docs/DATA_MODEL.md`, `docs/INTEGRATION_PLAN.md`, `docs/DECISIONS.md`, and `contracts/` (Python + TypeScript).
+Inputs: `docs/ARCHITECTURE.md`, `docs/API_CONTRACTS.md`, `docs/SECURITY_MODEL.md`, `docs/MODULE_BOUNDARIES.md`, `docs/I18N_SPEC.md`, `docs/TESTING_STRATEGY.md`, `docs/DATA_MODEL.md`, `docs/INTEGRATION_PLAN.md`, `docs/DECISIONS.md`, and `contracts/` (Python + TypeScript).
 
 ---
 
@@ -26,7 +28,7 @@ Inputs read: `agents/AGENT_3_PLATFORM.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTUR
 | Grid rendering | Custom, DOM-based, windowed rows and columns; canvas only if the 100k-row benchmark fails |
 | Forms | Own renderer for a documented subset of JSON Schema, driven by `OperationDescriptor.params_schema` |
 | i18n | Own thin typed catalog (`fa.json`, `en.json`) + browser `Intl` APIs; no i18n framework |
-| Jalali display | `Intl.DateTimeFormat` with the `persian` calendar (no library); explicit conversion operations are Agent 2's |
+| Jalali display | `Intl.DateTimeFormat` with the `persian` calendar (no library); explicit conversion operations are the dataops module's |
 | Charts | Apache ECharts, tree-shaken, bundled |
 | Backend | FastAPI, SQLAlchemy 2 (async), Alembic, PostgreSQL |
 | Job runner | Postgres-backed `jobs` table + in-process runner (worker threads) behind a `JobRunner` interface (no Redis/Celery) |
@@ -56,7 +58,7 @@ Follows the slice order of `docs/INTEGRATION_PLAN.md`. Each PR carries tests, a 
 | 12 | Data Tables view + bridge, charts, versioned save + export, saved Tools | both | 5–8 |
 | 13 | `e2e`: Playwright Definition-of-Success flow | web | — |
 
-Agent 0's current go-ahead covers PRs 1–6 of this table. CI workflows are proposed as `apps/ci/<name>.yml.proposed` (WORKFLOW.md); Agent 0 commits them.
+the maintainer's current go-ahead covers PRs 1–6 of this table. CI workflows are proposed as `apps/ci/<name>.yml.proposed` (WORKFLOW.md); the maintainer commits them.
 
 ---
 
@@ -120,7 +122,7 @@ Rules enforced by a test (AST scan, no extra dependency):
 - CSRF: synchronizer token stored in the session row and returned to the client in `AuthResult` by `POST /auth/login` and `GET /auth/me`; compared in constant time against `X-CSRF-Token` on every mutating method. Exempt: `POST /auth/login` only (protected by rate limit + SameSite).
 - Login rate limiting: Postgres counters keyed by (normalized username, IP) with backoff → `429 rate_limited`. nginx adds a coarse second layer.
 - Roles `user` / `admin`. Admin gets user management and backup settings only; no code path lets an admin read another user's files.
-- User creation in v1: CLI (`python -m gridora_api.cli create-user`) and an optional bootstrap-admin env on first start. **No HTTP admin endpoints** (Agent 0 decision).
+- User creation in v1: CLI (`python -m gridora_api.cli create-user`) and an optional bootstrap-admin env on first start. **No HTTP admin endpoints** (the maintainer decision).
 
 ### 2.4 Isolation
 - Every owned table has `owner_id NOT NULL` and a composite index `(owner_id, id)`.
@@ -175,7 +177,7 @@ Options considered: Celery + Redis, arq + Redis, Postgres queue library, own min
 
 ### 2.8 Working copies and history
 - Working-copy cache: `document_id → (WorkbookHandle, last_used)`, LRU with a configurable cap (count and estimated memory). Eviction calls `engine.close(handle)` (v0.2) and is safe because state is reconstructible. Handles are **not thread-safe**: one lock and one worker thread per document. The LRU cap, eviction and rehydration tests ship in PR 10 (C3.2); the "no horizontal scaling" limitation is stated in the README.
-- Rehydration after a restart or eviction: load `current_file_id` (last saved version) with `import_xlsx`/`import_csv`, then replay `history_entries` with `seq > last_saved_seq` and `undone = false` via `engine.apply_delta(..., inverse=False)`. Replay-equals-live is a required test on my side; it depends on Agent 1's replay-determinism guarantee (C1.3), and deltas include recalculated dependents while `apply_delta` does not recalculate (normative in v0.2).
+- Rehydration after a restart or eviction: load `current_file_id` (last saved version) with `import_xlsx`/`import_csv`, then replay `history_entries` with `seq > last_saved_seq` and `undone = false` via `engine.apply_delta(..., inverse=False)`. Replay-equals-live is a required test on my side; it depends on the engine module's replay-determinism guarantee (C1.3), and deltas include recalculated dependents while `apply_delta` does not recalculate (normative in v0.2).
 - Every mutation (cell edit, operation, undo, redo) goes through `history.py`, inside one DB transaction with the engine call serialized per document:
   - new entry gets `seq = max+1`; entries with `undone = true` are deleted first (redo tail truncated);
   - undo = apply inverse of the highest non-undone entry (`cell_patch` via `engine.apply_delta`; `table_version` via `TableStore.restore_version`);
@@ -259,7 +261,7 @@ Goal: only what is on screen (plus a margin) is fetched and rendered; editing is
 - **Cell editor / formula bar:** `dir` follows content: LTR when the text starts with `=`, otherwise auto/RTL.
 
 ### 3.5 Operation panels from `OperationDescriptor`
-- `GET /operations` → a form generated from `params_schema`. The renderer supports a **documented subset** of JSON Schema: `string`, `number`/`integer`, `boolean`, `enum`, `array`, `object`, `required`, `default`, `minimum`/`maximum`, `description`. Picker widgets (column, range, expression builder) use the `x-gridora-*` keywords that Agent 2 documents in `packages/dataops/docs/PARAMS_SCHEMA.md` (due before M1); I render that subset only and show the "unsupported field" fallback for anything else. `ValidationError.path` is relative to the Operation root (`/params/column`). Operation labels and descriptions come from `GET /operations/i18n?locale=…` and are merged into the web catalog at runtime. `join`-style operations send the second table in `Operation.extra_targets`.
+- `GET /operations` → a form generated from `params_schema`. The renderer supports a **documented subset** of JSON Schema: `string`, `number`/`integer`, `boolean`, `enum`, `array`, `object`, `required`, `default`, `minimum`/`maximum`, `description`. Picker widgets (column, range, expression builder) use the `x-gridora-*` keywords that the dataops module documents in `packages/dataops/docs/PARAMS_SCHEMA.md` (due before M1); I render that subset only and show the "unsupported field" fallback for anything else. `ValidationError.path` is relative to the Operation root (`/params/column`). Operation labels and descriptions come from `GET /operations/i18n?locale=…` and are merged into the web catalog at runtime. `join`-style operations send the second table in `Operation.extra_targets`.
 - A schema keyword the renderer does not support is rendered as an explicit "unsupported field" error with a code, never silently dropped. A contract-style test runs every descriptor from the stub (and later the real executor) through the renderer.
 - Validation is server-authoritative: the form calls the preview endpoint (with `base_seq`) and maps `ValidationError.path` (JSON pointer) to the matching field. No client-side JSON-Schema validator in v1.
 - **Preview:** if `supports_preview`, show `PreviewResult` before apply.
@@ -369,7 +371,7 @@ Deliberately **not** added: Redis/Celery, an i18n framework, a UI component fram
 
 ## 8. Honesty and status
 
-- `docs/INTEGRATION_PLAN.md` rows for `apps/api`, `apps/web`, `deploy/` stay **Planned** until code lands; this PR changes only `apps/PLAN.md`.
+- `docs/INTEGRATION_PLAN.md` rows for `apps/api`, `apps/web`, `deploy/` stay **Planned** until code lands; this PR changes only `apps/DESIGN.md`.
 - Nothing in this plan is claimed to work. Performance figures will be reported as measurements.
 - Every implementation PR lists known limitations and updates the `apps/README.md` "what works / what doesn't" section.
 
@@ -377,7 +379,7 @@ Deliberately **not** added: Redis/Celery, an i18n framework, a UI component fram
 
 ## 9. What this PR touches
 
-Only `apps/PLAN.md`. No contract, docs, engine, dataops or CI changes.
+Only `apps/DESIGN.md`. No contract, docs, engine, dataops or CI changes.
 
 ---
 
@@ -391,13 +393,13 @@ Only `apps/PLAN.md`. No contract, docs, engine, dataops or CI changes.
 | 4 | `base_seq`, window cap | Accepted; cap 1000 × 100 | §2.8, §2.10, §3.3 |
 | 5 | Entry points, storage callback | Accepted: fixed factories, `PathResolver(owner_id, table_id, version)` | §2.9 |
 | 6 | Styles and number formats | Accepted as optional `FormattingEngine`; client formats using `StyleInfo.number_format` | §3.3 |
-| 7 | `params_schema` vocabulary, path base | Path relative to Operation root; Agent 2 documents `x-gridora-*` | §3.5 |
+| 7 | `params_schema` vocabulary, path base | Path relative to Operation root; the dataops module documents `x-gridora-*` | §3.5 |
 | 8 | Job progress | Coarse status fine for v1 | §2.7 |
-| 9 | Doc inconsistencies | Fixed by Agent 0 | — |
-| 10 | CI location | Agents propose `ci/<name>.yml.proposed`; Agent 0 commits | §1 (`apps/ci/`) |
+| 9 | Doc inconsistencies | Fixed by the maintainer | — |
+| 10 | CI location | Agents propose `ci/<name>.yml.proposed`; the maintainer commits | §1 (`apps/ci/`) |
 | 11 | Export `result_ref` | A `FileRecord` id | §3.6 |
 | 12 | Display prefs | Client-side in v1 | §3.2 |
-| 13 | Jalali library | Agent 2 decides (own implementation acceptable with independent fixtures) | §3.4 (display via `Intl`) |
+| 13 | Jalali library | the dataops module decides (own implementation acceptable with independent fixtures) | §3.4 (display via `Intl`) |
 
 Other review outcomes that touch this plan: C3.1/C3.2/C3.3 (above); `Operation.extra_targets` ownership check (§2.9); `GET /operations/i18n` (§3.5); `Q2` — v1 `filter` on a sheet outputs a new table, so the UI must show the created table (`OperationResult.output`).
 

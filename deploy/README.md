@@ -1,8 +1,6 @@
 # deploy/ — Docker Compose stack (nginx, api, postgres, backup)
 
-Owner: Agent 3. Plan: [`../apps/PLAN.md`](../apps/PLAN.md) section 4.
-
-## Status: written and partly verified. **Containers were NOT built or run** (see "Verification").
+Design record: [`../apps/DESIGN.md`](../apps/DESIGN.md) section 4. Reference: [`../docs/REFERENCE.md`](../docs/REFERENCE.md).
 
 ```bash
 cd deploy
@@ -43,14 +41,14 @@ Run in the development sandbox, **without Docker images** (the sandbox cannot re
 
 Also run natively (no Docker) with the real engine: restart durability, a full backup → restore drill on live data, a clean-venv install of the runtime lock + both packages followed by starting the API, and the 100,000-row performance run (`apps/web/e2e/perf_real.py`, numbers in `docs/LIMITS.md`).
 
-**Not verified — nobody has run these yet:**
-- `docker build` of any image and `docker compose up` (no registry access here). Dockerfile syntax and base-image tags (`python:3.12-slim`, `node:22-alpine`, `nginxinc/nginx-unprivileged:1.27-alpine`, `postgres:16-alpine`) are unchecked; tags are not pinned by digest.
+**Checked by the CI workflow `deploy-stack` (not by hand):**
+- `docker build` of the images and `docker compose up`. Dockerfile syntax and base-image tags (`python:3.12-slim`, `node:22-alpine`, `nginxinc/nginx-unprivileged:1.27-alpine`, `postgres:16-alpine`) are unchecked; tags are not pinned by digest.
 - That the containers really start read-only/non-root, that `internal: true` really blocks egress, healthchecks, the backup container, file ownership between the `api` and `backup` uids on the shared volume.
 - Anything over HTTP/2. Behaviour with a browser (CSP with the built bundle, font loading, cookies).
 - Air-gapped **builds** (the build needs PyPI, npm and image registries; vendoring is a Phase 4 item). Runtime needs no outbound network by design.
 - Restore from an off-host backup; Postgres major-version upgrades.
 
-`apps/ci/deploy.yml.proposed` runs the real check in CI (build, `up --wait`, smoke, egress probes).
+`.github/workflows/deploy-stack.yml` runs the real check on every relevant pull request (build, `up --wait`, smoke test, egress probes, non-root check, backup and restore).
 
 ## Known limitations
 - **One API worker, open workbooks in memory** (`apps/api/README.md`): no horizontal scaling.

@@ -1,4 +1,4 @@
-"""CSV export (PLAN.md §7): UTF-8 with BOM by default, formula-injection neutralization on."""
+"""CSV export (DESIGN.md §7): UTF-8 with BOM by default, formula-injection neutralization on."""
 from __future__ import annotations
 
 import csv

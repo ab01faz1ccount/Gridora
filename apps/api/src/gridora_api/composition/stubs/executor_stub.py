@@ -5,7 +5,7 @@ undo flows. Implements three operations over sheet ranges only (sort, find_repla
 remove_duplicates). No data tables, no Polars/DuckDB, no Persian-aware collation (plain
 case-folded comparison), no pipelines beyond sequential application.
 
-The `x-gridora-widget` keyword below is a PLACEHOLDER until Agent 2 publishes
+The `x-gridora-widget` keyword below is a PLACEHOLDER until the dataops module publishes
 packages/dataops/docs/PARAMS_SCHEMA.md; the web renderer will follow that document.
 
 Replaced by gridora_dataops via GRIDORA_DATAOPS=real (composition/wiring.py).

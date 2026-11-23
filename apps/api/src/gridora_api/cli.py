@@ -1,6 +1,6 @@
 """Operator CLI: python -m gridora_api.cli <command>.
 
-User creation is CLI-only in v1 (Agent 0 decision): there are no HTTP admin endpoints.
+User creation is CLI-only in v1 (the maintainer decision): there are no HTTP admin endpoints.
 Passwords are read from a prompt or stdin, never from argv (they would show up in `ps`).
 """
 

@@ -1,7 +1,7 @@
 # Design note: `suggest()` — operation suggestions from a column profile
 
 **Status: design only (Review 5, order 3). No code. Whether and how to build it is the owner's decision (see "Decisions I need").**
-Author: Agent 2. Audience: the owner (decides), Agent 0 (contracts), Agent 3 (UI).
+Author: the dataops module. Audience: the owner (decides), the maintainer (contracts), the platform module (UI).
 
 ## 1. What it is for
 UX_SPEC puts "what do you want to do?" in front of the user. Today the user must already know the operation exists. `suggest()` closes the
@@ -12,7 +12,7 @@ already filled and the normal live preview. Nothing is ever applied by `suggest(
 Non-goals: no machine learning, no network call, no auto-apply, no change to the data, no suggestion text that the user could mistake for a
 result. If the owner later wants LLM-written suggestions, that is a separate decision (data would leave the server) and a separate note.
 
-## 2. Interface (proposal; needs a contract change, which is Agent 0's)
+## 2. Interface (proposal; needs a contract change, which is the maintainer's)
 ```
 suggest(target: Target, ctx: ExecContext, selection: Selection | None = None, locale: str = "fa", limit: int = 5) -> list[Suggestion]
 
@@ -74,10 +74,10 @@ says `no_change` is dropped (checked only for the top candidates, so cost stays 
 per (user, rule, column name) and not shown again; the server stays stateless.
 
 ## 5. What it needs from other modules
-- **Contracts (Agent 0):** an `OperationExecutor.suggest(...)` (or a separate `SuggestionService` protocol), `Selection`, `Suggestion`; an endpoint
+- **Contracts:** an `OperationExecutor.suggest(...)` (or a separate `SuggestionService` protocol), `Selection`, `Suggestion`; an endpoint
   `POST /documents/{id}/suggestions`. `PreviewResult`/`OperationResult` are unaffected.
 - **Catalog:** `suggest.<rule>.title` and `suggest.<rule>.reason` keys in `fa.json` (templates with `{n}`, `{share}`, `{d}`), Persian first.
-- **UI (Agent 3):** chips near the selection, each showing the reason sentence; a click opens the operation panel with `params` filled.
+- **UI:** chips near the selection, each showing the reason sentence; a click opens the operation panel with `params` filled.
 - **Dataops internals:** a `profile.py` (pure functions over a Polars frame, no I/O), a `rules.py` (data, not code paths: one row per rule), reuse of `conversions.py` and `persian/chars.py`.
 
 ## 6. How I would test it

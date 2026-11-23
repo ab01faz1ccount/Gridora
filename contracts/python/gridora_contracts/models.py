@@ -1,6 +1,6 @@
 """Shared data contracts for Gridora (normative; mirrors docs/DATA_MODEL.md).
 
-Owned by Agent 0. Other agents must not edit this file; propose changes via a
+Owned by the maintainer. Other agents must not edit this file; propose changes via a
 CONTRACT_CHANGE note in the PR description.
 
 Conventions: rows/cols are 0-based ints; IDs are UUID strings; timestamps are ISO-8601 UTC.
@@ -375,7 +375,7 @@ class RangeSnapshotDelta(_Base):
 class SheetStructureDelta(_Base):
     kind: Literal["sheet_structure"] = "sheet_structure"
     sheet_id: str
-    change: dict[str, Any]  # shape defined by Agent 1 in engine docs; reviewed by Agent 0
+    change: dict[str, Any]  # shape defined by the engine module in engine docs; reviewed by the maintainer
 
 
 Delta = Annotated[

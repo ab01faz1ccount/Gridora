@@ -1,6 +1,6 @@
 # INTEGRATION: what `apps/api` must give `gridora_dataops`, and what it gets back
 
-Audience: Agent 3 (apps/api, apps/web). Status: matches the code at this commit; the Python block in section 3 is **executed by a test**
+Audience: the platform module (apps/api, apps/web). Status: matches the code at this commit; the Python block in section 3 is **executed by a test**
 (`tests/test_integration_doc.py`), so it cannot drift. Contract version 0.4.x.
 
 ## 1. The seven things the API must provide (checklist)
@@ -154,4 +154,4 @@ propagate unchanged and, inside a pipeline, rolls the earlier steps back first.
 ## 8. Things I could not verify
 No real engine or real API route called this code; everything above is tested against in-memory doubles that follow the protocols (and the
 conformance test `tests/test_contract_conformance.py`). The API's `EngineExecContext` does not implement the columnar methods yet; until it does,
-the row path (correct, slower) is used. Persian wording has not been read by a real newcomer (`docs/COPY_REVIEW.md`).
+the row path (correct, slower) is used. Persian wording has not been read by a real newcomer.

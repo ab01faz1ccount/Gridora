@@ -1,4 +1,4 @@
-"""Column-chunked typed cell store (PLAN.md §3).
+"""Column-chunked typed cell store (DESIGN.md §3).
 
 Each (column, 256-row block) is a Chunk: 1 tag byte + 1 float64 per slot. Tags: see values.py.
 A float64 holds a number, a bool (0/1), a string-table index or an error index depending on the

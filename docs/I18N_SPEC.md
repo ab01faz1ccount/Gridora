@@ -31,3 +31,18 @@ Owner decision: the UI is Persian-first with RTL from day one (ADR-009).
 
 ## Testing
 - Snapshot tests of key screens in RTL; fixture files with Persian sheet names, text and digits; round-trip through XLSX and CSV (UTF-8 with BOM and Windows-1256).
+
+## Terminology (open decisions marked)
+Terms used consistently in the interface and in `packages/dataops/src/gridora_dataops/i18n/fa.json`:
+
+| Idea | Term | Note |
+|---|---|---|
+| sheet | برگه | not «شیت» |
+| undo / redo | واگرد / ازنو | |
+| Data Table | جدول داده | |
+| operation | کار | "این کار ..." |
+| row / column | ردیف / ستون | |
+| cell | **خانه** | **Open:** Excel's Persian UI says «سلول»; users may search for it |
+| range | **محدوده** | **Open:** alternatives «بازه», «ناحیه» |
+
+Copy rules: say what happens, then what to do; no developer words (پارامتر، آرگومان، تابع…); short active sentences; avoid left/right words in RTL text; examples use Persian digits unless the caller asks for Latin.

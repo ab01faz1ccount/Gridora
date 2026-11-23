@@ -1,6 +1,6 @@
 # Gridora — Product Requirements
 
-Status: Phase 1 draft.
+What Gridora is for, who uses it, and the requirements for the first release.
 
 ## Vision
 
@@ -50,7 +50,7 @@ It is a spreadsheet-centered data platform: not a dashboard builder, not a repor
 - Open a 100k-row workbook and render the first viewport quickly (target budget in TESTING_STRATEGY; not a claim).
 - Never overwrite the original file.
 - All parsing of uploads is treated as hostile (SECURITY_MODEL).
-- Honest status: README and module table must distinguish working / partial / planned.
+- Honest status: documentation distinguishes working, partial and unsupported.
 
 ## Non-goals (now)
 

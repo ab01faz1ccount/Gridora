@@ -1,6 +1,6 @@
 # Gridora — Data Model & Shared Representations
 
-Status: Phase 1 draft. Types are written as TypeScript-style pseudo-schemas; the normative form will be JSON Schema in `contracts/` (generated types for Python via pydantic and for the web via TS).
+Types are written as TypeScript-style pseudo-schemas; the normative form is `contracts/` (pydantic for Python, a mirrored `index.ts`).
 
 Conventions: IDs are UUIDv4 strings. Rows/columns on the wire are **0-based integers**. A1 notation appears only inside formula text and UI labels. Timestamps are ISO-8601 UTC. All schemas carry `schema_version`.
 

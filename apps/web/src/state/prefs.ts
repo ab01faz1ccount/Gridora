@@ -1,4 +1,4 @@
-// Display preferences (client-side only in v1; apps/PLAN.md 3.2). The ONLY place that touches
+// Display preferences (client-side only in v1; apps/DESIGN.md 3.2). The ONLY place that touches
 // localStorage, always guarded: storage can be empty, full or blocked.
 import { create } from "zustand";
 

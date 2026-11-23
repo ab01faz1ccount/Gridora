@@ -1,7 +1,7 @@
 """Gregorian <-> Jalali (Solar Hijri) conversion, vectorised.
 
 Rule: the 33-year arithmetic cycle (leap years are those with year % 33 in {1,5,9,13,17,22,26,30}), anchored on
-1 Farvardin 1403 = 2024-03-20. Verified (see tests/golden/jalali_vectors.json and PLAN.md) against three independent
+1 Farvardin 1403 = 2024-03-20. Verified (see tests/golden/jalali_vectors.json and DESIGN.md) against three independent
 implementations for every year of the supported range. **Supported range: Jalali years 1300..1500** (Gregorian
 1921-03-21 .. 2122-03-20); dates outside it are reported as unconvertible rather than guessed. The official calendar
 is astronomical, so the arithmetic rule may diverge from it in years far outside this range.

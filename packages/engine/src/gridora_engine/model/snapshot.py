@@ -1,6 +1,6 @@
 """Range snapshot blobs (ADR-014/015): a deterministic, versioned, compressed columnar format.
 
-Profile R of PLAN.md 0.7: the exact content of a rectangle of one sheet (values, style ids,
+Profile R of DESIGN.md 0.7: the exact content of a rectangle of one sheet (values, style ids,
 formula text). Layout (all integers little-endian):
 
     header  b"GRSB" | version u16 | flags u16 | rows u32 | cols u32 | body_len u64 | sha256(body) 32B

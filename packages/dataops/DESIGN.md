@@ -1,6 +1,8 @@
+> **Design record.** Written before the implementation and kept for the reasoning behind it. Where it disagrees with the code or with `docs/REFERENCE.md`, the code and `docs/REFERENCE.md` are right.
+
 # packages/dataops — Implementation Plan (Step 0)
 
-Owner: Agent 2 · Revision 2 (after `docs/reviews/PHASE2_REVIEW.md`) · Status: **approved with conditions C2.1 to C2.3; M0 in progress.** Working against `contracts/` v0.2.0 (ADR-010).
+Owner: the dataops module. Design record written before implementation; see the banner above.
 
 Revision 2 changes: contract decisions applied (section 12), open questions answered (section 13), pipelines on sheets now write once **per step**, `join` uses `Operation.extra_targets`, the 200,000-cell history cap is adopted, Polars-only is the v1 engine (spike result in `spikes/SPIKE_REPORT.md`), and the `x-gridora-*` vocabulary is documented in `docs/PARAMS_SCHEMA.md` before M1 (C2.3).
 
@@ -13,7 +15,7 @@ Scope reminder: I work only in `packages/dataops/`. I never import `packages/eng
 ```
 packages/dataops/
   pyproject.toml                  # package: gridora_dataops (depends on gridora_contracts)
-  README.md  PLAN.md  BENCHMARKS.md
+  README.md  DESIGN.md  BENCHMARKS.md
   src/gridora_dataops/
     executor.py                   # DataOpsExecutor  (implements OperationExecutor)
     registry.py                   # OperationRegistry, @register decorator
@@ -89,7 +91,7 @@ class OperationSpec(Protocol):
   - `sheet_range` -> `ctx.read_range(range)` -> Polars frame (header handling via a `has_header` param on the op, default from the bridge heuristic). Commit = `ctx.write_range(...)`, which returns the engine-built `Delta`. Dataops never builds `cell_patch` deltas by hand for sheets; the engine computes before/after, so undo is the engine's `apply_delta(inverse=True)`.
 - **Validation layers:** (a) pydantic schema -> `ValidationError` with JSON-pointer `path` (e.g. `/params/keys/0/column`); (b) `validate_static`; (c) data-dependent checks (column exists, type compatible, target not overwritten): returned by `validate(op, ctx)` when a context is given (contract v0.2), and always re-checked at preview/apply, where failures come back in `OperationResult.errors` with `status="error"` and **no mutation**. `ValidationError.path` is relative to the Operation root (`/params/column`).
 - **Preview:** `preview(op, ctx, limit)` builds the same lazy plan on the **full** data and takes `head(limit)`; it never calls `write_range`, never writes Parquet. `total_rows` is filled when cheap (filter, dedupe, join count), else `None`. A test asserts "no store writes, no `write_range` calls" for every op.
-- **Errors:** stable codes in `errors.py` (`unknown_operation`, `invalid_param`, `unknown_column`, `type_mismatch`, `would_overwrite`, `too_many_rows`, ...), all surfaced as contract `ValidationError`. Contract `ERROR_CODES` mapping stays Agent 3's job; I raise typed exceptions with stable `code` strings (architecture section 9).
+- **Errors:** stable codes in `errors.py` (`unknown_operation`, `invalid_param`, `unknown_column`, `type_mismatch`, `would_overwrite`, `too_many_rows`, ...), all surfaced as contract `ValidationError`. Contract `ERROR_CODES` mapping stays the platform module's job; I raise typed exceptions with stable `code` strings (architecture section 9).
 - **Resource guards:** row/column/expression-node/depth limits and a cell cap per call (configurable), so hostile or accidental huge input fails with a typed error instead of exhausting memory.
 
 ## 4. Deltas and undo per operation kind
@@ -107,7 +109,7 @@ All operations are undoable. "Destructive" only means explicit user confirmation
 
 **C. Operations that create output** (`group_aggregate`, `pivot`, `unpivot`, `join`)
 - Source is never touched. Result is stored as a new data table (version 1); `OperationResult.output = DataTableTarget(new_id)`. If the source is a sheet range, the executor first snapshots it into an implicit table via the bridge, then runs the op. Materializing the result into a sheet is a separate step (`table_to_cells` into a new sheet, orchestrated by the API, since creating a sheet is engine territory).
-- Delta/undo for "table created": proposed convention `TableVersionDelta(from_version=0, to_version=1)`, meaning "table appeared"; undo hides/removes it (API/Postgres side), redo restores it. Confirmed by Agent 0 and documented in contract v0.2 (`from_version == 0` means the table did not exist).
+- Delta/undo for "table created": proposed convention `TableVersionDelta(from_version=0, to_version=1)`, meaning "table appeared"; undo hides/removes it (API/Postgres side), redo restores it. Confirmed by the maintainer and documented in contract v0.2 (`from_version == 0` means the table did not exist).
 
 **D. Pipelines** (`run_pipeline`)
 - Steps run in order, with the frame handed from step to step in memory (no re-reading Parquet). All-or-nothing: temp version files are promoted only if every step succeeds; on failure nothing is committed and the failing step index + errors are returned.
@@ -129,7 +131,7 @@ Principle (ADR-006): **Polars is the default; DuckDB only where SQL over Parquet
 
 **M0 spike (done, `spikes/SPIKE_REPORT.md`):** at 100k rows Polars was faster than DuckDB on every join/group/pivot workload (e.g. inner join 0.012 s vs 0.068 s), memory was equal or lower, results were identical, and Polars' decimal type round-tripped through Parquet. The spike did not cover larger-than-memory data or multi-core machines. **Decision proposed for DECISIONS.md: Polars-only in v1; `duckdb` is not added as a dependency** (and DuckDB's Arrow hand-off would also need `pyarrow`). The table above is amended accordingly: `join`, `group_aggregate`, `pivot` and `unpivot` run in Polars.
 
-Dependencies to be justified by PR notes to Agent 0 (name, version, license, why, alternatives): `polars`, `pytest`, `hypothesis` (dev), `jsonschema` (dev, schema self-check). No `pandas`, no `pyarrow` unless Polars Parquet I/O proves insufficient. Licenses to be verified at PR time, not assumed here.
+Dependencies to be justified by PR notes to the maintainer (name, version, license, why, alternatives): `polars`, `pytest`, `hypothesis` (dev), `jsonschema` (dev, schema self-check). No `pandas`, no `pyarrow` unless Polars Parquet I/O proves insufficient. Licenses to be verified at PR time, not assumed here.
 
 ## 6. Persian-specific operations
 
@@ -160,7 +162,7 @@ Allowlist (v1): math (`round, abs, floor, ceil, min2, max2`), text (`upper, lowe
 - **dtype mapping:** contract dtypes -> Polars (`int64`, `float64`, `bool`, `string`, `date`, `datetime`, `decimal`). `decimal` uses a fixed-precision Polars decimal (verified for the pinned version in the spike); decision A2-Q1: if it proves immature in M2 tests, store as `string` with a report warning.
 - **`read_page(table_id, offset, limit, sort)`:** Parquet scan with slice; sort via the collation key for strings. Takes the contract's optional `version` argument; the current-version pointer is owned by Postgres/API. `restore_version` is a pointer swap and raises `version_unavailable` if compacted.
 - **`sheet_range_to_table`:** header-row detection heuristic (first row all non-empty, unique strings and later rows contain non-strings or differing types -> header; always overridable via `header_row`); dtype inference over the full column (not a sample) with ordered fallbacks int -> float -> date -> bool -> string; user `dtype_overrides`; mixed-type columns, duplicate/empty headers, formula cells and error cells (`#N/A`, ...) produce warnings; **`preview=True` returns inferred schema + first rows + warnings and stores nothing.** Number cells arrive as floats from the engine; a column becomes `int64` only if every value is integral and within 2^53.
-- **`table_to_cells`:** v1 cap of **200,000 cells per `cell_patch`** (Phase 2 decision A2-Q5): a larger write returns the typed error `too_large_for_history` (a 100k x 20 table is ~2M cells). Before M2 closes, Agents 1, 2 and 3 propose a "write into a new sheet" delta; I will contribute the dataops side of that proposal. Refuses to overwrite non-empty cells (`would_overwrite`).
+- **`table_to_cells`:** v1 cap of **200,000 cells per `cell_patch`** (Phase 2 decision A2-Q5): a larger write returns the typed error `too_large_for_history` (a 100k x 20 table is ~2M cells). Before M2 closes, all modules propose a "write into a new sheet" delta; I will contribute the dataops side of that proposal. Refuses to overwrite non-empty cells (`would_overwrite`).
 - **Refreshable links** re-run the import on demand and never overwrite user edits without confirmation (DATA_MODEL section 4); implemented as a normal bridge call with a diff warning, no background behavior.
 
 ## 9. Chart data aggregation

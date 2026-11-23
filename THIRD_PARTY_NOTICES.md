@@ -21,11 +21,11 @@ No third-party code has been copied into Gridora yet.
 |---|---|---|
 | GridCraft | Apache-2.0 / MIT (to be verified in repo) | Research only; bundled assets and branding have separate terms |
 | Gridline | MIT OR Apache-2.0 (crate metadata) | Research only |
-| IronCalc | MIT OR Apache-2.0 (README) | Research only; spike planned |
+| IronCalc | MIT OR Apache-2.0 (README) | Research only; not adopted (ADR-003, ADR-016) |
 
-## Dependencies in use (recorded by Agent 0 after the Phase 2 merges)
+## Dependencies in use
 
-Licenses below are the upstream licenses as I know them. **They have not yet been machine-verified against the installed package metadata**; a license scan in CI (`pip-licenses`, `license-checker`) is required before Phase 4 and will replace this note.
+Licenses below are the upstream licenses. **They have not yet been machine-verified against the installed package metadata**; a license scan in CI (`pip-licenses`, `license-checker`) is required before Phase 4 and will replace this note.
 
 | Component | Used by | License (upstream) | Notes |
 |---|---|---|---|

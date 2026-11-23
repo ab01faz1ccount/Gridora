@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gridora-dataops"
 version = "0.0.1"
-description = "Gridora data operations, pipelines and Data Tables (Agent 2)"
+description = "Gridora data operations, pipelines and Data Tables"
 requires-python = ">=3.11"
 dependencies = [
     "gridora-contracts",

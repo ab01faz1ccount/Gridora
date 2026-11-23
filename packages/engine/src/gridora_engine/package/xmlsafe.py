@@ -1,4 +1,4 @@
-"""Hostile-safe XML parsing on top of expat (PLAN.md section 10).
+"""Hostile-safe XML parsing on top of expat (DESIGN.md section 10).
 
 Rules: UTF-8 only; no DOCTYPE, entity declarations, external entities or parameter entities;
 depth cap; every failure becomes a typed engine error with a fixed message (never the

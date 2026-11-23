@@ -1,4 +1,4 @@
-// Virtualized grid. DOM-based (apps/PLAN.md 3.3): correct bidi/RTL text, IME and accessibility come
+// Virtualized grid. DOM-based (apps/DESIGN.md 3.3): correct bidi/RTL text, IME and accessibility come
 // from the browser. Only the visible window (+ overscan) is rendered; cells arrive in blocks from
 // the BlockCache. The sheet's own direction (`rtl`) decides column order and arrow-key meaning,
 // independent of the UI language.

@@ -1,4 +1,4 @@
-// Static guards from apps/PLAN.md 3.4: no hard-coded UI strings, no physical left/right CSS.
+// Static guards from apps/DESIGN.md 3.4: no hard-coded UI strings, no physical left/right CSS.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";

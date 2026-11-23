@@ -29,4 +29,4 @@ value 0.1 s; 60 x PageDown 2.6 s; about 480 cells in the DOM at any time (virtua
 - The first full recalculation of a large imported file happens inside the import job (13 s for 200,000 formulas).
 - Paste does not shift relative references in formulas; dates pasted from text stay text; no optimistic display (the screen shows what the server computed, after the round trip).
 - Docker images were not built in the sandbox (see `deploy/README.md`), so numbers behind nginx and in containers are unmeasured.
-- Formula coverage gaps are listed in `docs/INTEGRATION_PLAN.md` (step 8).
+- Formula coverage gaps are listed in `docs/ROADMAP.md`.
