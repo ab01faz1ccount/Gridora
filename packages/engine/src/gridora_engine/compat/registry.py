@@ -1,4 +1,4 @@
-"""Compatibility feature registry (PLAN.md §6).
+"""Compatibility feature registry (DESIGN.md §6).
 
 Honesty gate: an entry with tier "supported" or "partial" must list fixtures (or "generated"
 for fixtures built inside the tests) and at least one test; tests/unit/test_registry.py checks

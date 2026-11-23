@@ -1,6 +1,8 @@
+> **Design record.** Written before the implementation and kept for the reasoning behind it. Where it disagrees with the code or with `docs/REFERENCE.md`, the code and `docs/REFERENCE.md` are right.
+
 # packages/engine — Implementation Plan (Step 0)
 
-Owner: Agent 1. Status: **approved with conditions (docs/reviews/PHASE2_REVIEW.md); revised for Phase 2.** Sections 1-20 are the original Step 0 text; **section 0 supersedes anything below that conflicts with it.** Progress: E0 and E1 are implemented on their own branches (PRs pending); the spike has not started.
+Owner: the engine module. Design record written before implementation; see the banner above.
 
 Scope reminder: I touch `packages/engine/` only. I do not import `packages/dataops` or `apps/*`, I do not edit `contracts/`, and I do not copy external code (see §14 and §18).
 
@@ -43,12 +45,12 @@ Measured at E1 (details and caveats in `BENCHMARKS.md`, 1-CPU container, Python 
 - Probe (not the reader): eager streaming parse of a synthetic 100k x 20 worksheet is **~5.75 s** with no shared strings, styles or formulas (expat floor 0.98 s). Real eager XLSX open will be slower, and I expect it to miss "a few seconds" for a fully materialized workbook.
 - A **lazy row-window design** looks viable: a byte scan indexes 100,000 rows in 0.10 s and a 100-row window parses in 3.7 ms.
 
-Position: the gate is **not clearly missed**, but eager XLSX open probably will miss. I propose, and ask Agent 0 to acknowledge before E3 starts, that the XLSX reader materializes lazily:
+Position: the gate is **not clearly missed**, but eager XLSX open probably will miss. I propose, and ask the maintainer to acknowledge before E3 starts, that the XLSX reader materializes lazily:
 - Open = package safety checks + parse of workbook/styles/shared strings + row-offset index (hints) + features outside `<sheetData>`.
 - Rows are parsed from the original bytes on demand (windows) or all at once when an operation needs the whole sheet (recalculation, dataops table conversion).
 - The byte-scan index is only a hint: every row parse goes through the safe expat path and falls back to a full safe parse on mismatch (a crafted `<row ` inside a comment or CDATA must not mislead the reader). Hostile-file budgets apply to all parsing.
 - Open risks: honest `row_count`/`col_count` without a full parse (I plan: last indexed row plus `spans`/`<dimension>` as hints, corrected when rows are parsed), formulas (a second cheap scan for `<f` mapped to rows), and shared-string table memory (~390k entries in the probe file).
-- The `SheetStore` interface stays swappable (already isolated behind `put/get/window`). If the lazy design fails in the E4 benchmark, I stop and bring the Rust-core option to Agent 0 before E5, per C1.1.
+- The `SheetStore` interface stays swappable (already isolated behind `put/get/window`). If the lazy design fails in the E4 benchmark, I stop and bring the Rust-core option to the maintainer before E5, per C1.1.
 
 ### 0.4 C1.2 — snapshot format (designed now, built in Phase 4)
 
@@ -60,7 +62,7 @@ Purpose (ADR-011): a separate, low-privilege process parses a hostile file; the 
 - **Integrity is not authenticity.** SHA-256 detects corruption; the API must authenticate the channel (for example an HMAC key held by the API). The loader still validates every length and count against `ResourceLimits` before allocating, because a compromised parser process is an adversary.
 - Compatibility: loader rejects newer `format_version`; migrations for older ones live in the engine.
 - Tests (when built): snapshot -> load -> export equals direct export byte for byte; truncated, oversized-count and wrong-checksum snapshots fail with typed errors.
-- Interface: optional `SnapshotEngine` protocol (CC-10), Agent 0's decision in Phase 4.
+- Interface: optional `SnapshotEngine` protocol (CC-10), the maintainer's decision in Phase 4.
 
 ### 0.5 C1.3 — replay determinism (named test)
 
@@ -76,16 +78,16 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 
 | PR | State |
 |---|---|
-| E0 skeleton, errors, limits, `create_engine`, conformance tests | implemented, branch `agent1/e0-skeleton` |
-| E1 CSV import/export, store, `get_cells`, dates, registry, benchmark, probe | implemented, branch `agent1/e1-csv-store` (stacked on E0) |
+| E0 skeleton, errors, limits, `create_engine`, conformance tests | implemented, branch `feature branches` |
+| E1 CSV import/export, store, `get_cells`, dates, registry, benchmark, probe | implemented, branch `feature branches` (stacked on E0) |
 | E2 spike | **not started** |
-| E3 hostile-safe zip/XML, package model, byte-equal no-op round trip | implemented, branch `agent1/e3-package` (stacked on `agent1/v030-ci`) |
-| E4 XLSX read, lazy row windows, compat report, 100k benchmark | implemented, branch `agent1/e4-xlsx-read` (stacked on E3) |
-| E5 value edits, deltas, undo/redo, replay determinism, 200,000-cell cap | implemented, branch `agent1/e5-edits` (stacked on E4) |
-| E6 XLSX export by row patching, report of stale formula results, corpus round trip | implemented, branch `agent1/e6-export` |
-| E5b-1 columnar read/write | implemented, branch `agent1/e5b1-columnar` |
-| E5b-2 range snapshot delta + blob codec | implemented, branch `agent1/e5b2-snapshot` |
-| CC-13 (progress/cancel) | proposal only (section 0.8); waiting for Agent 0. **E7 formulas stay blocked on ADR-003** |
+| E3 hostile-safe zip/XML, package model, byte-equal no-op round trip | implemented, branch `feature branches` (stacked on `feature branches`) |
+| E4 XLSX read, lazy row windows, compat report, 100k benchmark | implemented, branch `feature branches` (stacked on E3) |
+| E5 value edits, deltas, undo/redo, replay determinism, 200,000-cell cap | implemented, branch `feature branches` (stacked on E4) |
+| E6 XLSX export by row patching, report of stale formula results, corpus round trip | implemented, branch `feature branches` |
+| E5b-1 columnar read/write | implemented, branch `feature branches` |
+| E5b-2 range snapshot delta + blob codec | implemented, branch `feature branches` |
+| CC-13 (progress/cancel) | proposal only (section 0.8); waiting for the maintainer. **E7 formulas stay blocked on ADR-003** |
 
 ---
 
@@ -94,7 +96,7 @@ It passes by design only because deltas contain dependents and `apply_delta` doe
 Not built. To be built after E5 merges. Contracts 0.4.0: `ColumnarRange`/`ColumnarColumn`, `RangeSnapshotDelta`,
 `BlobStore`, `create_engine(config, blobs=None)` (the `blobs` argument is already accepted and unused).
 
-**Interface (proposal CC-12, optional engine protocol, Agent 0 decides).** The contract defines
+**Interface (proposal CC-12, optional engine protocol, the maintainer decides).** The contract defines
 `ColumnarExecContext` (supplied by apps/api) but nothing on the *engine* side that it can call. I propose an
 optional `ColumnarEngine` protocol next to `FormattingEngine`/`StructureEngine`:
 `read_range_columnar(wb, rng) -> ColumnarRange` and `write_range_columnar(wb, rng, data) -> Delta`;
@@ -135,7 +137,7 @@ Delta returned: changed cells only. If `<= max_patch_cells` -> `CellPatchDelta`;
 - Size, **not measured**: raw numeric 100k x 20 = 16 MB; expect roughly 3-8 MB per blob after zlib for
   numeric/low-cardinality data, more with unique strings; before + after = two blobs per history entry.
 
-**Cost estimate (for Agent 0; +-50%, I have not built any of it).**
+**Cost estimate (for the maintainer; +-50%, I have not built any of it).**
 | Piece | Size | Notes |
 |---|---|---|
 | E5b-1: columnar read/write + `CellPatchDelta` path + tests incl. equivalence with `get_cells`/edits | ~500 lines code, ~400 tests, ~2-3 working days | needs CC-12 decision; benchmark vs the 7.8 us/cell figure |
@@ -145,7 +147,7 @@ Delta returned: changed cells only. If `<= max_patch_cells` -> `CellPatchDelta`;
 **Risks:** (1) parse time (11-13 s) still dominates the first in-place operation on a 100k x 20 sheet;
 (2) per-cell Python loops on the apply path may erase the gain, hence bulk array writes; (3) a format that
 is "versioned" but has only one version is untested against migration; (4) 200,000 -> unlimited cap shifts the cost to the
-BlobStore (disk) and to history retention, which is Agent 0's/Agent 3's budget to set.
+BlobStore (disk) and to history retention, which is the maintainer's/the platform module's budget to set.
 
 **One format for history and for Phase 4 import isolation (ADR-011)? Yes for the codec, no for the whole.**
 One versioned container with typed sections and one column codec can serve both, as two profiles:
@@ -167,7 +169,7 @@ without it the choice is between slow imports and weaker isolation.
 
 **Problem.** Whole-sheet work is slow in pure Python (11-13 s to parse 100k x 20, ~2 s to export, columnar reads
 and later recalculation on top). ADR-015: it must run as a job with progress, and a user must be able to cancel it.
-The engine is synchronous and not thread-safe per workbook; Agent 3's job runner calls it from a worker thread.
+The engine is synchronous and not thread-safe per workbook; the platform module's job runner calls it from a worker thread.
 
 **Proposal.** One tiny protocol in `contracts/` and an optional keyword on the long methods:
 
@@ -182,7 +184,7 @@ class JobControl(Protocol):
   zip data written) and `cancelled()` at the same places. The existing cooperative `Deadline` becomes one kind of
   `JobControl`, so there is one mechanism.
 - On cancellation the engine raises `GridoraEngineError("operation_conflict", "cancelled", ...)` (no new top-level
-  code needed; Agent 0 may prefer a dedicated one).
+  code needed; the maintainer may prefer a dedicated one).
 - **Consistency guarantees** (testable): a cancelled read leaves the workbook valid (a lazy block is either fully
   parsed or not at all, 28 ms each at 100k x 20); a cancelled edit/write rolls back as today (all-or-nothing); a
   cancelled export removes its `.part` file; a cancelled import returns no handle and releases the spool.
@@ -191,16 +193,16 @@ class JobControl(Protocol):
   zip chunk. Overhead: ~400 `report` calls per 100k rows.
 - **Rejected:** interrupting the thread (unsafe in CPython, can leave locks and half-written state); killing a
   process (belongs to Phase 4 isolation, ADR-011); generator-style APIs (invasive for every caller).
-- **Open questions for Agent 0/3:** is progress `done/total` in rows, bytes or cells (I suggest rows for sheets,
+- **Open questions for the maintainer/3:** is progress `done/total` in rows, bytes or cells (I suggest rows for sheets,
   bytes for zip work, with `stage` naming which); who owns the "progress is a hint, not a promise" wording; whether
   `report` may raise to cancel (I say no: use `cancelled()`).
-Not built until Agent 0 answers (Review 4).
+Not built until the maintainer answers (Review 4).
 
 ---
 
 ## 1. Goals and non-goals
 
-**Goals (from `agents/AGENT_1_ENGINE.md`)**
+**Goals**
 - Implement `WorkbookEngine` (`contracts/python/gridora_contracts/protocols.py`): open XLSX/CSV, serve cell windows, apply edits as deltas, recalculate a documented formula subset, export XLSX/CSV.
 - Own an OOXML *package* layer that preserves everything it does not understand, byte-for-byte, and only regenerates parts it changed.
 - Generate every `CompatibilityReport` from a versioned feature registry; nothing is dropped silently.
@@ -221,7 +223,7 @@ Python package `gridora_engine` under `packages/engine/src/`, stdlib-only at run
 
 ```
 packages/engine/
-  PLAN.md  README.md  SPIKE_REPORT.md (Step 1)  BENCHMARKS.md (later)
+  DESIGN.md  README.md  SPIKE_REPORT.md (Step 1)  BENCHMARKS.md (later)
   pyproject.toml
   src/gridora_engine/
     __init__.py            # exports GridoraEngine only
@@ -284,7 +286,7 @@ This is a hypothesis to be validated by the benchmark in §13; the interface let
 **Error values.** Contract v0.2.0 `ErrValue` includes `#SPILL!`, `#CALC!` and `#GETTING_DATA` (CC-7). Any other error value found in a file is mapped to `#VALUE!` in `get_cells` **and reported** (`xlsx.error_value.unmapped`), while the original XML stays untouched if the cell is not edited.
 
 **Deltas (ADR-005).**
-- `apply_cell_edits` returns one `CellPatchDelta` whose `before`/`after` contain **every cell whose stored content or value changed**: the edited cells and the recalculated dependents. Consequences: undo/redo is a pure patch application (`apply_delta(inverse=...)`) with no recalculation required, results are deterministic, and the API can return `delta.after` to the browser as the "changed cells" response. Cost: large fan-out produces large deltas; a cap with a typed error is planned (see risks R5). This needs Agent 0 confirmation (CC-4).
+- `apply_cell_edits` returns one `CellPatchDelta` whose `before`/`after` contain **every cell whose stored content or value changed**: the edited cells and the recalculated dependents. Consequences: undo/redo is a pure patch application (`apply_delta(inverse=...)`) with no recalculation required, results are deterministic, and the API can return `delta.after` to the browser as the "changed cells" response. Cost: large fan-out produces large deltas; a cap with a typed error is planned (see risks R5). This needs the maintainer confirmation (CC-4).
 - Edit validation: exactly one of `value`/`formula`, or neither to clear (contract). Formula text is stored with the leading `=` in `Cell.f`; the XLSX `<f>` element omits it, and the reader/writer convert.
 - Formula text is always **canonical en-US** (English function names, comma separators) in the model and in files; localized display is a UI concern.
 
@@ -463,13 +465,13 @@ Tooling: `pytest`, `ruff`, `mypy --strict` for `src/`. Dev-only dependency propo
 
 ## 13. Benchmarks
 
-`benchmarks/bench_100k.py` generates a deterministic 100k × 20 workbook (mixed numbers, text incl. Persian, dates, ~5% formulas, a column of cross-row formulas) and measures: **open**, **`get_cells` window** (e.g. 100×30 at top/middle/bottom, plus max 2000×200), **single-cell edit** (no dependents / many dependents), **recalculate**, **export** (clean sheets vs one dirty sheet), **peak RSS** and `tracemalloc` for the store, **delta size** for a high-fan-out edit. It records Python version, CPU, RAM, OS and commit hash; results go to `BENCHMARKS.md` only from actual runs. Targets in TESTING_STRATEGY are hypotheses; I will report numbers and let Agent 0 judge them. If open time or memory for pure Python is poor, the candidate mitigations are, in order: lazy row-window store (index pass at open, materialize on demand), columnar tuning, then the Rust-core option from the spike.
+`benchmarks/bench_100k.py` generates a deterministic 100k × 20 workbook (mixed numbers, text incl. Persian, dates, ~5% formulas, a column of cross-row formulas) and measures: **open**, **`get_cells` window** (e.g. 100×30 at top/middle/bottom, plus max 2000×200), **single-cell edit** (no dependents / many dependents), **recalculate**, **export** (clean sheets vs one dirty sheet), **peak RSS** and `tracemalloc` for the store, **delta size** for a high-fan-out edit. It records Python version, CPU, RAM, OS and commit hash; results go to `BENCHMARKS.md` only from actual runs. Targets in TESTING_STRATEGY are hypotheses; I will report numbers and let the maintainer judge them. If open time or memory for pure Python is poor, the candidate mitigations are, in order: lazy row-window store (index pass at open, materialize on demand), columnar tuning, then the Rust-core option from the spike.
 
 ---
 
 ## 14. Engine spike (Step 1) — plan and timebox
 
-**Timebox proposal: 3 working days, hard stop**, extendable only by Agent 0. Order is chosen so cheap disqualifications come first:
+**Timebox proposal: 3 working days, hard stop**, extendable only by the maintainer. Order is chosen so cheap disqualifications come first:
 1. (0.5 d) For every candidate: read the LICENSE files **in the repo** (not the README), record the commit hash, run a dependency/license review of the lockfile, check for bundled assets with separate terms. Disqualify on unclear or incompatible license before any further work.
 2. (1.5 d) Hands-on: **IronCalc** (build time, toolchain, Python binding or subprocess feasibility, XLSX round-trip on our fixtures, unknown-part preservation test with pivot/chart/VBA/custom XML, formula coverage vs LibreOffice, 100k × 20 performance, hostile inputs) and a **Python OOXML baseline (openpyxl, parse-only)**: license check, what it drops on round-trip, memory at 100k × 20.
 3. (0.5 d) **GridCraft** and **Gridline**: same license/maturity audit; hands-on only if step 1 passes and time remains; Gridline is expected to be an idea source rather than a dependency.
@@ -477,7 +479,7 @@ Tooling: `pytest`, `ruff`, `mypy --strict` for `src/`. Dev-only dependency propo
 5. (0.25 d) "Build our own" baseline: what my §8 evaluator achieves on the same formula fixtures.
 6. (0.5 d) Write `SPIKE_REPORT.md` (filled matrix, recommendation among options A/B/C/D, risks, provenance list, what could be reused).
 
-No candidate code is copied, vendored, or adapted before `SPIKE_REPORT.md` and a `THIRD_PARTY_NOTICES.md` entry exist and Agent 0 has decided (ADR-003). Spike scratch work stays outside the repo or under an untracked directory.
+No candidate code is copied, vendored, or adapted before `SPIKE_REPORT.md` and a `THIRD_PARTY_NOTICES.md` entry exist and the maintainer has decided (ADR-003). Spike scratch work stays outside the repo or under an untracked directory.
 
 My working assumption going in (to be tested, not asserted): own package layer + own pure-Python XLSX I/O; the open question is only the formula core.
 
@@ -522,13 +524,13 @@ Aligned to `docs/INTEGRATION_PLAN.md` slices; each PR small, with tests and READ
 
 ## 17. CONTRACT_CHANGE proposals (statuses: see §0.1; text below is the original proposal)
 
-None of these block Step 1 or the first PRs. I keep working against the current contract until Agent 0 decides.
+None of these block Step 1 or the first PRs. I keep working against the current contract until the maintainer decides.
 
 - **CC-1 — `file_id` for imports.** `Workbook.file_id` is required but `import_xlsx(path)` / `import_csv(path, options)` have no way to receive it. Proposal: optional keyword `file_id: str | None = None` on both. Workaround: engine fills a placeholder and `apps/api` overwrites it.
 - **CC-2 — Handle lifecycle.** Add `close(wb: WorkbookHandle) -> None` (and document that handles are not thread-safe). Without it, working copies cannot be released deterministically.
 - **CC-3 — Read access to formatting and layout.** The protocol exposes only `Cell.s`/`Cell.t` ids; there is no way to fetch the style table (number formats, fonts, fills, borders, alignment), column widths, row heights, hidden rows/columns, merged ranges, or frozen panes beyond `SheetMeta.frozen`. The grid UI and the "styles preserved" acceptance criterion need these. Proposal: `get_styles(wb, ids) -> list[StyleInfo]` and `get_sheet_layout(wb, sheet_id, window) -> SheetLayout` with matching models.
 - **CC-4 — Delta semantics clarification.** Confirm that `CellPatchDelta.before/after` from `apply_cell_edits` include recalculated dependents (§3), so that the same delta is both the undo record and the "changed cells" response to the browser, and that `apply_delta` does not recalculate.
-- **CC-5 — Structure operations.** No method exists for insert/delete rows or columns, sheet add/rename/delete/reorder/hide, or setting `rtl`. `SheetStructureDelta.change` is mine to define, but nothing creates such a delta. Proposal: `apply_structure_change(wb, change: dict) -> Delta`. Out of scope for E0–E7 unless Agent 0 wants it earlier. Reference rewriting on structure changes is the riskiest formula feature; I would schedule it after E8.
+- **CC-5 — Structure operations.** No method exists for insert/delete rows or columns, sheet add/rename/delete/reorder/hide, or setting `rtl`. `SheetStructureDelta.change` is mine to define, but nothing creates such a delta. Proposal: `apply_structure_change(wb, change: dict) -> Delta`. Out of scope for E0–E7 unless the maintainer wants it earlier. Reference rewriting on structure changes is the riskiest formula feature; I would schedule it after E8.
 - **CC-6 — CSV report and options (clarification).** `import_csv` returns no report → I attach it to `Workbook.compat`. `CsvOptions` is a Protocol; the engine will ship a concrete `CsvImportOptions` dataclass; I propose adding `infer_types: bool` to the Protocol.
 - **CC-7 — Error values.** `ErrValue` lacks `#SPILL!`, `#CALC!`, `#GETTING_DATA`, `#UNKNOWN!`. Proposal: add them (additive).
 - **CC-8 — Error `reason`.** Confirm that an engine-level stable `reason` can be surfaced via `ErrorDetail.code` while the top-level code stays in `ERROR_CODES`.
@@ -538,13 +540,13 @@ None of these block Step 1 or the first PRs. I keep working against the current 
 ## 18. Dependencies and copied code
 
 - **Runtime:** none beyond the Python standard library (`zipfile`, `xml.parsers.expat`, `csv`, `array`, `struct`, `decimal`) and `pydantic>=2.6,<3` (already required by `contracts/`).
-- **Dev:** `pytest`, `ruff`, `mypy`, `hypothesis` (property tests). All to be recorded by Agent 0; licenses to be listed in the PR that adds them.
+- **Dev:** `pytest`, `ruff`, `mypy`, `hypothesis` (property tests). All to be recorded by the maintainer; licenses to be listed in the PR that adds them.
 - **Optional test tool:** LibreOffice (system package, oracle only, not a dependency of the product).
-- **Copied code:** none. Nothing will be copied, adapted or ported from IronCalc, GridCraft, Gridline, openpyxl or any other project before a license check, `THIRD_PARTY_NOTICES.md` entry and Agent 0's decision (§14). Ideas studied from others are recorded as "idea only".
+- **Copied code:** none. Nothing will be copied, adapted or ported from IronCalc, GridCraft, Gridline, openpyxl or any other project before a license check, `THIRD_PARTY_NOTICES.md` entry and the maintainer's decision (§14). Ideas studied from others are recorded as "idea only".
 
 ---
 
-## 19. Open questions for Agent 0 (all answered in docs/reviews/PHASE2_REVIEW.md; see §0.2)
+## 19. Open questions for the maintainer (all answered in docs/reviews/PHASE2_REVIEW.md; see §0.2)
 
 1. Approve the proposed spike timebox (3 working days, hard stop) and the candidate order, or set another.
 2. Accept the "own pure-Python package layer + own baseline evaluator, Rust core only if the spike justifies it" working assumption for E0–E7.

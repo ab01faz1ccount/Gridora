@@ -1,7 +1,7 @@
 """A worksheet part spooled to a private temp file, with a byte-scanned row index (hints).
 
 Why: the decompressed sheet can be hundreds of MB; holding it in RAM per sheet does not scale,
-and the exporter needs the original row bytes to patch only edited rows (PLAN.md 5.3). The temp
+and the exporter needs the original row bytes to patch only edited rows (DESIGN.md 5.3). The temp
 file is created by tempfile.TemporaryFile (private, unlinked) and memory-mapped read-only.
 
 The row index is a HINT built by a fast byte scan. Every parse of a row range still goes through

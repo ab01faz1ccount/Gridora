@@ -17,7 +17,7 @@ export interface CellDisplay {
 
 /**
  * Raw display only. Cell styles and number formats (`Cell.s`, `Cell.t`) are NOT applied: no
- * contract exposes the style table yet (apps/PLAN.md 3.3). Numbers use the chosen digit set.
+ * contract exposes the style table yet (apps/DESIGN.md 3.3). Numbers use the chosen digit set.
  */
 export function cellDisplay(cell: Cell | undefined, p: DisplayPrefs): CellDisplay {
   const v = cell?.v;

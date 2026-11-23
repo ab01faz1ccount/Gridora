@@ -3,7 +3,7 @@
 Every formula cell of a corpus workbook is recalculated by the engine (Gregorian calendar, Excel semantics) and
 compared with the value Excel stored. Matches must not regress: the private payroll workbook must match in full,
 and the public Apache POI files must stay above the recorded ratios (known mismatches are documented in
-docs/reviews/E7_FORMULA_EVIDENCE.md: array formulas, volatile functions, rare functions, fraction formats)."""
+docs/FORMULA_EVIDENCE.md: array formulas, volatile functions, rare functions, fraction formats)."""
 from __future__ import annotations
 
 import collections

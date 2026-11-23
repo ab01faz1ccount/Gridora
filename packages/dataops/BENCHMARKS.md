@@ -16,7 +16,7 @@ Method: every row below ran in a **fresh subprocess** (so peak RSS belongs to th
 ## Environment (the only one measured)
 | | |
 |---|---|
-| Commit | branch `agent2/m5-benchmarks` rebased on main `bf02d63` (contracts 0.3.0) |
+| Commit | branch `feature branches` rebased on main `bf02d63` (contracts 0.3.0) |
 | CPU / RAM | Intel Xeon @ 2.1 GHz, **1 core**, 4 GB (sandbox VM, not reference hardware) |
 | Disk | local virtual disk (ext4) |
 | Software | Python 3.12.3, polars 2.1.0 |

@@ -1,4 +1,4 @@
-# Reviewed and committed by Agent 0 (source: agent proposal under ci/).
+# Reviewed and committed by the maintainer (source: CI proposal).
 name: engine
 permissions:
   contents: read

@@ -1,8 +1,8 @@
-"""Corpus tests (Agent 0 order): every real-world file imports with the right sheet count, cell count
+"""Corpus tests : every real-world file imports with the right sheet count, cell count
 and compatibility report; hostile files are rejected with typed errors without crashing or hanging.
 
 Cell counts are checked against an independent oracle (oracle.py), sheet/formula/error counts and
-feature flags against corpus/manifest.json (produced by Agent 0's own scan, not by Excel).
+feature flags against corpus/manifest.json (produced by our own scan, not by Excel).
 Where the report does NOT contain something the manifest lists, the difference must be explained by
 an explicit, verified rule in EXPLAINED below; anything else fails (that would be a lost report item)."""
 from __future__ import annotations

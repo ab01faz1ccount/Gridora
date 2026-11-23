@@ -1,6 +1,6 @@
 # Operation parameter schemas — vocabulary for form generation
 
-Status: **vocabulary version 1, specification (condition C2.3).** Implemented from M1 on (PR for `sort`, `filter`, `remove_duplicates`), where golden tests pin the generated schemas. Audience: Agent 3 (form renderer), Agent 0 (review). Owner: Agent 2.
+Status: **vocabulary version 1, specification (condition C2.3).** Implemented from M1 on (PR for `sort`, `filter`, `remove_duplicates`), where golden tests pin the generated schemas. Audience: the platform module (form renderer), the maintainer (review). Owner: the dataops module.
 
 `OperationDescriptor.params_schema` is a JSON Schema (draft 2020-12) generated from each operation's pydantic params model, plus the `x-gridora-*` keywords below. The **generated schema is normative** and is pinned by golden files in `tests/golden/` (one per operation, from M1 on); examples in this file are illustrative and may differ in detail.
 
@@ -99,7 +99,7 @@ Top-level parameter names are joined with dots (`ops.sort.params.keys.title`). *
 
 ## 6. Recursive structures
 
-`filter` conditions and `computed_column` expressions are trees. Their shape appears in `$defs` (for `filter`: `Condition` / `Group` with a hidden `kind` discriminator, see `tests/golden/filter.schema.json` from M1 on), but the form renderer is expected to use the dedicated `condition-builder` / `expression-builder` widgets. Until Agent 3 provides them, the fallback row ("unsupported field") applies and those two operations can still be run from a saved Tool or via the API.
+`filter` conditions and `computed_column` expressions are trees. Their shape appears in `$defs` (for `filter`: `Condition` / `Group` with a hidden `kind` discriminator, see `tests/golden/filter.schema.json` from M1 on), but the form renderer is expected to use the dedicated `condition-builder` / `expression-builder` widgets. Until the platform module provides them, the fallback row ("unsupported field") applies and those two operations can still be run from a saved Tool or via the API.
 
 ## 7. Versioning
 

@@ -44,4 +44,4 @@ A versioned list of codes (`xlsx.pivot_table`, `xlsx.vba_project`, `xlsx.conditi
 | Gridline (ali-raheem/gridline) | MIT OR Apache-2.0 | Terminal spreadsheet with Rhai formulas; likely poor fit as an Excel-compat engine; idea source only. |
 | IronCalc | MIT OR Apache-2.0 | Rust engine with XLSX reader/writer and Python/WASM bindings advertised; self-described early stage. Strongest candidate for a spike. |
 
-Decision deferred to ADR-003 after the Phase 2 spike. See THIRD_PARTY_NOTICES.md for provenance rules.
+Decision: ADR-003 and ADR-016. See THIRD_PARTY_NOTICES.md for provenance rules.

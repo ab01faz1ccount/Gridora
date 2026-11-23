@@ -1,4 +1,4 @@
-"""Which PRESERVED parts reference cells that were edited (PLAN.md 5.4).
+"""Which PRESERVED parts reference cells that were edited (DESIGN.md 5.4).
 
 Only tables, pivot-cache sources and chart series are assessed (small, tested extractors); everything
 else that can go stale is reported as "not assessed" rather than silently ignored.

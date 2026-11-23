@@ -1,4 +1,4 @@
-"""Hostile-safe ZIP reader (PLAN.md section 10).
+"""Hostile-safe ZIP reader (DESIGN.md section 10).
 
 Validated BEFORE any decompression: entry count (from the end-of-central-directory record,
 before zipfile builds its table), names, flags, compression methods, declared sizes and ratios,

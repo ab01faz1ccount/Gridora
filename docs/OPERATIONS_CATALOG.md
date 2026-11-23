@@ -1,6 +1,6 @@
 # Gridora — Operations Catalog (initial scope)
 
-Every operation is registered via an `OperationDescriptor`. All are previewable unless noted. "Destructive" ones require explicit confirmation. Status for every row is **Planned** until the module status table says otherwise.
+Every operation is registered via an `OperationDescriptor`. All are previewable unless noted. "Destructive" ones require explicit confirmation. All fifteen operations are implemented in `packages/dataops`; see [REFERENCE.md](REFERENCE.md).
 
 | Category | Operation `type` | What the user sees | Targets | Destructive |
 |---|---|---|---|---|

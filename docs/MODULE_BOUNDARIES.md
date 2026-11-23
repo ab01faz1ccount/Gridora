@@ -1,6 +1,6 @@
 # Gridora — Module Boundaries & Agent Briefs
 
-Status: Phase 1 draft. Briefs are handed to the specialist agents in Phase 2 after owner review.
+How the repository is split into modules and what each may import.
 
 ## Dependency rules
 
@@ -10,10 +10,10 @@ apps/web ──HTTP──> apps/api ──> packages/engine
 contracts/  ← imported by all, imports nothing
 ```
 - `engine` ⟂ `dataops`: no imports between them.
-- Only `apps/api` composes modules. Only Agent 0 changes `contracts/`; others propose changes via a `CONTRACT_CHANGE` note in their PR.
+- Only `apps/api` composes modules. Only the maintainer changes `contracts/`; others propose changes via a `CONTRACT_CHANGE` note in their PR.
 - No module reads/writes another module's storage directly.
 
-## Agent 1 — Workbook Engine & Excel Compatibility (`packages/engine`)
+## the engine module — Workbook Engine & Excel Compatibility (`packages/engine`)
 
 **Scope:** Workbook/Sheet model; XLSX/CSV import and export; OOXML package layer that preserves unknown parts and relationships; cell edits and deltas; formula evaluation (via spike-selected approach); compatibility reporting; engine fixtures corpus.
 
@@ -25,7 +25,7 @@ contracts/  ← imported by all, imports nothing
 
 **Must not modify:** `apps/*`, `packages/dataops`, `contracts/` (propose only), DB schema.
 
-## Agent 2 — Data Operations & Analytics (`packages/dataops`)
+## the dataops module — Data Operations & Analytics (`packages/dataops`)
 
 **Scope:** operation registry and executor; initial operations (sort, filter, remove duplicates, find/replace, fill down/up, trim/case, split/merge columns, group & aggregate, pivot, join, computed column from a GUI expression builder, type conversion); pipelines; reusable Tools; Data Table store (Polars + Parquet versions, DuckDB for joins/SQL where useful); sheet↔table bridge; chart data aggregation.
 
@@ -37,7 +37,7 @@ contracts/  ← imported by all, imports nothing
 
 **Must not modify:** `packages/engine`, `apps/*`, `contracts/`.
 
-## Agent 3 — Frontend, Backend & Platform (`apps/web`, `apps/api`, `deploy/`)
+## the platform module — Frontend, Backend & Platform (`apps/web`, `apps/api`, `deploy/`)
 
 **Scope:** FastAPI app implementing API_CONTRACTS; auth, workspaces, file storage layout, jobs, history service, Postgres schema/migrations; React/TS grid UI, operation forms generated from `OperationDescriptor`, chart UI, history panel, compatibility panel; Docker/Nginx/compose; backup script.
 
@@ -51,7 +51,7 @@ contracts/  ← imported by all, imports nothing
 
 ## Cross-cutting rules for all agents
 
-- Small PRs, one concern each, with tests and a docs update. Update the module status table in INTEGRATION_PLAN.md.
+- Small PRs, one concern each, with tests and a docs update. Keep docs/ROADMAP.md truthful.
 - No new dependency without an entry in DECISIONS.md (why, alternatives, license).
 - Copying external code requires a license check and a THIRD_PARTY_NOTICES + provenance entry first.
-- Each phase ends with an updated `docs/phases/PHASE-N.md` describing what actually works.
+- docs/REFERENCE.md describes what actually works.

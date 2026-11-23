@@ -217,7 +217,7 @@ def test_full_calc_on_load_flag_is_reported(eng, tmp_path):
 
 
 def test_sheet_ids_are_stable_across_imports_of_the_same_file(eng, tmp_path):
-    """Agent 3 (real-engine e2e): history, URLs and replays refer to sheet ids, so a re-import must give the same ones."""
+    """the platform module (real-engine e2e): history, URLs and replays refer to sheet ids, so a re-import must give the same ones."""
     p = write_zip(tmp_path / "s.xlsx", xlsx_parts())
     _h1, wb1, _ = eng.import_xlsx(p, file_id="file-A")
     _h2, wb2, _ = create_engine({}).import_xlsx(p, file_id="file-A")

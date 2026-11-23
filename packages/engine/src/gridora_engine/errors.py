@@ -26,7 +26,7 @@ class GridoraEngineError(Exception):
 
 
 class EngineNotImplementedError(NotImplementedError):
-    """A contract method that this engine version does not implement yet (see PLAN.md §15)."""
+    """A contract method that this engine version does not implement yet (see DESIGN.md §15)."""
 
     def __init__(self, method: str) -> None:
         super().__init__(f"{method} is not implemented in this engine version")

@@ -1,4 +1,4 @@
-# PROPOSED by Agent 3. This is the check that finally runs the containers (not possible in my sandbox).
+# Builds and runs the whole stack: compose up, smoke test, no-outbound check, non-root check, backup and restore.
 name: deploy-stack
 on:
   pull_request:

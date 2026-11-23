@@ -42,7 +42,7 @@ class CsvOptions(Protocol):
 
 @runtime_checkable
 class WorkbookEngine(Protocol):
-    """Implemented by packages/engine (Agent 1).
+    """Implemented by packages/engine.
 
     Delta semantics (normative): the Delta returned by apply_cell_edits contains before/after for
     the edited cells AND every recalculated dependent. It is simultaneously the undo record and the
@@ -87,7 +87,7 @@ class FormattingEngine(Protocol):
 
 @runtime_checkable
 class ColumnarEngine(Protocol):
-    """Optional engine extension (v0.4.1, ADR-015; proposed by Agent 1 as CC-12).
+    """Optional engine extension (v0.4.1, ADR-015; proposed by the engine module as CC-12).
     apps/api feature-detects it with isinstance(engine, ColumnarEngine) and builds
     ColumnarExecContext on top of it. Same value/formula semantics as get_cells and
     apply_cell_edits; has_formulas must be True if any cell in the range has a formula
@@ -103,8 +103,8 @@ class ColumnarEngine(Protocol):
 @runtime_checkable
 class StructureEngine(Protocol):
     """Optional engine extension, scheduled AFTER formula work (row/col insert/delete rewrites
-    references: the riskiest feature). `change` shape is defined by Agent 1 in engine docs and
-    reviewed by Agent 0 before implementation. Returns a SheetStructureDelta."""
+    references: the riskiest feature). `change` shape is defined by the engine module in engine docs and
+    reviewed by the maintainer before implementation. Returns a SheetStructureDelta."""
 
     def apply_structure_change(self, wb: WorkbookHandle, change: dict[str, Any]) -> Delta: ...
 
@@ -153,7 +153,7 @@ class BlobStore(Protocol):
 
 @runtime_checkable
 class OperationExecutor(Protocol):
-    """Implemented by packages/dataops (Agent 2)."""
+    """Implemented by packages/dataops."""
 
     def describe_all(self) -> list[OperationDescriptor]: ...
     def validate(self, op: Operation, ctx: Optional[ExecContext] = None) -> list[ValidationError]:
@@ -174,7 +174,7 @@ class OperationExecutor(Protocol):
 
 @runtime_checkable
 class TableStore(Protocol):
-    """Implemented by packages/dataops (Agent 2). Parquet versions are immutable.
+    """Implemented by packages/dataops. Parquet versions are immutable.
     Postgres (apps/api) owns metadata and the 'current version' pointer."""
 
     def create_from_rows(self, ctx: ExecContext, name: str, columns: list[Any],

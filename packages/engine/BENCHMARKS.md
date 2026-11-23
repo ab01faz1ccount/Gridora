@@ -6,7 +6,7 @@ Targets in docs/TESTING_STRATEGY.md are hypotheses; this file only reports what 
 ## E1 — CSV import / window read / export, 100,000 rows x 20 columns
 
 Environment: Python 3.12.3, Linux container, **1 CPU**, glibc 2.39, commit of branch
-`agent1/e1-csv-store`. Deterministic generated file (seed 1234): numbers, decimals, Persian text,
+`feature branches`. Deterministic generated file (seed 1234): numbers, decimals, Persian text,
 leading-zero identifiers, Persian-digit numbers, ~3% empty cells; 19.4 MB.
 
 | Operation | Result |
@@ -123,7 +123,7 @@ Reading it honestly:
   edited cells. Dependents of an edited cell are **not** updated (their cached values go stale);
   the export report (E6) will say so and set `fullCalcOnLoad`.
 - A delta costs ~160 bytes per cell in JSON; at the 200,000-cell cap that is ~32 MB per history entry,
-  which is Agent 0's/Agent 3's call to budget (cap is `max_patch_cells`, default 200,000).
+  which is the maintainer's/the platform module's call to budget (cap is `max_patch_cells`, default 200,000).
 - Sheets that contain shared or array formulas are loaded completely on the first edit (so the
   protection check sees every formula group): ~11-13 s for a 100k x 20 sheet of this kind. The
   benchmark file has none.
@@ -292,7 +292,7 @@ Command: `python benchmarks/bench_snapshot_100k.py` (in-memory fake `BlobStore`)
 Reading it honestly:
 - The cap on history entries is lifted only because the blob store absorbs the size: 9.1 MB per side here;
   random numbers compress poorly (3-8 MB was my estimate; real columns with repeated values will do better,
-  unique strings worse). Retention and disk budget are Agent 0's / Agent 3's call.
+  unique strings worse). Retention and disk budget are the maintainer's / the platform module's call.
 - Export after a bulk write is the slow part (22.5 s): every cell of the rectangle is regenerated (`cell_xml`) and every
   rebuilt row is re-parsed twice (cell offsets, then the well-formedness check). That is a job, not a request;
   it is exactly what progress/cancel (CC-13) is for. No optimization was attempted.

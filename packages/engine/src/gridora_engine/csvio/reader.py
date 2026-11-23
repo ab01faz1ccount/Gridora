@@ -1,4 +1,4 @@
-"""CSV import into a SheetStore (PLAN.md §7)."""
+"""CSV import into a SheetStore (DESIGN.md §7)."""
 from __future__ import annotations
 
 import csv

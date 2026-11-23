@@ -1,7 +1,7 @@
-"""Dependency graph and recalculation for one workbook (PLAN.md §8, ADR-003 part 2 option C).
+"""Dependency graph and recalculation for one workbook (DESIGN.md §8, ADR-003 part 2 option C).
 
 Cell identity: fk = (sheet_index << 40) | (row << 14) | col.
-Rules (PLAN.md §8): no recalculation at import; formulas with unsupported functions, parse errors
+Rules (DESIGN.md §8): no recalculation at import; formulas with unsupported functions, parse errors
 or array/data-table kind keep their cached value ("frozen") and are reported, as are cells
 downstream of them ("stale") and cells in circular references (they keep their cached value).
 """

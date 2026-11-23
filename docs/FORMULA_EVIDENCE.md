@@ -1,6 +1,6 @@
 # E7 formula core — evidence for ADR-003 part 2 (2026-11-20)
 
-Status: **proposal for the owner's decision.** Nothing here is implemented. Script: `packages/engine/benchmarks/formula_inventory.py` (raw XML scan of `<f>` elements; counts function-call tokens, so nested/rare syntax may be under- or over-counted).
+Evidence behind the formula-core decision (ADR-003 part 2, ADR-016); the staged pure-Python evaluator it recommended is implemented. Script: `packages/engine/benchmarks/formula_inventory.py` (raw XML scan of `<f>` elements; counts function-call tokens, so nested/rare syntax may be under- or over-counted).
 
 ## Gate from ADR-015 (item 5)
 - E6 (export) merged: yes (engine README, E5b-2).
@@ -14,7 +14,7 @@ IF 8,901 · IFERROR 3,000 · INDEX 3,000 · MATCH 3,000 · OR 3,000 · DATE 800 
 
 Across the Apache POI corpus the dominant ones are IF, ROW, INDIRECT, VLOOKUP, OR, MATCH, IFERROR, INDEX, ISNA, DATE, SUMIFS, then TEXT, SUM, SUBTOTAL, math/trig and text functions (POI's own `FormulaEvalTestData*.xlsx` is the broad-coverage test).
 
-## Recommendation (Agent 0, for decision)
+## Recommendation (the maintainer, for decision)
 Option **C, staged**: own pure-Python evaluator behind the existing engine interface, no Rust.
 1. Tier 1 (covers the owner's workbook): parser for A1 refs/ranges/cross-sheet refs, operators, IF/IFERROR/IFNA/AND/OR/NOT, INDEX/MATCH/VLOOKUP, SUM/SUMIFS/COUNTIFS/AVERAGE/MIN/MAX/COUNT, DATE/TODAY-free date functions, ROUND/ABS.
 2. Dependency graph with dirty propagation, populating `Delta` dependents (CC-4). Unsupported function -> keep cached value, mark cell in the CompatibilityReport (never silently wrong).

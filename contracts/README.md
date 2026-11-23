@@ -1,18 +1,20 @@
 # contracts/
 
-Normative shared types and module interfaces. **Owned by Agent 0.** Other agents import from here and never edit it; if a contract is wrong or missing, open the PR with a `CONTRACT_CHANGE:` section explaining what and why, and keep working against the current version until it is merged.
+Normative shared types and module interfaces. Every module imports from here; nothing else defines what travels between the engine, dataops, the API and the web app. Current version: see `CONTRACT_VERSION` in `python/gridora_contracts/models.py`.
 
 - `python/gridora_contracts/models.py` — pydantic v2 data models (mirrors `docs/DATA_MODEL.md`).
-- `python/gridora_contracts/protocols.py` — `WorkbookEngine`, `OperationExecutor`, `TableStore`, `ExecContext`.
+- `python/gridora_contracts/protocols.py` — `WorkbookEngine` and its optional extensions, `OperationExecutor`, `TableStore`, `ExecContext`, `BlobStore`.
 - `typescript/index.ts` — the same types for the web app.
-- `python/tests/` — contract smoke tests; keep green.
+- `python/tests/` — contract tests; keep green.
 
-Rule: the Python and TypeScript files must stay in sync. Any change touches both, plus `docs/DATA_MODEL.md`/`API_CONTRACTS.md` when the shape changes.
+Rules: the Python and TypeScript files stay in sync; a change touches both, plus `docs/DATA_MODEL.md` and `docs/API_CONTRACTS.md` when a shape changes. Changes are additive within a minor version (new optional fields and protocols); a removal or rename is a major change and needs an ADR in `docs/DECISIONS.md`. Error codes are added, never renamed.
 
 Install for local development: `pip install -e contracts/python`. Run tests: `pytest contracts/python/tests`.
 
 ## Changelog
-- **0.3.0** — `WorkbookEngine.export_csv` returns a `CompatibilityReport` (CC-9). Agents 1 and 3 update their implementations and stubs; the engine's non-contract `last_export_report` becomes unnecessary.
-- **0.2.0** — Phase 2 review changes (see `docs/reviews/PHASE2_REVIEW.md`, ADR-010).
-- **0.4.0** — ADR-014: `DataTableTarget.version`; optional `ColumnarExecContext` (columnar range read/write); reserved `RangeSnapshotDelta` and `BlobStore`; `sheet_range_to_table(name=...)`. All additions are optional or defaulted; nothing existing changes meaning.
-- **0.4.1** — ADR-015: optional `ColumnarEngine` protocol (engine side of the columnar path). Additive; the 0.4.x guards in module conformance tests keep passing. The history size limit is reported as top-level `operation_conflict` (HTTP 409) with detail code `too_large_for_history` (no new top-level code).
+- **0.2.0** — first Phase 2 set (ADR-010): `file_id` on imports, `close`, optional `FormattingEngine` / `StructureEngine`, `extra_targets`, `CellsChangedResult`, window cap 1000 x 100.
+- **0.3.0** — `export_csv` returns a `CompatibilityReport`.
+- **0.4.0** — `DataTableTarget.version`; optional `ColumnarExecContext`; `RangeSnapshotDelta` and `BlobStore`.
+- **0.4.1** — optional `ColumnarEngine`; history size limit reported as `operation_conflict` with detail `too_large_for_history`.
+- **0.5.0** — `others` on `CellPatchDelta` / `CellsChangedResult` (edits that change other sheets).
+- **0.6.x** — calendars (`Workbook.calendar`, `DateColumns`, optional `CalendarEngine`), saved tools, charts, Data Table history (see `docs/API_CONTRACTS.md` and ADR-016).

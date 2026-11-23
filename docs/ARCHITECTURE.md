@@ -1,6 +1,6 @@
 # Gridora — Architecture
 
-Status: **Phase 1 draft, pending review.** Nothing described here is implemented yet.
+Overview of how the parts fit together. The normative interfaces are in `contracts/`; per-module detail is in [REFERENCE.md](REFERENCE.md).
 
 ## 1. System boundaries
 
@@ -19,10 +19,10 @@ One deployable backend process (FastAPI) that imports two internal Python packag
         │  HTTPS, JSON (REST /api/v1)
       Nginx  ── static web bundle
         │
-   FastAPI app  (apps/api)         ← Agent 3
+   FastAPI app  (apps/api)         ← the platform module
      ├── auth, workspaces, files, jobs, history service
-     ├── imports  gridora_engine   ← Agent 1  (workbook model, OOXML I/O, formulas)
-     ├── imports  gridora_dataops  ← Agent 2  (operations, pipelines, Data Tables)
+     ├── imports  gridora_engine   ← the engine module  (workbook model, OOXML I/O, formulas)
+     ├── imports  gridora_dataops  ← the dataops module  (operations, pipelines, Data Tables)
      │
    PostgreSQL (metadata)     File storage (originals, generated, Parquet)
 ```
@@ -31,11 +31,11 @@ One deployable backend process (FastAPI) that imports two internal Python packag
 
 | Module | Owner | Responsibility | Owns data |
 |---|---|---|---|
-| `apps/web` | Agent 3 | Grid UI, toolbars, operation forms, charts, history panel | UI state only |
-| `apps/api` | Agent 3 | HTTP API, auth, workspaces, job runner, persistence, orchestration | Postgres metadata, file layout |
-| `packages/engine` | Agent 1 | Workbook/Sheet model, XLSX import/export, OOXML package preservation, formula evaluation, compatibility report | In-memory workbook model; OOXML parts |
-| `packages/dataops` | Agent 2 | Operation registry, pipeline execution, Data Tables (Polars/DuckDB), sheet↔table bridge, chart data aggregation | Data Table contents (Parquet) |
-| `contracts/` | Agent 0 | JSON Schemas and generated types shared by all modules | Nothing |
+| `apps/web` | the platform module | Grid UI, toolbars, operation forms, charts, history panel | UI state only |
+| `apps/api` | the platform module | HTTP API, auth, workspaces, job runner, persistence, orchestration | Postgres metadata, file layout |
+| `packages/engine` | the engine module | Workbook/Sheet model, XLSX import/export, OOXML package preservation, formula evaluation, compatibility report | In-memory workbook model; OOXML parts |
+| `packages/dataops` | the dataops module | Operation registry, pipeline execution, Data Tables (Polars/DuckDB), sheet↔table bridge, chart data aggregation | Data Table contents (Parquet) |
+| `contracts/` | the maintainer | JSON Schemas and generated types shared by all modules | Nothing |
 
 Rules: `engine` and `dataops` never import each other and never import `apps/api`. The API layer is the only place that wires them together. Shared types live only in `contracts/`.
 
