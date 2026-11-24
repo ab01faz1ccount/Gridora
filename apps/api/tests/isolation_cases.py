@@ -79,6 +79,17 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("GET", "/api/v1/workbooks/{id}/sheets/{sheet_id}/date-columns"): lambda c, ids: c.get(
         f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/date-columns"
     ),
+    ("GET", "/api/v1/workbooks/{id}/sheets/{sheet_id}/find"): lambda c, ids: c.get(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/find?q=a"
+    ),
+    ("POST", "/api/v1/workbooks/{id}/sheets/{sheet_id}/fill"): lambda c, ids: c.post(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/fill",
+        json={
+            "base_seq": 0,
+            "source": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 0, "c1": 0},
+            "target": {"sheet_id": ids["sheet"], "r0": 1, "c0": 0, "r1": 2, "c1": 0},
+        },
+    ),
     ("PUT", "/api/v1/workbooks/{id}/calendar"): lambda c, ids: c.put(
         f"/api/v1/workbooks/{ids['wb']}/calendar", json={"calendar": "hijri"}
     ),

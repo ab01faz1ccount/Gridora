@@ -18,6 +18,7 @@ from typing import Any
 from gridora_contracts.protocols import (
     CalendarEngine,
     ColumnarEngine,
+    FindFillEngine,
     FormattingEngine,
     OperationExecutor,
     StructureEngine,
@@ -56,6 +57,10 @@ class Services:
     @property
     def calendar_available(self) -> bool:
         return isinstance(self.engine, CalendarEngine)
+
+    @property
+    def find_fill_available(self) -> bool:
+        return isinstance(self.engine, FindFillEngine)
 
     @property
     def columnar_available(self) -> bool:

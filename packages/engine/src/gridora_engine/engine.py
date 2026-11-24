@@ -133,6 +133,24 @@ class GridoraEngine:
             rows=window.rows, cols=window.cols, cells=cells,
         )
 
+    def find_cells(self, wb: WorkbookHandle, sheet_id: str, query: str, **opts: Any) -> tuple[list[tuple[int, int]], bool]:
+        """v0.7.0 (optional extension): cells whose shown text contains `query`, row-major, after `after`."""
+        from .find import find_cells
+
+        return find_cells(self, wb, sheet_id, query, **opts)
+
+    def fill_edits(self, wb: WorkbookHandle, sheet_id: str, source: tuple[int, int, int, int],
+                   target: tuple[int, int, int, int]) -> list[CellEdit]:
+        """v0.7.0 (optional extension): the edits that continue `source` into the adjacent `target`."""
+        from .fill import fill_edits
+
+        try:
+            return fill_edits(self, wb, sheet_id, source, target)
+        except ValueError as e:
+            code = str(e)
+            raise bad_request(code, "The fill range does not fit the selection." if code == "fill.shape"
+                              else "The fill range is too large.") from None
+
     def apply_cell_edits(self, wb: WorkbookHandle, sheet_id: str, edits: list[CellEdit]) -> Delta:
         state, sheet = self._sheet(wb, sheet_id)
         limits = self.limits

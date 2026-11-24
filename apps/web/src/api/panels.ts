@@ -1,6 +1,6 @@
 // Calls behind the Save/Export, Data Table, chart and saved-tool panels.
 import type {
-  ChartData, ChartSpec, CompatibilityReport, DataTable, FileRecord, Job, Range, TablePreview, TableRows, Tool,
+  ChartData, ChartSpec, CompatibilityReport, DataTable, FileRecord, FindResult, Job, Range, TablePreview, TableRows, Tool,
 } from "@contracts";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
@@ -44,3 +44,17 @@ export function useTools() {
   return useQuery({ queryKey: ["tools"], queryFn: () => api.get<Tool[]>("/tools"), retry: false });
 }
 export const deleteTool = (id: string) => api.delete<void>(`/tools/${id}`);
+
+// ---- find in a sheet
+export interface FindOptions { matchCase: boolean; wholeCell: boolean; inFormulas: boolean }
+export function findInSheet(
+  workbookId: string, sheetId: string, q: string, o: FindOptions,
+  after: { r: number; c: number } | undefined, limit: number,
+) {
+  return api.get<FindResult>(`/workbooks/${workbookId}/sheets/${sheetId}/find`, {
+    query: {
+      q, limit, match_case: o.matchCase || undefined, whole_cell: o.wholeCell || undefined,
+      in_formulas: o.inFormulas || undefined, after_row: after?.r, after_col: after?.c,
+    },
+  });
+}

@@ -25,6 +25,8 @@ OPTIONAL_METHODS = (
     "apply_structure_change",
     "set_calendar",
     "detect_date_columns",
+    "find_cells",
+    "fill_edits",
 )
 
 

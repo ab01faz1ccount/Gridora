@@ -6,14 +6,15 @@ import { errorKey } from "@/api/errors";
 import { useWorkbook } from "@/api/hooks";
 import { navigate } from "@/app/router";
 import { Button } from "@/components/Button";
-import { Grid } from "@/grid/Grid";
+import { Grid, type GridHandle } from "@/grid/Grid";
 import { sheetDataSource } from "@/grid/datasource";
 import { WorkbookEditor } from "@/grid/editing";
 import { editFor } from "@/grid/parseInput";
 import { columnLetters } from "@/grid/geometry";
-import { boundsOf, single, type Selection } from "@/grid/selection";
+import { boundsOf, single, type FillPlan, type Selection } from "@/grid/selection";
 import { cellRaw, summarize } from "@/grid/summary";
 import { CompatPanel } from "@/features/import/CompatPanel";
+import { FindBar } from "./FindBar";
 import { OperationPanel } from "@/features/operations/OperationPanel";
 import { ChartsPanel } from "@/features/charts/ChartsPanel";
 import { ExportPanel } from "@/features/export/ExportPanel";
@@ -129,6 +130,19 @@ function WorkbookView({
   const version = useSyncExternalStore(cache.subscribe, cache.getVersion);
   const [sel, setSel] = useState<Selection>(single({ r: 0, c: 0 }));
   const [taskQuery, setTaskQuery] = useState("");
+  const [finding, setFinding] = useState(false);
+  const gridRef = useRef<GridHandle>(null);
+  // Ctrl+F (by physical key, so also on a Persian layout) opens Find instead of the browser's own
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyF" && !e.shiftKey) {
+        e.preventDefault();
+        setFinding(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const taskRef = useRef<HTMLInputElement>(null);
   // Ctrl+K (any keyboard layout) jumps to "what do you want to do?"
   useEffect(() => {
@@ -155,6 +169,14 @@ function WorkbookView({
   };
   const paste = (edits: CellEdit[]) => {
     editor.edit(sheet.id, edits).catch(fail);
+  };
+  const fill = (plan: FillPlan) => {
+    const range = (x: typeof b) => ({ sheet_id: sheet.id, r0: x.r0, c0: x.c0, r1: x.r1, c1: x.c1 });
+    editor
+      .write(`/workbooks/${editor.workbookId}/sheets/${sheet.id}/fill`, (base_seq) => ({
+        base_seq, source: range(plan.source), target: range(plan.target),
+      }))
+      .catch(fail);
   };
   const clipboardProblem = (reason: "notLoaded" | "tooLarge") =>
     push("error", t(reason === "notLoaded" ? "clipboard.notLoaded" : "clipboard.tooLarge"));
@@ -184,7 +206,7 @@ function WorkbookView({
         <Button onClick={() => setPanel(panel === "history" ? null : "history")} aria-pressed={panel === "history"}>
           {t("shell.history")}
         </Button>
-        <Button disabled title={t("shell.findSoon")}>{t("shell.find")}</Button>
+        <Button onClick={() => setFinding(!finding)} aria-pressed={finding}>{t("shell.find")}</Button>
         {(["tables", "charts", "tools", "export"] as const).map((k) => (
           <Button key={k} onClick={() => setPanel(panel === k ? null : k)} aria-pressed={panel === k}>{t(`shell.${k}`)}</Button>
         ))}
@@ -244,13 +266,18 @@ function WorkbookView({
           <Button onClick={() => editor.dismissConflict()}>{t("common.dismiss")}</Button>
         </div>
       ) : null}
+      {finding ? (
+        <FindBar workbookId={editor.workbookId} sheetId={sheet.id} active={sel.active}
+          onGo={(r, c) => gridRef.current?.goTo(r, c)}
+          onClose={() => { setFinding(false); document.querySelector<HTMLElement>("[role=grid]")?.focus(); }} />
+      ) : null}
       <div className="wbs-formula" role="group" aria-label={t("shell.formulaBar")}>
         <span className="wbs-addr" dir="ltr" aria-label={t("shell.cellAddress")}>{address}</span>
         <ValueBar key={`${active.r}:${active.c}`} raw={raw} label={t("shell.formulaBar")}
           onCommit={(text) => commit(active.r, active.c, text)} />
       </div>
       <div className="wbs-grid gv-host">
-        <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel}
+        <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel} handleRef={gridRef} onFill={fill}
           onEdit={commit} onClear={clear} onUndo={undo} onRedo={redo}
           onPaste={paste} onClipboardProblem={clipboardProblem} />
       </div>

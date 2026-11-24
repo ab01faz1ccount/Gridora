@@ -13,6 +13,9 @@ from gridora_contracts.models import (
     ErrorDetail,
     ExportRequest,
     FileRecord,
+    FillRequest,
+    FindMatch,
+    FindResult,
     Job,
     SetCalendarRequest,
     Window,
@@ -131,6 +134,98 @@ async def edit_cells(
     return ok(request, result)
 
 
+def _need_find_fill(st: Any) -> None:
+    if not st.services.find_fill_available:
+        raise DomainError(
+            "operation_conflict",
+            "This engine version does not support find and fill.",
+            details=[ErrorDetail(code="engine.not_implemented", message="find_fill")],
+        )
+
+
+@router.get("/workbooks/{id}/sheets/{sheet_id}/find", response_model=Envelope[FindResult])
+async def find_in_sheet(
+    id: str,
+    sheet_id: str,
+    request: Request,
+    ctx: Ctx,
+    db: Db,
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    match_case: bool = False,
+    whole_cell: bool = False,
+    in_formulas: bool = False,
+    after_row: Annotated[int | None, Query(ge=0)] = None,
+    after_col: Annotated[int | None, Query(ge=0)] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+) -> Envelope[FindResult]:
+    """Cells whose shown text contains `q`, row-major, after the given cell (Ctrl+F)."""
+    st = request.app.state
+    row = await get_owned(db, WorkbookRow, ctx.user.id, id)
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    _need_find_fill(st)
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    after = (
+        (after_row, after_col if after_col is not None else -1) if after_row is not None else None
+    )
+    found, more = await st.copies.call(
+        entry,
+        st.services.engine.find_cells,
+        entry.handle,
+        entry.to_engine(sheet_id),
+        q,
+        match_case=match_case,
+        whole_cell=whole_cell,
+        in_formulas=in_formulas,
+        after=after,
+        limit=limit,
+    )
+    return ok(request, FindResult(matches=[FindMatch(r=r, c=c) for r, c in found], truncated=more))
+
+
+@router.post("/workbooks/{id}/sheets/{sheet_id}/fill", response_model=Envelope[CellsChangedResult])
+async def fill_range(
+    id: str,
+    sheet_id: str,
+    body: FillRequest,
+    request: Request,
+    ctx: Ctx,
+    db: Db,
+) -> Envelope[CellsChangedResult]:
+    """Continue a range into the cells next to it (fill handle, Ctrl+D/R): one history entry."""
+    st = request.app.state
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    _need_find_fill(st)
+    if body.source.sheet_id != sheet_id or body.target.sheet_id != sheet_id:
+        raise DomainError("validation_error", "The fill ranges must be on this sheet.")
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    s, t = body.source, body.target
+    edits = await st.copies.call(
+        entry,
+        st.services.engine.fill_edits,
+        entry.handle,
+        entry.to_engine(sheet_id),
+        (s.r0, s.c0, s.r1, s.c1),
+        (t.r0, t.c0, t.r1, t.c1),
+    )
+    result = await history_service.apply_edits(
+        db,
+        st.services,
+        st.copies,
+        row,
+        entry,
+        sheet_id,
+        CellEditRequest(base_seq=body.base_seq, edits=edits),
+    )
+    return ok(request, result)
+
+
 def _need_calendar(st: Any) -> None:
     if not st.services.calendar_available:
         raise DomainError(
@@ -140,9 +235,7 @@ def _need_calendar(st: Any) -> None:
         )
 
 
-@router.get(
-    "/workbooks/{id}/sheets/{sheet_id}/date-columns", response_model=Envelope[DateColumns]
-)
+@router.get("/workbooks/{id}/sheets/{sheet_id}/date-columns", response_model=Envelope[DateColumns])
 async def get_date_columns(
     id: str, sheet_id: str, request: Request, ctx: Ctx, db: Db
 ) -> Envelope[DateColumns]:

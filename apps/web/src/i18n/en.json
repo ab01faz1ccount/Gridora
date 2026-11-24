@@ -114,7 +114,6 @@
   "shell.report": "Import report",
   "shell.history": "History",
   "shell.find": "Find",
-  "shell.findSoon": "Find will be added in a later version.",
   "shell.formulaBar": "Value bar",
   "shell.cellAddress": "Cell address",
   "shell.statusBar": "Status bar",
@@ -233,5 +232,15 @@
   "tools.run": "Run the tool",
   "tools.runConfirm": "Run and change the data",
   "tools.delete": "Delete the tool",
-  "tools.done": "“{name}” was run."
+  "tools.done": "“{name}” was run.",
+  "find.label": "Find in the sheet",
+  "find.placeholder": "Find…",
+  "find.prev": "Previous match",
+  "find.next": "Next match",
+  "find.matchCase": "Match case",
+  "find.wholeCell": "Whole cell",
+  "find.inFormulas": "Formulas too",
+  "find.none": "Not found",
+  "find.wrapped": "Back at the start",
+  "find.close": "Close find"
 }
