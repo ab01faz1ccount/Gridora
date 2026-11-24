@@ -114,7 +114,6 @@
   "shell.report": "گزارش ورود",
   "shell.history": "تاریخچه",
   "shell.find": "جستجو",
-  "shell.findSoon": "جستجو در نسخه‌های بعدی اضافه می‌شود.",
   "shell.formulaBar": "نوار مقدار",
   "shell.cellAddress": "نشانی خانه",
   "shell.statusBar": "نوار وضعیت",
@@ -233,5 +232,15 @@
   "tools.run": "اجرای ابزار",
   "tools.runConfirm": "اجرا و تغییر داده",
   "tools.delete": "حذف ابزار",
-  "tools.done": "«{name}» اجرا شد."
+  "tools.done": "«{name}» اجرا شد.",
+  "find.label": "جستجو در برگه",
+  "find.placeholder": "جستجو…",
+  "find.prev": "نتیجهٔ قبلی",
+  "find.next": "نتیجهٔ بعدی",
+  "find.matchCase": "حساس به بزرگی حروف",
+  "find.wholeCell": "کل خانه",
+  "find.inFormulas": "فرمول‌ها هم",
+  "find.none": "پیدا نشد",
+  "find.wrapped": "از ابتدا ادامه یافت",
+  "find.close": "بستن جستجو"
 }

@@ -77,3 +77,40 @@ export function boundsOf(sel: Selection): RangeBounds {
 }
 export const inRange = (b: RangeBounds, r: number, c: number) =>
   r >= b.r0 && r <= b.r1 && c >= b.c0 && c <= b.c1;
+
+export type FillDir = "down" | "up" | "right" | "left";
+export interface FillPlan {
+  dir: FillDir;
+  source: RangeBounds;
+  target: RangeBounds;
+}
+
+/** A drag from the fill handle: the new cells run from the range toward `hover`, along the longer way. */
+export function fillTarget(src: RangeBounds, hover: Pos): FillPlan | null {
+  const dr = hover.r > src.r1 ? hover.r - src.r1 : hover.r < src.r0 ? hover.r - src.r0 : 0;
+  const dc = hover.c > src.c1 ? hover.c - src.c1 : hover.c < src.c0 ? hover.c - src.c0 : 0;
+  if (dr === 0 && dc === 0) return null;
+  if (Math.abs(dr) >= Math.abs(dc)) {
+    return dr > 0
+      ? { dir: "down", source: src, target: { r0: src.r1 + 1, r1: hover.r, c0: src.c0, c1: src.c1 } }
+      : { dir: "up", source: src, target: { r0: hover.r, r1: src.r0 - 1, c0: src.c0, c1: src.c1 } };
+  }
+  return dc > 0
+    ? { dir: "right", source: src, target: { c0: src.c1 + 1, c1: hover.c, r0: src.r0, r1: src.r1 } }
+    : { dir: "left", source: src, target: { c0: hover.c, c1: src.c0 - 1, r0: src.r0, r1: src.r1 } };
+}
+
+/**
+ * Ctrl+D / Ctrl+R: the first row (column) of the selection fills the rest; with a single row (column)
+ * selected, the neighbour above (left) is copied into it.
+ */
+export function fillByKey(b: RangeBounds, dir: "down" | "right"): FillPlan | null {
+  if (dir === "down") {
+    if (b.r1 > b.r0) return { dir, source: { ...b, r1: b.r0 }, target: { ...b, r0: b.r0 + 1 } };
+    if (b.r0 > 0) return { dir, source: { ...b, r0: b.r0 - 1, r1: b.r0 - 1 }, target: b };
+    return null;
+  }
+  if (b.c1 > b.c0) return { dir, source: { ...b, c1: b.c0 }, target: { ...b, c0: b.c0 + 1 } };
+  if (b.c0 > 0) return { dir, source: { ...b, c0: b.c0 - 1, c1: b.c0 - 1 }, target: b };
+  return null;
+}

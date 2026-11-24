@@ -66,6 +66,18 @@ class WorkbookEngine(Protocol):
 
 
 @runtime_checkable
+class FindFillEngine(Protocol):
+    """Optional engine extension (v0.7.0). apps/api feature-detects it with isinstance()."""
+
+    def find_cells(self, wb: WorkbookHandle, sheet_id: str, query: str, *, match_case: bool = False,
+                   whole_cell: bool = False, in_formulas: bool = False,
+                   after: Optional[tuple[int, int]] = None, limit: int = 200
+                   ) -> tuple[list[tuple[int, int]], bool]: ...
+    def fill_edits(self, wb: WorkbookHandle, sheet_id: str, source: tuple[int, int, int, int],
+                   target: tuple[int, int, int, int]) -> list[CellEdit]: ...
+
+
+@runtime_checkable
 class CalendarEngine(Protocol):
     """Optional engine extension (v0.6.0, ADR-016). apps/api feature-detects it with isinstance()."""
 

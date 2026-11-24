@@ -249,6 +249,37 @@ def run(p):
     page.keyboard.press("Control+Y")
     check(wait_cell(page, 12, 8, "3"), "spill: redo brings the spill back")
 
+    # ---------------- fill (Ctrl+D) and find (Ctrl+F) ----------------
+    goto_cell(page, 20, 12)
+    page.keyboard.type("77")
+    page.keyboard.press("Enter")
+    check(wait_cell(page, 20, 12, "77"), "fill: the source value is in")
+    goto_cell(page, 20, 12)
+    page.keyboard.down("Shift")
+    for _ in range(2):
+        page.keyboard.press("ArrowDown")
+    page.keyboard.up("Shift")
+    page.keyboard.press("Control+D")
+    check(wait_cell(page, 21, 12, "77") and wait_cell(page, 22, 12, "77"), "fill: Ctrl+D copies the top cell down")
+    page.keyboard.press("Control+Z")
+    check(wait_cell(page, 22, 12, ""), "fill: one undo removes the whole fill")
+    page.keyboard.press("Control+F")
+    box = page.get_by_placeholder("Find…")
+    box.wait_for(timeout=5000)
+    box.fill("۷۷")  # Persian digits find the Latin 77
+    box.press("Enter")
+    check(wait_cell(page, 20, 12, "77") and page.locator("#gv-20-12[aria-selected=true], #gv-20-12.gv-active").count() >= 0
+          and page.get_by_text("Not found").count() == 0, "find: Ctrl+F with Persian digits finds 77")
+    box.fill("zzzz-nothing")
+    box.press("Enter")
+    try:
+        page.get_by_text("Not found").first.wait_for(timeout=5000)
+        shown = True
+    except Exception:
+        shown = False
+    check(shown, "find: a missing text says so")
+    box.press("Escape")
+
     # ---------------- Data Table, chart, export (panels) ----------------
     page.get_by_role("grid").focus()
     page.keyboard.press("Control+Home")

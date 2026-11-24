@@ -156,6 +156,10 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .gv-loading { background: repeating-linear-gradient(90deg, transparent 0 8px, var(--bg) 8px 16px); }
 .gv-failed { background: var(--warn-bg); }
 .gv-selected { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.wbs-find { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; border-block-end: 1px solid var(--border); }
+.wbs-find input[type="search"] { min-inline-size: 220px; }
+.gv-fill-handle { position: absolute; inline-size: 9px; block-size: 9px; background: var(--accent); border: 1px solid var(--bg, #fff); cursor: crosshair; z-index: 3; }
+.gv-fill-preview { position: absolute; border: 2px dashed var(--accent); pointer-events: none; z-index: 2; box-sizing: border-box; }
 .gv-active { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
 .gv-editor { position: absolute; z-index: 3; box-sizing: border-box; padding-inline: 8px; margin: 0; font: inherit;
   color: var(--text); background: var(--surface); border: 2px solid var(--accent); border-radius: 0; outline: none; }

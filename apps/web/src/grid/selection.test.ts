@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boundsOf, inRange, navigate, single, type Dims } from "./selection";
+import { boundsOf, fillByKey, fillTarget, inRange, navigate, single, type Dims } from "./selection";
 
 const ltr: Dims = { rowCount: 100, colCount: 10, pageRows: 20, rtl: false };
 const rtl: Dims = { ...ltr, rtl: true };
@@ -81,5 +81,29 @@ describe("range selection", () => {
   it("an empty sheet cannot be navigated out of bounds", () => {
     const empty: Dims = { rowCount: 0, colCount: 0, pageRows: 1, rtl: false };
     expect(navigate(at(0, 0), { key: "ArrowDown" }, empty)?.active).toEqual({ r: 0, c: 0 });
+  });
+});
+
+describe("fill planning", () => {
+  const src = { r0: 2, c0: 1, r1: 3, c1: 2 };
+  it("a drag down or up continues the range along the longer way", () => {
+    expect(fillTarget(src, { r: 7, c: 2 })).toMatchObject({ dir: "down", target: { r0: 4, r1: 7, c0: 1, c1: 2 } });
+    expect(fillTarget(src, { r: 0, c: 1 })).toMatchObject({ dir: "up", target: { r0: 0, r1: 1, c0: 1, c1: 2 } });
+  });
+  it("a drag right or left", () => {
+    expect(fillTarget(src, { r: 3, c: 6 })).toMatchObject({ dir: "right", target: { c0: 3, c1: 6, r0: 2, r1: 3 } });
+    expect(fillTarget(src, { r: 2, c: 0 })).toMatchObject({ dir: "left", target: { c0: 0, c1: 0, r0: 2, r1: 3 } });
+  });
+  it("no plan when the pointer is still inside the range", () => {
+    expect(fillTarget(src, { r: 3, c: 1 })).toBeNull();
+  });
+  it("Ctrl+D fills from the first row; one row copies the cell above", () => {
+    expect(fillByKey({ r0: 1, c0: 0, r1: 4, c1: 0 }, "down")).toMatchObject({ source: { r0: 1, r1: 1 }, target: { r0: 2, r1: 4 } });
+    expect(fillByKey({ r0: 5, c0: 2, r1: 5, c1: 3 }, "down")).toMatchObject({ source: { r0: 4, r1: 4 }, target: { r0: 5, r1: 5 } });
+    expect(fillByKey({ r0: 0, c0: 0, r1: 0, c1: 0 }, "down")).toBeNull();
+  });
+  it("Ctrl+R fills to the right", () => {
+    expect(fillByKey({ r0: 1, c0: 1, r1: 1, c1: 4 }, "right")).toMatchObject({ source: { c0: 1, c1: 1 }, target: { c0: 2, c1: 4 } });
+    expect(fillByKey({ r0: 1, c0: 3, r1: 2, c1: 3 }, "right")).toMatchObject({ source: { c0: 2, c1: 2 } });
   });
 });

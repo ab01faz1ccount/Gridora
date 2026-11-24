@@ -559,6 +559,22 @@ class AuthResult(_Base):
     csrf_token: str  # returned by POST /auth/login and GET /auth/me
 
 
+class FindMatch(_Base):
+    r: int
+    c: int
+
+
+class FindResult(_Base):  # v0.7.0
+    matches: list[FindMatch]
+    truncated: bool = False  # there are more matches after the last one
+
+
+class FillRequest(_Base):  # v0.7.0
+    base_seq: int
+    source: Range  # the cells to continue
+    target: Range  # the new cells, against one side of `source`, same columns (down/up) or rows (right/left)
+
+
 class CellEditRequest(_Base):
     base_seq: int  # last history seq the client has seen; mismatch -> 409 version_conflict
     edits: list[CellEdit]

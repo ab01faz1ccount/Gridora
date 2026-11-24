@@ -8,6 +8,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useImperativeHandle,
   useRef,
   useState,
   useSyncExternalStore,
@@ -15,6 +16,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
 } from "react";
 import { useT } from "@/i18n";
 import { usePrefs } from "@/state/prefs";
@@ -29,7 +31,9 @@ import {
   visibleRange,
   type Axis,
 } from "./geometry";
-import { boundsOf, inRange, navigate, single, type Pos, type RangeBounds, type Selection } from "./selection";
+import {
+  boundsOf, fillByKey, fillTarget, inRange, navigate, single, type FillPlan, type Pos, type RangeBounds, type Selection,
+} from "./selection";
 import { cellRaw } from "./summary";
 import { pasteEdits, toTsv } from "./clipboard";
 import type { CellEdit } from "@contracts";
@@ -43,7 +47,15 @@ export const MAX_COL_W = 600;
 const ROW_OVERSCAN = 8;
 const COL_OVERSCAN = 2;
 
+/** What a parent can ask of the grid (Find moves the cursor to a match). */
+export interface GridHandle {
+  goTo(r: number, c: number): void;
+}
+
 export interface GridProps {
+  handleRef?: Ref<GridHandle>;
+  /** Ctrl+D / Ctrl+R or a drag of the fill handle: continue `source` into the adjacent `target`. */
+  onFill?: (plan: FillPlan) => void;
   source: DataSource;
   rtl: boolean;
   /** Test/measurement hooks. */
@@ -136,7 +148,7 @@ const CellView = memo(function CellView(p: CellViewProps) {
 
 export function Grid({
   source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label,
-  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem,
+  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem, handleRef, onFill,
 }: GridProps) {
   const t = useT();
   const prefs = usePrefs();
@@ -238,6 +250,38 @@ export function Grid({
     [rows, cols, scroller, bodyH, bodyW, rtl],
   );
 
+  useImperativeHandle(handleRef, () => ({
+    goTo: (r: number, c: number) => {
+      const p = { r: Math.min(Math.max(0, r), Math.max(0, source.rowCount - 1)), c: Math.min(Math.max(0, c), Math.max(0, source.colCount - 1)) };
+      update(single(p));
+      scrollIntoView(p);
+    },
+  }), [source.rowCount, source.colCount, update, scrollIntoView]);
+
+  // fill handle: drag the square at the corner of the selection over the cells to fill
+  const [fillPlan, setFillPlan] = useState<FillPlan | null>(null);
+  const fillRef = useRef<{ source: RangeBounds; plan: FillPlan | null } | null>(null);
+  const startFill = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fillRef.current = { source: bounds, plan: null };
+    const stop = () => {
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      const cur = fillRef.current;
+      fillRef.current = null;
+      setFillPlan(null);
+      if (cur?.plan) {
+        const { source: s, target: tg } = cur.plan;
+        update({ active: { r: s.r0, c: s.c0 }, anchor: { r: Math.min(s.r0, tg.r0), c: Math.min(s.c0, tg.c0) },
+          focus: { r: Math.max(s.r1, tg.r1), c: Math.max(s.c1, tg.c1) } });
+        onFill?.(cur.plan);
+      }
+    };
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+
   // editing
   const [editing, setEditing] = useState<Editing | null>(null);
   const editingRef = useRef<Editing | null>(null);
@@ -297,6 +341,12 @@ export function Grid({
         e.preventDefault();
         fn();
       }
+      return;
+    }
+    if (mod && (e.code === "KeyD" || e.code === "KeyR") && editable && onFill) {
+      e.preventDefault();
+      const plan = fillByKey(bounds, e.code === "KeyD" ? "down" : "right");
+      if (plan) onFill(plan);
       return;
     }
     if (editable) {
@@ -390,6 +440,7 @@ export function Grid({
     if (target) startEdit({ r: Number(target.dataset.r), c: Number(target.dataset.c) });
   };
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("[data-fill-handle]")) return;
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
     if (!target) return;
     const p = { r: Number(target.dataset.r), c: Number(target.dataset.c) };
@@ -401,6 +452,12 @@ export function Grid({
     if (e.buttons !== 1) return; // dragging with the primary button extends the range
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
     if (!target) return;
+    if (fillRef.current) {
+      const plan = fillTarget(fillRef.current.source, { r: Number(target.dataset.r), c: Number(target.dataset.c) });
+      fillRef.current.plan = plan;
+      setFillPlan(plan);
+      return;
+    }
     update({ active: sel.active, anchor: sel.anchor,
       focus: { r: Number(target.dataset.r), c: Number(target.dataset.c) } });
   };
@@ -478,6 +535,18 @@ export function Grid({
           <div className="gv-body" style={{ inlineSize: cols.total, blockSize: scroller.proxyPx }}>
             <div ref={bodyLayerRef} className="gv-layer" style={{ insetInlineStart: cols.offset(cr.first) }}>
               {cells}
+              {onFill && !editing && bounds.r1 >= rr.first && bounds.r1 <= rr.last && bounds.c1 >= cr.first && bounds.c1 <= cr.last ? (
+                <div className="gv-fill-handle" data-fill-handle="" aria-hidden="true" onPointerDown={startFill}
+                  style={{ top: rows.offset(bounds.r1) - rows.offset(rr.first) + ROW_H - 5,
+                    insetInlineStart: cols.offset(bounds.c1) - cols.offset(cr.first) + cols.size(bounds.c1) - 5 }} />
+              ) : null}
+              {fillPlan ? (
+                <div className="gv-fill-preview" aria-hidden="true"
+                  style={{ top: rows.offset(fillPlan.target.r0) - rows.offset(rr.first),
+                    insetInlineStart: cols.offset(fillPlan.target.c0) - cols.offset(cr.first),
+                    blockSize: rows.offset(fillPlan.target.r1 + 1) - rows.offset(fillPlan.target.r0),
+                    inlineSize: cols.offset(fillPlan.target.c1 + 1) - cols.offset(fillPlan.target.c0) }} />
+              ) : null}
               {editing && editing.r >= rr.first && editing.r <= rr.last && editing.c >= cr.first && editing.c <= cr.last ? (
                 <CellEditor key={`${editing.r}:${editing.c}`} initial={initial} label={t("grid.cellEditor")}
                   top={rows.offset(editing.r) - rows.offset(rr.first)}
