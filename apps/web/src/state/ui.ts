@@ -7,7 +7,7 @@ export interface Toast {
   text: string;
 }
 
-export type PanelKind = "report" | "history" | null;
+export type PanelKind = "report" | "history" | "operations" | null;
 
 interface UiState {
   panel: PanelKind;

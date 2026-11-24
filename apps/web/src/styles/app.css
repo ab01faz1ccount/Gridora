@@ -205,3 +205,25 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .history-meta { font-size: 0.8rem; }
 .wbs-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); }
 .wbs-status { min-block-size: 22px; font-size: 0.85rem; color: var(--muted); }
+
+/* ---- task bar and operation panel (docs/UX_SPEC.md 3.1, 5) ---- */
+.wbs-task { display: flex; align-items: center; gap: 8px; }
+.wbs-task-input { flex: 1; min-inline-size: 0; }
+.op-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.op-item { display: grid; gap: 2px; inline-size: 100%; text-align: start; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface, transparent); color: inherit; cursor: pointer; }
+.op-item:hover, .op-item:focus-visible { border-color: var(--accent); }
+.op-tag { font-size: 0.75rem; color: var(--danger); }
+.op-form { display: grid; gap: var(--gap); align-content: start; }
+.op-form h3, .op-form h4 { margin: 0; }
+.op-where { margin: 0; font-size: 0.9rem; }
+.op-confirm { margin: 0; color: var(--danger); font-size: 0.9rem; }
+.opf-group { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 0; }
+.opf-item { display: grid; gap: 6px; padding-block-end: 8px; border-block-end: 1px dashed var(--border); }
+.opf-check label { display: flex; align-items: center; gap: 6px; }
+.opf-more summary { cursor: pointer; padding-block: 4px; }
+.op-preview { display: grid; gap: 6px; }
+.op-table-wrap { max-inline-size: 100%; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+.op-table { border-collapse: collapse; font-size: 0.85rem; inline-size: 100%; }
+.op-table th, .op-table td { padding-block: 3px; padding-inline: 8px; border-block-end: 1px solid var(--border); text-align: start; white-space: nowrap; }
+.op-warnings { margin: 0; padding-inline-start: 1.2em; color: var(--muted); font-size: 0.85rem; }
