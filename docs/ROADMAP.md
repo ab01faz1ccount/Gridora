@@ -1,6 +1,6 @@
 # Roadmap and module status
 
-Last updated 2026-11-23. This file is the single place that says what is done, what is verified and what remains. Details of what each module does: [REFERENCE.md](REFERENCE.md); measured limits: [LIMITS.md](LIMITS.md).
+Last updated 2026-11-24. This file is the single place that says what is done, what is verified and what remains. Details of what each module does: [REFERENCE.md](REFERENCE.md); measured limits: [LIMITS.md](LIMITS.md).
 
 ## Status by module
 
@@ -18,9 +18,9 @@ Last updated 2026-11-23. This file is the single place that says what is done, w
 Everything here can be built and tested with automated checks (unit tests, API tests, scripted browser runs, benchmarks).
 
 ### Interface
-1. **Task bar and operation panel** ([UX_SPEC.md](UX_SPEC.md) §3–§5): search by Persian task phrases (`search_operations`), selection-aware suggestions, form generated from `params_schema`, live preview with effect-stating Apply button, toast with Undo, the "convert to Data Table" offer for `too_large_for_history` (F3, F4).
+1. **Done (PR #73):** **Task bar and operation panel** ([UX_SPEC.md](UX_SPEC.md) §3–§5): search by Persian task phrases (`search_operations`), selection-aware suggestions, form generated from `params_schema`, live preview with effect-stating Apply button, toast with Undo, the "convert to Data Table" offer for `too_large_for_history` (F3, F4).
 2. **Screens for Data Tables, charts and saved tools** (F5, F7) and for save/export with the export report (F6). The API for all of them exists.
-3. **Find** (Ctrl+F), frozen panes, column resize, fill handle, formatted clipboard.
+3. **Find** (Ctrl+F), frozen panes, fill handle, formatted clipboard. (Column resize is done: drag a header border, not saved yet.)
 4. **Cell styles and number formats in the grid**: implement `FormattingEngine` in the engine (styles are preserved but not exposed) and render them.
 5. **Paste fidelity**: shift relative references in pasted formulas; convert pasted date text to dates.
 6. **Keyboard help**, density setting, dark theme check, automated accessibility checks (axe) in the scripted browser run.
@@ -39,10 +39,10 @@ Everything here can be built and tested with automated checks (unit tests, API t
 15. Pagination for list endpoints; progress for jobs; cancelling a running import.
 
 ### Quality, security, operations
-16. Split the slow corpus tests into their own CI job (the engine suite takes about 90 s).
-17. Dependency and licence scan in CI (`pip-licenses`, `license-checker`, `pip-audit`, `npm audit`) and pinning container base images by digest.
+16. **Done:** split the slow corpus tests into their own CI job (the engine suite takes about 90 s).
+17. **Done except image digests:** dependency and licence scan in CI (informational `supply-chain` workflow) (`pip-licenses`, `license-checker`, `pip-audit`, `npm audit`) and pinning container base images by digest.
 18. More hostile-file fuzzing for the package layer and formula parser; resource-limit tests on the import worker.
-19. Documentation: `docs/ADMIN_GUIDE.md` (install, upgrade, backup, restore, TLS, logs, user management) and `docs/USER_GUIDE.fa.md` (Persian user guide). Both can be written from the running behaviour.
+19. **Done:** documentation: `docs/ADMIN_GUIDE.md` (install, upgrade, backup, restore, TLS, logs, user management) and `docs/USER_GUIDE.fa.md` (Persian user guide). Both can be written from the running behaviour.
 20. Performance work from [LIMITS.md](LIMITS.md): memory per formula cell (8–12 KB), first recalculation of large imports (13 s for 200,000 formulas).
 21. Remaining formula gaps: `TABLE()` data tables, `GETPIVOTDATA` and cube functions (no pivot or OLAP model), exotic number-format codes.
 
