@@ -38,6 +38,8 @@ export const ROW_H = 26;
 export const COL_W = 110;
 export const HEADER_H = 28;
 export const HEADER_W = 64;
+export const MIN_COL_W = 40;
+export const MAX_COL_W = 600;
 const ROW_OVERSCAN = 8;
 const COL_OVERSCAN = 2;
 
@@ -149,9 +151,11 @@ export function Grid({
 
   // geometry
   const rows = useMemo(() => uniformAxis(source.rowCount, ROW_H), [source.rowCount]);
+  // widths changed by dragging a column border (kept while the sheet is open, not saved)
+  const [widths, setWidths] = useState<Record<number, number>>({});
   const cols: Axis = useMemo(
-    () => variableAxis(source.colCount, colWidth ?? (() => COL_W)),
-    [source.colCount, colWidth],
+    () => variableAxis(source.colCount, (c) => widths[c] ?? colWidth?.(c) ?? COL_W),
+    [source.colCount, colWidth, widths],
   );
 
   // viewport size (px of the scroller), scroll position
@@ -355,6 +359,32 @@ export function Grid({
   };
 
   // pointer selection: cells carry their own coordinates (data-r / data-c)
+  const startResize = (c: number, e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = cols.size(c);
+    const sign = rtl ? -1 : 1;
+    const move = (ev: PointerEvent) => {
+      const w = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(startW + sign * (ev.clientX - startX))));
+      setWidths((prev) => (prev[c] === w ? prev : { ...prev, [c]: w }));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+  const resetWidth = (c: number) =>
+    setWidths((prev) => {
+      const next = { ...prev };
+      delete next[c];
+      return next;
+    });
+
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
     if (target) startEdit({ r: Number(target.dataset.r), c: Number(target.dataset.c) });
@@ -415,6 +445,8 @@ export function Grid({
         style={{ insetInlineStart: cols.offset(c) - cols.offset(cr.first), inlineSize: cols.size(c), blockSize: HEADER_H }}
         role="columnheader" aria-colindex={c + 1} aria-label={t("grid.colHeader", { name: columnLetters(c) })}>
         <bdi dir="ltr">{columnLetters(c)}</bdi>
+        <div className="gv-grip" role="separator" aria-orientation="vertical" aria-label={t("grid.resizeColumn", { name: columnLetters(c) })}
+          data-grip={c} onPointerDown={(e) => startResize(c, e)} onDoubleClick={() => resetWidth(c)} />
       </div>,
     );
   }
