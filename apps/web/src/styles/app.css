@@ -230,3 +230,20 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .gv-colhdr-cell { position: absolute; }
 .gv-grip { position: absolute; inset-block: 0; inset-inline-end: -3px; inline-size: 7px; cursor: col-resize; z-index: 1; touch-action: none; }
 .gv-grip:hover { background: var(--accent); opacity: 0.4; }
+
+/* ---- save/export, tables, charts, tools panels ---- */
+.panel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.link-btn { background: none; border: 0; padding: 0; text-align: start; color: inherit; cursor: pointer; font: inherit; }
+.link-btn:hover, .link-btn:focus-visible { text-decoration: underline; }
+.check { display: flex; align-items: center; gap: 6px; }
+.mini-table-wrap { overflow: auto; max-block-size: 220px; border: 1px solid var(--border); }
+.mini-table { border-collapse: collapse; font-size: 0.8125rem; inline-size: 100%; }
+.mini-table th, .mini-table td { padding: 3px 8px; border-block-end: 1px solid var(--border); text-align: start; white-space: nowrap; }
+.mini-table th { position: sticky; inset-block-start: 0; background: var(--surface, Canvas); }
+.chart { margin: 8px 0; }
+.chart-svg { inline-size: 100%; block-size: auto; }
+.chart-grid { stroke: var(--border); stroke-width: 1; }
+.chart-text { font-size: 10px; fill: currentColor; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8125rem; }
+.chart-legend i { display: inline-block; inline-size: 10px; block-size: 10px; margin-inline-end: 4px; border-radius: 2px; }
+.btn[href] { text-decoration: none; display: inline-block; }

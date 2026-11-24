@@ -44,6 +44,8 @@ export interface Workbook {
   date_system: "1900" | "1904"; compat?: CompatibilityReport;
   /** v0.6.0: how date functions read and write dates; default "jalali". */
   calendar?: CalendarMode;
+  /** v0.7.0: set by the API (tables live in the workspace). */
+  workspace_id?: string;
 }
 export type CalendarMode = "jalali" | "gregorian" | "hijri";
 /** v0.6.0: a column holding dates (detection only; nothing is converted). */
