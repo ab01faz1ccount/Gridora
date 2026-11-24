@@ -64,7 +64,12 @@ def _public(row: WorkbookRow, wb: Workbook) -> Workbook:
     """The API owns identity: Workbook.id is the document id, file_id the stored original, and
     the name is the user's display name (the engine only ever sees a UUID file name)."""
     return wb.model_copy(
-        update={"id": str(row.id), "file_id": str(row.file_id), "name": row.name, "workspace_id": str(row.workspace_id)}
+        update={
+            "id": str(row.id),
+            "file_id": str(row.file_id),
+            "name": row.name,
+            "workspace_id": str(row.workspace_id),
+        }
     )
 
 
