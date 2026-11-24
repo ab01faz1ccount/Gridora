@@ -249,6 +249,55 @@ def run(p):
     page.keyboard.press("Control+Y")
     check(wait_cell(page, 12, 8, "3"), "spill: redo brings the spill back")
 
+    # ---------------- Data Table, chart, export (panels) ----------------
+    page.get_by_role("grid").focus()
+    page.keyboard.press("Control+Home")
+    page.keyboard.down("Shift")
+    for _ in range(3):
+        page.keyboard.press("ArrowDown")
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.up("Shift")  # A1:D4: a header row, item names, three number columns
+    page.get_by_role("button", name="Charts").click()
+    page.get_by_role("button", name="Make a chart from the selection").click()
+    page.get_by_label("Title").fill("Totals")
+    page.get_by_role("button", name="Create the chart").click()
+    try:
+        page.get_by_role("img", name="Totals").wait_for(timeout=10000)
+        check(page.locator("svg[aria-label=Totals] rect").count() >= 3, "chart: bars drawn from the server's numbers")
+    except Exception:
+        check(False, "chart: bars drawn from the server's numbers")
+    page.get_by_role("button", name="Close panel").first.click()
+
+    page.get_by_role("button", name="Data Tables").click()
+    page.get_by_role("button", name="Make a table from the selection").click()
+    page.get_by_label("Table name").fill("Sales copy")
+    page.get_by_text("rows,", exact=False).first.wait_for(timeout=10000)
+    page.get_by_role("button", name="Create the table").click()
+    try:
+        page.get_by_role("columnheader").first.wait_for(timeout=10000)
+        check(page.get_by_role("columnheader").count() >= 3, "table: created from the range and opened with its columns")
+    except Exception:
+        check(False, "table: created from the range and opened with its columns")
+    page.get_by_role("button", name="Close panel").first.click()
+
+    page.get_by_role("button", name="Save / Export").click()
+    page.get_by_role("button", name="Save a version").click()
+    page.get_by_text("Version saved", exact=False).first.wait_for(timeout=15000)
+    check(True, "save: a version is stored")
+    page.get_by_role("button", name="Export as Excel").click()
+    try:
+        link = page.get_by_role("link", name="Download XLSX")
+        link.wait_for(timeout=30000)
+        with page.expect_download() as dl:
+            link.click()
+        path = dl.value.path()
+        check(path is not None and os.path.getsize(path) > 1000, "export: the .xlsx downloads and is not empty")
+    except Exception as e:
+        check(False, f"export: the .xlsx downloads and is not empty ({str(e)[:100]})")
+    page.screenshot(path=f"{SHOTS}/export.png")
+    page.get_by_role("button", name="Close panel").first.click()
+
     # expected: the 401 of the "who am I" probe before sign-in, and the 409 this script causes on purpose
     bad = [e for e in errors if "favicon" not in e and "status of 401" not in e and "status of 409" not in e]
     check(not bad, f"no console errors or page errors ({bad[:3]})")

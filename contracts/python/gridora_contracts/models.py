@@ -149,6 +149,7 @@ class Workbook(_Base):
     date_system: Literal["1900", "1904"] = "1900"
     compat: Optional[CompatibilityReport] = None
     calendar: Literal["jalali", "gregorian", "hijri"] = "jalali"  # v0.6.0 (ADR-016): how date functions read/write dates
+    workspace_id: Optional[str] = None  # v0.7.0: set by the API (tables, tools and exports live in the workspace)
 
 
 class DateColumn(_Base):

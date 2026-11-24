@@ -241,15 +241,22 @@ export class WorkbookEditor {
    * answers at once for a quick operation, or with a job that is polled until it ends.
    */
   operate(operation: Operation, confirmDestructive: boolean): Promise<void> {
+    return this.write(`/documents/${this.workbookId}/operations`, (base_seq): OperationRequest => ({
+      base_seq,
+      operation,
+      confirm_destructive: confirmDestructive,
+    }));
+  }
+
+  /**
+   * Any server write that takes the history head as `base_seq` and answers with the changed cells or
+   * a job (operations, saved tools, a Data Table written into the sheet): one queue, one resync rule.
+   */
+  write(path: string, body: (baseSeq: number) => unknown): Promise<void> {
     return this.enqueue(async () => {
       try {
         await this.load();
-        const body: OperationRequest = {
-          base_seq: headOf(this.history),
-          operation,
-          confirm_destructive: confirmDestructive,
-        };
-        const res = await api.post<CellsChangedResult | Job>(`/documents/${this.workbookId}/operations`, body);
+        const res = await api.post<CellsChangedResult | Job>(path, body(headOf(this.history)));
         if ("history_entry" in res) {
           this.history = afterEdit(this.history, res.history_entry.seq);
           this.apply(res);

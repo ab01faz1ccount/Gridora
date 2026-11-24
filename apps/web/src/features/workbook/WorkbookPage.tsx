@@ -15,6 +15,10 @@ import { boundsOf, single, type Selection } from "@/grid/selection";
 import { cellRaw, summarize } from "@/grid/summary";
 import { CompatPanel } from "@/features/import/CompatPanel";
 import { OperationPanel } from "@/features/operations/OperationPanel";
+import { ChartsPanel } from "@/features/charts/ChartsPanel";
+import { ExportPanel } from "@/features/export/ExportPanel";
+import { TablesPanel } from "@/features/tables/TablesPanel";
+import { ToolsPanel } from "@/features/tools/ToolsPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { useT } from "@/i18n";
 import { formatNumber } from "@/i18n/format";
@@ -66,7 +70,7 @@ export function WorkbookPage({ id }: { id: string }) {
   return (
     <section className="wbs" aria-label={wb.data.name}>
       <WorkbookView key={`${id}:${sheet.id}`} name={wb.data.name} sheet={sheet} source={source} editor={editor}
-        hasReport={Boolean(report)} />
+        hasReport={Boolean(report)} workspaceId={wb.data.workspace_id} />
       {panel === "report" && report ? (
         <aside className="wbs-panel" aria-label={t("shell.report")}>
           <CompatPanel report={report} onClose={() => setPanel(null)} />
@@ -105,12 +109,14 @@ function WorkbookView({
   source,
   editor,
   hasReport,
+  workspaceId,
 }: {
   name: string;
   sheet: SheetMeta;
   source: ReturnType<typeof sheetDataSource>;
   editor: WorkbookEditor;
   hasReport: boolean;
+  workspaceId: string | undefined;
 }) {
   const t = useT();
   const digits = usePrefs((s) => s.digits);
@@ -179,6 +185,9 @@ function WorkbookView({
           {t("shell.history")}
         </Button>
         <Button disabled title={t("shell.findSoon")}>{t("shell.find")}</Button>
+        {(["tables", "charts", "tools", "export"] as const).map((k) => (
+          <Button key={k} onClick={() => setPanel(panel === k ? null : k)} aria-pressed={panel === k}>{t(`shell.${k}`)}</Button>
+        ))}
         {hasReport ? (
           <Button onClick={() => setPanel(panel === "report" ? null : "report")} aria-pressed={panel === "report"}>
             {t("shell.report")}
@@ -203,6 +212,27 @@ function WorkbookView({
         <aside className="wbs-panel" aria-label={t("opPanel.title")}>
           <OperationPanel workbookId={editor.workbookId} sheet={sheet} bounds={b} cache={cache} editor={editor}
             query={taskQuery} onClose={() => setPanel(null)} />
+        </aside>
+      ) : null}
+      {panel === "export" ? (
+        <aside className="wbs-panel" aria-label={t("export.title")}>
+          <ExportPanel workbookId={editor.workbookId} sheet={sheet} onClose={() => setPanel(null)} />
+        </aside>
+      ) : null}
+      {panel === "charts" ? (
+        <aside className="wbs-panel" aria-label={t("charts.title")}>
+          <ChartsPanel workbookId={editor.workbookId} sheet={sheet} bounds={b} cache={cache} onClose={() => setPanel(null)} />
+        </aside>
+      ) : null}
+      {panel === "tables" ? (
+        <aside className="wbs-panel" aria-label={t("tables.title")}>
+          <TablesPanel workspaceId={workspaceId} workbookId={editor.workbookId} sheet={sheet} bounds={b} active={active}
+            editor={editor} onClose={() => setPanel(null)} />
+        </aside>
+      ) : null}
+      {panel === "tools" ? (
+        <aside className="wbs-panel" aria-label={t("tools.title")}>
+          <ToolsPanel workbookId={editor.workbookId} sheet={sheet} bounds={b} editor={editor} onClose={() => setPanel(null)} />
         </aside>
       ) : null}
       {ed.conflict ? (
