@@ -168,5 +168,6 @@
   "opPanel.applyConfirm": "Confirm and apply",
   "opPanel.applying": "Applying…",
   "opPanel.confirmNote": "This changes the data in the range. You can bring it back with Undo.",
-  "opPanel.done": "Done. You can bring it back with Undo."
+  "opPanel.done": "Done. You can bring it back with Undo.",
+  "grid.resizeColumn": "Resize column {name}"
 }

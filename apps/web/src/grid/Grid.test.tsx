@@ -439,3 +439,22 @@ describe("Grid clipboard", () => {
     expect(c.data["text/plain"]).toBe("");
   });
 });
+
+describe("Grid column resize", () => {
+  const widthOf = (c: number) => Number(document.querySelector<HTMLElement>(`[role=columnheader][aria-colindex="${c + 1}"]`)?.style.inlineSize.replace("px", ""));
+
+  it("dragging a column border changes that column's width; a double click restores it", async () => {
+    const { src } = source(50, 5);
+    render(<Grid source={src} rtl={false} viewport={VIEW} />);
+    await waitFor(() => expect(cellEls().length).toBeGreaterThan(0));
+    const before = widthOf(1);
+    const grip = document.querySelector<HTMLElement>('[data-grip="1"]')!;
+    fireEvent.pointerDown(grip, { clientX: 200 });
+    fireEvent.pointerMove(window, { clientX: 260 });
+    fireEvent.pointerUp(window);
+    await waitFor(() => expect(widthOf(1)).toBe(before + 60));
+    expect(widthOf(0)).toBe(before);
+    fireEvent.doubleClick(grip);
+    await waitFor(() => expect(widthOf(1)).toBe(before));
+  });
+});
