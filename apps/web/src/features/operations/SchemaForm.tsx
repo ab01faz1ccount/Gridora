@@ -33,6 +33,8 @@ interface FieldProps {
   required?: boolean;
 }
 
+const ROOT_LABEL = String();
+
 function ErrorLine({ id, text }: { id: string; text: string | undefined }) {
   return text ? <p id={id} className="field-error" role="alert">{text}</p> : null;
 }
@@ -231,5 +233,5 @@ function ObjectFields(p: FieldProps) {
 
 /** The form of a whole operation: the root schema is an object; hidden fields keep their value. */
 export function SchemaForm({ ctx, value, onChange }: { ctx: FormCtx; value: Value; onChange: (v: Value) => void }) {
-  return <ObjectFields ctx={ctx} schema={ctx.root} value={value} path="" label="" onChange={onChange} />;
+  return <ObjectFields ctx={ctx} schema={ctx.root} value={value} path="" label={ROOT_LABEL} onChange={onChange} />;
 }

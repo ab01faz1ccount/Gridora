@@ -50,8 +50,8 @@ describe("task bar and operation panel", () => {
     const box = await screen.findByRole("searchbox");
     await user.type(box, "duplic");
     const item = await screen.findByRole("button", { name: /Remove duplicates/ });
+    expect(screen.getAllByText("Changes the data").length).toBeGreaterThan(0);
     await user.click(item);
     await waitFor(() => expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument());
-    expect(screen.getAllByText(/Changes the data/).length).toBeGreaterThan(0);
   });
 });
