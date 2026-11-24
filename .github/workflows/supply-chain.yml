@@ -1,0 +1,40 @@
+name: supply-chain
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths: ["**/requirements*.lock", "apps/web/package*.json", "deploy/*.Dockerfile", ".github/workflows/supply-chain.yml"]
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit pip-licenses
+      # Known vulnerabilities in the locked runtime dependencies. Findings are reported in the job log and summary.
+      - run: pip-audit --no-deps --disable-pip -r apps/api/requirements.runtime.lock | tee audit.txt
+        continue-on-error: true
+      - run: |
+          pip install -r apps/api/requirements.runtime.lock
+          pip-licenses --format=markdown --with-urls >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+      - run: npx --yes license-checker-rseidelsohn --production --summary >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true
