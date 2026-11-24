@@ -61,6 +61,7 @@ class Cell(_Base):
     f: Optional[str] = None  # formula text, e.g. "=SUM(A1:A10)"
     s: Optional[int] = None  # style id
     t: Optional[str] = None  # number-format id/hint
+    d: Optional[str] = None  # text as the number format shows it (numbers with a non-General format only)
 
 
 class CellEdit(_Base):
@@ -341,12 +342,31 @@ class SheetPatch(_Base):
     after: list[Cell]
 
 
+class StyleInfo(_Base):
+    """Resolved formatting for one style id (Cell.s). Optional engine extension."""
+
+    id: int
+    number_format: Optional[str] = None
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    font_name: Optional[str] = None
+    font_size: Optional[float] = None
+    font_color: Optional[str] = None  # "#RRGGBB"
+    fill_color: Optional[str] = None  # "#RRGGBB"
+    halign: Optional[Literal["left", "center", "right", "justify"]] = None
+    wrap: bool = False
+    base_id: Optional[int] = None  # derived formats only: the imported format this one was made from
+
+
 class CellPatchDelta(_Base):
     kind: Literal["cell_patch"] = "cell_patch"
     sheet_id: str
     before: list[Cell]
     after: list[Cell]
     others: list[SheetPatch] = Field(default_factory=list)  # v0.5.0; empty unless formulas cross sheets
+    # Formats made by this change (Cell.s ids it refers to), so a replay can recreate them.
+    styles: list[StyleInfo] = Field(default_factory=list)
 
 
 class TableVersionDelta(_Base):
@@ -522,22 +542,6 @@ class ColumnarRange(_Base):
 
 
 # ------------------------------------------------- styles and layout ----
-class StyleInfo(_Base):
-    """Resolved formatting for one style id (Cell.s). Optional engine extension."""
-
-    id: int
-    number_format: Optional[str] = None
-    bold: bool = False
-    italic: bool = False
-    underline: bool = False
-    font_name: Optional[str] = None
-    font_size: Optional[float] = None
-    font_color: Optional[str] = None  # "#RRGGBB"
-    fill_color: Optional[str] = None  # "#RRGGBB"
-    halign: Optional[Literal["left", "center", "right", "justify"]] = None
-    wrap: bool = False
-
-
 class SheetLayout(_Base):
     sheet_id: str
     col_widths: dict[int, float] = {}  # only non-default
@@ -567,6 +571,27 @@ class FindMatch(_Base):
 class FindResult(_Base):  # v0.7.0
     matches: list[FindMatch]
     truncated: bool = False  # there are more matches after the last one
+
+
+class FormatChange(_Base):
+    """What to change; a field that is not sent stays as it is, null puts the default back."""
+
+    number_format: Optional[str] = Field(default=None, max_length=255)
+    bold: Optional[bool] = None
+    italic: Optional[bool] = None
+    underline: Optional[bool] = None
+    font_name: Optional[str] = Field(default=None, max_length=64)
+    font_size: Optional[float] = Field(default=None, ge=1, le=409)
+    font_color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    fill_color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    halign: Optional[Literal["left", "center", "right", "justify"]] = None
+    wrap: Optional[bool] = None
+
+
+class FormatRequest(_Base):
+    base_seq: Optional[int] = None
+    range: Range
+    change: FormatChange
 
 
 class FillRequest(_Base):  # v0.7.0

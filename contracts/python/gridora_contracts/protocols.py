@@ -95,6 +95,10 @@ class FormattingEngine(Protocol):
 
     def get_styles(self, wb: WorkbookHandle, ids: list[int]) -> list[StyleInfo]: ...
     def get_sheet_layout(self, wb: WorkbookHandle, sheet_id: str) -> SheetLayout: ...
+    def format_cells(self, wb: WorkbookHandle, rng: Range, change: dict[str, Any]) -> Delta:
+        """v0.8.0: change the look of every cell of `rng` (keys of FormatChange that were sent; a
+        None value restores the default). One delta; cells keep their values."""
+        ...
 
 
 @runtime_checkable

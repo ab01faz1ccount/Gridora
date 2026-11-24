@@ -67,6 +67,8 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | GET | `/workbooks/{id}/sheets/{sheet_id}/date-columns` | v0.6.0: `DateColumns` (columns that hold dates; detection only) |
 | GET | `/workbooks/{id}/sheets/{sheet_id}/find` | `q`, `match_case`, `whole_cell`, `in_formulas`, `after_row`/`after_col`, `limit` → `FindResult {matches:[{r,c}], truncated}`; row-major; Persian/Arabic digits and yeh/kaf match their Latin/Persian forms |
 | POST | `/workbooks/{id}/sheets/{sheet_id}/fill` | body `{ base_seq, source: Range, target: Range }` (target adjacent to source, same columns or rows) → `CellsChangedResult`; one history entry; series for numbers, formulas shift relative refs |
+| GET | `/workbooks/{id}/styles` | `ids` (comma separated `Cell.s` values, at most 500) → `StyleInfo[]`: font, colours, alignment and number format of each cell format |
+| POST | `/workbooks/{id}/sheets/{sheet_id}/format` | body `{ base_seq, range: Range, change: FormatChange }` (only the sent properties change, `null` restores the default; at most 50,000 cells) → `CellsChangedResult`; one history entry |
 | PUT | `/workbooks/{id}/calendar` | v0.6.0: body `{ calendar: "jalali"|"gregorian"|"hijri" }` → `Workbook`; a view option, no history entry |
 | POST | `/workbooks/{id}/save` | writes a new xlsx version (kind `workbook`, parent = previous version) and bakes history in; returns `FileRecord` |
 | POST | `/workbooks/{id}/export` | `{format:"xlsx"|"csv", sheet_id?}` → 202 `Job`; `result_ref` is the file id (`GET /files/{id}/download`, kind `export`); the export `CompatibilityReport` is at `GET /jobs/{id}/compatibility`; csv needs `sheet_id` |

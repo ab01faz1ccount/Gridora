@@ -21,7 +21,7 @@ Everything here can be built and tested with automated checks (unit tests, API t
 1. **Task bar and operation panel** ([UX_SPEC.md](UX_SPEC.md) §3–§5): search by Persian task phrases (`search_operations`), selection-aware suggestions, form generated from `params_schema`, live preview with effect-stating Apply button, toast with Undo, the "convert to Data Table" offer for `too_large_for_history` (F3, F4).
 2. **Screens for Data Tables, charts and saved tools** (F5, F7) and for save/export with the export report (F6). The API for all of them exists.
 3. **Find** (Ctrl+F), frozen panes, column resize, fill handle, formatted clipboard.
-4. **Cell styles and number formats in the grid**: implement `FormattingEngine` in the engine (styles are preserved but not exposed) and render them.
+4. ~~**Cell styles and number formats in the grid**~~ — done: `FormattingEngine` in the engine, the format toolbar (bold, italic, underline, font from a short safe list, size, colours, alignment, wrap, number format) and the formats shown in the grid. Still open: column/row-wide formats (whole-column styles), borders, merged cells, row heights (wrapped text is clipped), theme/indexed colours (shown as no colour), custom number-format codes typed by the user, conditional formatting.
 5. **Paste fidelity**: shift relative references in pasted formulas; convert pasted date text to dates.
 6. **Keyboard help**, density setting, dark theme check, automated accessibility checks (axe) in the scripted browser run.
 7. **Cross-browser scripted checks** (Chromium and WebKit besides Firefox) and moving the real-stack browser script into CI.
