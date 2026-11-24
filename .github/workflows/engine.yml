@@ -20,4 +20,14 @@ jobs:
       # mypy and ruff read packages/engine/pyproject.toml only when run from that folder
       # (strict mode, pydantic plugin, mypy_path to contracts). Same pattern as dataops.yml.
       - run: cd packages/engine && ruff check . && mypy src
-      - run: pytest packages/engine/tests -q
+      # the corpus tests (real and hostile files) take most of the time: they run in their own job below
+      - run: pytest packages/engine/tests -q --ignore=packages/engine/tests/corpus
+  engine-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e contracts/python -e "packages/engine[dev]"
+      - run: pytest packages/engine/tests/corpus -q
