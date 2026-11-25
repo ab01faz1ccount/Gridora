@@ -20,6 +20,7 @@ from gridora_contracts.models import (
     Job,
     SetCalendarRequest,
     SheetMeta,
+    StructureRequest,
     Window,
     Workbook,
 )
@@ -224,6 +225,42 @@ async def fill_range(
         entry,
         sheet_id,
         CellEditRequest(base_seq=body.base_seq, edits=edits),
+    )
+    return ok(request, result)
+
+
+def _need_structure(st: Any) -> None:
+    if not st.services.structure_available:
+        raise DomainError(
+            "operation_conflict",
+            "This engine version cannot insert or delete rows and columns.",
+            details=[ErrorDetail(code="engine.not_implemented", message="structure")],
+        )
+
+
+@router.post(
+    "/workbooks/{id}/sheets/{sheet_id}/structure", response_model=Envelope[CellsChangedResult]
+)
+async def change_structure(
+    id: str,
+    sheet_id: str,
+    body: StructureRequest,
+    request: Request,
+    ctx: Ctx,
+    db: Db,
+) -> Envelope[CellsChangedResult]:
+    """Insert or delete rows / columns: formulas follow, one history entry (undoable). Sheets with
+    merged cells, filters, validation, tables, drawings or array formulas are refused (409)."""
+    st = request.app.state
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    _need_structure(st)
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    result = await history_service.apply_structure(
+        db, st.services, st.copies, row, entry, sheet_id, body
     )
     return ok(request, result)
 

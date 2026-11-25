@@ -163,6 +163,7 @@ export interface AuthResult { user: User; csrf_token: string }
 export interface CellEditRequest { base_seq: number; edits: CellEdit[] }
 export interface FindResult { matches: { r: number; c: number }[]; truncated: boolean }
 export interface FillRequest { base_seq: number; source: Range; target: Range }
+export interface StructureRequest { base_seq: number; axis: "row" | "col"; op: "insert" | "delete"; at: number; count: number }
 export interface OperationRequest { base_seq: number; operation: Operation; confirm_destructive: boolean }
 export interface CellsChangedResult { history_entry: HistoryEntry; sheet_id: string; cells: Cell[]; others?: SheetCells[] }
 

@@ -18,6 +18,7 @@ from ..package.zipout import write_parts
 from . import risks
 from .cellparse import parse_ref
 from .newpackage import write_new_package
+from .relayout import relaid_chunks
 from .rowpatch import sheet_chunks
 from .sheetsource import SheetSource
 from .textenc import col_letters
@@ -48,7 +49,7 @@ def export_xlsx_file(state: WorkbookState, path: Path, limits: ResourceLimits) -
     assert isinstance(model, PackageModel)
     parts = [replace(p) for p in model.parts]
     by_name = {p.name: p for p in parts}
-    edited = [s for s in state.sheets if s.dirty or s.bulk_rects]
+    edited = [s for s in state.sheets if s.dirty or s.bulk_rects or s.restructured]
     inline = 0
     for sheet in edited:
         part = by_name[sheet.part_name]
@@ -117,6 +118,8 @@ def _source_of(sheet: SheetState) -> SheetSource:
 
 
 def _producer(src: SheetSource, sheet: SheetState, state: WorkbookState) -> Callable[[], Iterator[bytes]]:
+    if sheet.restructured:
+        return lambda: relaid_chunks(src, sheet, state.strings)
     new_dim = _new_dimension(src, sheet)
     return lambda: sheet_chunks(src, sheet, state.strings, new_dim)
 
@@ -144,6 +147,10 @@ def _formula_cells(sheet: SheetState) -> int:
 def _inline_strings(sheet: SheetState) -> int:
     """Edited text cells written as inline strings (per-cell edits plus bulk rectangles)."""
     n = 0
+    if sheet.restructured:  # the whole sheet is regenerated: every text cell is written inline
+        for ch in sheet.store.chunks.values():
+            n += ch.tags.count(2)
+        return n
     for k in sheet.dirty:
         r, c = k >> 14, k & 0x3FFF
         if k not in sheet.formulas and sheet.store.get(r, c)[0] == 2 and not any(
@@ -159,7 +166,7 @@ def _inline_strings(sheet: SheetState) -> int:
 
 def _formulas_changed(edited: list[SheetState]) -> bool:
     for s in edited:
-        if s.bulk_formulas_changed:
+        if s.bulk_formulas_changed or s.restructured:
             return True
         for k in s.dirty:
             if s.orig[k][3] != s.formulas.get(k):

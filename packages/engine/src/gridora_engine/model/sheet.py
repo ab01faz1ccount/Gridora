@@ -174,6 +174,20 @@ class SheetStore:
             self._recompute_bounds()
         return self._max_row + 1, self._max_col + 1
 
+    def extent(self) -> tuple[int, int]:
+        """(rows, cols) spanned by every cell that holds a value OR a cell format; (0, 0) when none.
+        Unlike used_size() this sees formatted empty cells (they move with their row/column)."""
+        max_r = max_c = -1
+        for key, ch in self.chunks.items():
+            c, ci = divmod(key, _KEY_ROWS)
+            tags, styles = ch.tags, ch.styles
+            for i in range(CHUNK_ROWS - 1, -1, -1):
+                if tags[i] or styles[i]:
+                    max_r = max(max_r, (ci << CHUNK_SHIFT) + i)
+                    max_c = max(max_c, c)
+                    break
+        return max_r + 1, max_c + 1
+
     def _recompute_bounds(self) -> None:
         max_r = max_c = -1
         for key, ch in self.chunks.items():

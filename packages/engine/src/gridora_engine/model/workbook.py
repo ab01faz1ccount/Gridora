@@ -59,6 +59,11 @@ class SheetState:
     # Rectangles written in bulk (range snapshots): the exporter regenerates every cell inside them.
     bulk_rects: list[tuple[int, int, int, int]] = field(default_factory=list)  # r0, c0, r1, c1
     bulk_formulas_changed: bool = False
+    # Rows/columns inserted or deleted since import (axis, op, at, count), oldest first. A sheet with
+    # `restructured` set is exported by regenerating its whole sheetData (xlsx.relayout).
+    restructured: bool = False
+    layout_ops: list[tuple[str, str, int, int]] = field(default_factory=list)
+    base_hidden: set[int] | None = None  # hidden rows as imported (the live set is replayed from it)
 
     def ensure(self, row_lo: int, row_hi: int) -> None:
         if self.lazy is not None:

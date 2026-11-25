@@ -15,7 +15,7 @@ Invariants:
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from gridora_contracts.models import (
     Cell,
@@ -30,8 +30,11 @@ from gridora_contracts.models import (
     Range,
     SheetCells,
     SheetRangeTarget,
+    SheetStructureDelta,
+    StructureRequest,
     Workbook,
 )
+from gridora_contracts.protocols import StructureEngine
 from pydantic import TypeAdapter
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -270,6 +273,70 @@ async def record_entry(
     return h
 
 
+def adjust_dimensions(row: WorkbookRow, delta: Delta, *, undo: bool) -> None:
+    """Row/column counts follow an insert or delete (and its undo/redo)."""
+    if not isinstance(delta, SheetStructureDelta) or delta.change.get("type") != "axis_shift":
+        return
+    ch = delta.change
+    n = int(ch["count"]) * (1 if (ch["op"] == "insert") != undo else -1)
+    key = "row_count" if ch["axis"] == "row" else "col_count"
+    meta: dict[str, Any] = dict(row.meta_json)
+    sheets = [dict(x) for x in meta.get("sheets", [])]
+    for x in sheets:
+        if x["id"] == delta.sheet_id:
+            x[key] = max(int(x[key]) + n, 0)
+    meta["sheets"] = sheets
+    row.meta_json = meta
+
+
+async def apply_structure(
+    db: AsyncSession,
+    services: Services,
+    copies: WorkingCopies,
+    row: WorkbookRow,
+    entry: Entry,
+    sheet_id: str,
+    req: StructureRequest,
+) -> CellsChangedResult:
+    """Insert or delete rows/columns: one history entry. The whole sheet moves, so the answer
+    carries no cells: the client sees a non-cell_patch delta and reloads the sheet."""
+    head = await head_seq(db, row.id)
+    check_base(req.base_seq, head)
+    total = (
+        await db.execute(
+            select(func.count()).select_from(HistoryRow).where(HistoryRow.document_id == row.id)
+        )
+    ).scalar_one()
+    if total >= MAX_HISTORY_ENTRIES:
+        raise DomainError(
+            "operation_conflict",
+            "The undo history is full.",
+            details=[
+                ErrorDetail(code="history.full", message="save the workbook to start a new history")
+            ],
+        )
+    change = {
+        "type": "axis_shift", "sheet_id": entry.to_engine(sheet_id), "axis": req.axis, "op": req.op,
+        "at": req.at, "count": req.count,
+    }
+    engine_delta = await copies.call(
+        entry, cast(StructureEngine, services.engine).apply_structure_change, entry.handle, change
+    )
+    delta = _public_delta(engine_delta, entry)
+    if req.axis == "row":
+        rng = Range(sheet_id=sheet_id, r0=req.at, c0=0, r1=req.at + req.count - 1, c1=0)
+    else:
+        rng = Range(sheet_id=sheet_id, r0=0, c0=req.at, r1=0, c1=req.at + req.count - 1)
+    op = Operation(
+        type="structure_change", target=SheetRangeTarget(range=rng),
+        params={"axis": req.axis, "op": req.op, "at": req.at, "count": req.count},
+    )
+    h = await record_entry(db, copies, row, op, delta, f"history.{req.op}_{req.axis}s")
+    adjust_dimensions(row, delta, undo=False)
+    await commit_or_drop(db, copies, row.id)
+    return CellsChangedResult(history_entry=entry_out(h), sheet_id=sheet_id, cells=[])
+
+
 def grow_dimensions(row: WorkbookRow, sheet_id: str, rows: int, cols: int) -> None:
     """Sheet dimensions only grow in v1 (an edit past the end; undo does not shrink)."""
     meta: dict[str, Any] = dict(row.meta_json)
@@ -318,6 +385,7 @@ async def _step(
         entry, services.engine.apply_delta, entry.handle, _engine_delta(delta, entry), inverse=undo
     )
     try:
+        adjust_dimensions(row, delta, undo=undo)
         h.undone = undo
         await db.flush()
         await db.refresh(h)

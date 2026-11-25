@@ -151,6 +151,15 @@ class GridoraEngine:
             raise bad_request(code, "The fill range does not fit the selection." if code == "fill.shape"
                               else "The fill range is too large.") from None
 
+    def apply_structure_change(self, wb: WorkbookHandle, change: dict[str, Any]) -> Delta:
+        """Optional extension (StructureEngine): insert or delete rows/columns of one sheet.
+
+        change = {"type": "axis_shift", "sheet_id", "axis": "row"|"col", "op": "insert"|"delete",
+                  "at": 0-based index, "count": >= 1}. Returns a SheetStructureDelta."""
+        from .structure import apply_change
+
+        return apply_change(self, wb, change)
+
     def apply_cell_edits(self, wb: WorkbookHandle, sheet_id: str, edits: list[CellEdit]) -> Delta:
         state, sheet = self._sheet(wb, sheet_id)
         limits = self.limits
@@ -242,6 +251,11 @@ class GridoraEngine:
             apply_range_snapshot(state, sheet, delta, inverse, self.limits, self.blobs)
             rg = delta.range
             self._after_bulk(state, sheet, rg.r0, rg.c0, rg.r1, rg.c1)
+            return
+        if delta.kind == "sheet_structure":
+            from .structure import apply_structure
+
+            apply_structure(self, wb, delta, inverse)
             return
         if delta.kind != "cell_patch":
             raise validation_failed("delta.unsupported_kind", "This kind of change is not supported yet.")
