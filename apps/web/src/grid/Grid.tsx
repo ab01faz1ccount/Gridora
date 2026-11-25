@@ -13,6 +13,7 @@ import {
   useState,
   useSyncExternalStore,
   type ClipboardEvent as ReactClipboardEvent,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -22,6 +23,7 @@ import { useT } from "@/i18n";
 import { usePrefs } from "@/state/prefs";
 import { BlockCache } from "./block-cache";
 import { cellDisplay, type DisplayPrefs } from "./cellText";
+import { styleCss, type StyleStore } from "./styles";
 import type { DataSource } from "./datasource";
 import {
   columnLetters,
@@ -75,7 +77,14 @@ export interface GridProps {
   onPaste?: (edits: CellEdit[]) => void;
   /** Copy/cut/paste could not be done: not all cells are loaded, or too many cells. */
   onClipboardProblem?: (reason: "notLoaded" | "tooLarge") => void;
+  /** Looks of the cells' format ids (font, colours ...); without it cells are drawn plain. */
+  styles?: StyleStore;
+  /** Ctrl+B / Ctrl+I / Ctrl+U. */
+  onFormatKey?: (k: "bold" | "italic" | "underline") => void;
 }
+
+const noSubscribe = (): (() => void) => () => undefined;
+const zero = (): number => 0;
 
 interface Editing {
   r: number;
@@ -128,6 +137,7 @@ interface CellViewProps {
   failed: boolean;
   selected: boolean;
   active: boolean;
+  look?: CSSProperties;
 }
 
 const CellView = memo(function CellView(p: CellViewProps) {
@@ -141,7 +151,7 @@ const CellView = memo(function CellView(p: CellViewProps) {
   return (
     <div id={p.id} role="gridcell" aria-colindex={p.c + 1} aria-selected={p.selected || undefined}
       aria-busy={p.loading || undefined} className={cls}
-      style={{ top: p.top, insetInlineStart: p.start, inlineSize: p.w, blockSize: ROW_H }}
+      style={{ ...p.look, top: p.top, insetInlineStart: p.start, inlineSize: p.w, blockSize: ROW_H }}
       data-r={p.r} data-c={p.c}>
       {p.kind === "str" ? <bdi>{p.text}</bdi> : p.text}
     </div>
@@ -150,7 +160,7 @@ const CellView = memo(function CellView(p: CellViewProps) {
 
 export function Grid({
   source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label,
-  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem, handleRef, onFill, frozen,
+  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem, handleRef, onFill, frozen, styles, onFormatKey,
 }: GridProps) {
   const t = useT();
   const prefs = usePrefs();
@@ -163,6 +173,7 @@ export function Grid({
   const cache = useMemo(() => cacheProp ?? new BlockCache(source), [cacheProp, source]);
   useEffect(() => () => (cacheProp ? undefined : cache.dispose()), [cache, cacheProp]);
   useSyncExternalStore(cache.subscribe, cache.getVersion);
+  useSyncExternalStore(styles?.subscribe ?? noSubscribe, styles?.getVersion ?? zero);
 
   // geometry
   const rows = useMemo(() => uniformAxis(source.rowCount, ROW_H), [source.rowCount]);
@@ -365,6 +376,14 @@ export function Grid({
       if (plan) onFill(plan);
       return;
     }
+    if (mod && !e.shiftKey && !e.altKey && onFormatKey && editable) {
+      const k = e.code === "KeyB" ? "bold" : e.code === "KeyI" ? "italic" : e.code === "KeyU" ? "underline" : null;
+      if (k) {
+        e.preventDefault();
+        onFormatKey(k);
+        return;
+      }
+    }
     if (editable) {
       if (e.key === "F2") {
         e.preventDefault();
@@ -487,11 +506,13 @@ export function Grid({
   const cellAt = (r: number, c: number, top: number, start: number) => {
     const look = cache.getCell(r, c);
     const d = cellDisplay(look.cell, display);
+    styles?.need(look.cell?.s);
     return (
       <CellView key={c} id={`gv-${r}-${c}`} r={r} c={c} top={top} start={start} w={cols.size(c)}
         text={d.text} kind={d.kind}
         loading={look.status === "loading" || look.status === "absent"} failed={look.status === "error"}
-        selected={inRange(bounds, r, c)} active={sel.active.r === r && sel.active.c === c} />
+        selected={inRange(bounds, r, c)} active={sel.active.r === r && sel.active.c === c}
+        look={styleCss(styles?.get(look.cell?.s))} />
     );
   };
   const cells = [];

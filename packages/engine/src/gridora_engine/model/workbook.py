@@ -29,12 +29,45 @@ class Materializer(Protocol):
     def close(self) -> None: ...
 
 
+@dataclass(frozen=True)
+class Props:
+    """Resolved look of one cell format (xf): what the grid shows and the format toolbar changes."""
+
+    number_format: str | None = None  # code; None = General
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    font_name: str | None = None
+    font_size: float | None = None
+    font_color: str | None = None  # "#RRGGBB"
+    fill_color: str | None = None
+    halign: str | None = None  # left | center | right | justify
+    wrap: bool = False
+
+
+@dataclass
+class Derived:
+    """A format made at run time from an imported one (`root`) by changing `props`."""
+
+    root: int
+    props: Props
+    placeholder: bool = False  # filled in only to keep ids aligned after a replay
+
+
 @dataclass
 class StyleInfo:
-    """Per cell-format (xf) index: number format id and whether it shows a date/time."""
+    """Per cell-format (xf) index: number format id and whether it shows a date/time, plus the
+    resolved look (`props`, imported xfs) and the formats made since import (`derived`, ids from
+    `n_imported` on). Derived formats are written into styles.xml by the exporter."""
 
     xf_numfmt: list[int] = field(default_factory=list)
     xf_is_date: list[bool] = field(default_factory=list)
+    xf_code: list[str | None] = field(default_factory=list)  # number format code, None = General
+    props: list[Props] | None = None  # imported xfs; None when styles.xml could not be read
+    n_imported: int = 0
+    derived: list[Derived] = field(default_factory=list)
+    codes: dict[int, str] = field(default_factory=dict)  # custom number formats by id
+    new_codes: dict[int, str] = field(default_factory=dict)  # those added since import
 
 
 @dataclass

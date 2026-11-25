@@ -16,11 +16,13 @@ from gridora_contracts.models import (
     FillRequest,
     FindMatch,
     FindResult,
+    FormatRequest,
     FrozenRequest,
     Job,
     SetCalendarRequest,
     SheetMeta,
     StructureRequest,
+    StyleInfo,
     Window,
     Workbook,
 )
@@ -225,6 +227,58 @@ async def fill_range(
         entry,
         sheet_id,
         CellEditRequest(base_seq=body.base_seq, edits=edits),
+    )
+    return ok(request, result)
+
+
+def _need_formatting(st: Any) -> None:
+    if not st.services.formatting_available:
+        raise DomainError(
+            "operation_conflict",
+            "This engine version does not support cell formatting.",
+            details=[ErrorDetail(code="engine.not_implemented", message="format_cells")],
+        )
+
+
+@router.get("/workbooks/{id}/styles", response_model=Envelope[list[StyleInfo]])
+async def get_styles(
+    id: str, request: Request, ctx: Ctx, db: Db,
+    ids: Annotated[str, Query(max_length=2000, description="comma separated format ids (Cell.s)")],
+) -> Envelope[list[StyleInfo]]:
+    """The look (font, colours, number format ...) behind the format ids that cells carry."""
+    st = request.app.state
+    row = await get_owned(db, WorkbookRow, ctx.user.id, id)
+    _need_formatting(st)
+    try:
+        wanted = sorted({int(x) for x in ids.split(",") if x.strip()})[:500]
+    except ValueError:
+        raise DomainError("validation_error", "ids must be whole numbers.") from None
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    found = await st.copies.call(entry, st.services.engine.get_styles, entry.handle, wanted)
+    return ok(request, found)
+
+
+@router.post(
+    "/workbooks/{id}/sheets/{sheet_id}/format", response_model=Envelope[CellsChangedResult]
+)
+async def format_range(
+    id: str, sheet_id: str, body: FormatRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[CellsChangedResult]:
+    """Bold, fonts, colours, alignment, number format for a range: one history entry."""
+    st = request.app.state
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    _need_formatting(st)
+    if body.range.sheet_id != sheet_id:
+        raise DomainError("validation_error", "The range must be on this sheet.")
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    result = await history_service.apply_format(
+        db, st.services, st.copies, row, entry, sheet_id, body
     )
     return ok(request, result)
 

@@ -94,6 +94,17 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
         f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/structure",
         json={"base_seq": 0, "axis": "row", "op": "insert", "at": 0, "count": 1},
     ),
+    ("GET", "/api/v1/workbooks/{id}/styles"): lambda c, ids: c.get(
+        f"/api/v1/workbooks/{ids['wb']}/styles?ids=0"
+    ),
+    ("POST", "/api/v1/workbooks/{id}/sheets/{sheet_id}/format"): lambda c, ids: c.post(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/format",
+        json={
+            "base_seq": 0,
+            "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 0, "c1": 0},
+            "change": {"bold": True},
+        },
+    ),
     ("PUT", "/api/v1/workbooks/{id}/sheets/{sheet_id}/frozen"): lambda c, ids: c.put(
         f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/frozen", json={"rows": 1, "cols": 0}
     ),

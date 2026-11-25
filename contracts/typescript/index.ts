@@ -15,7 +15,7 @@ export type CellValue =
   | { k: "err"; e: "#DIV/0!" | "#N/A" | "#NAME?" | "#NULL!" | "#NUM!" | "#REF!" | "#VALUE!" | "#SPILL!" | "#CALC!" | "#GETTING_DATA" }
   | { k: "date"; iso: string };
 
-export interface Cell { r: number; c: number; v?: CellValue; f?: string; s?: number; t?: string }
+export interface Cell { r: number; c: number; v?: CellValue; f?: string; s?: number; t?: string; d?: string }
 export interface CellEdit { r: number; c: number; value?: CellValue; formula?: string }
 export interface Range { sheet_id: string; r0: number; c0: number; r1: number; c1: number }
 export interface Window { row0: number; col0: number; rows: number; cols: number }
@@ -152,8 +152,14 @@ export const ERROR_CODES = [
 export interface StyleInfo {
   id: number; number_format?: string; bold: boolean; italic: boolean; underline: boolean;
   font_name?: string; font_size?: number; font_color?: string; fill_color?: string;
-  halign?: "left" | "center" | "right" | "justify"; wrap: boolean;
+  halign?: "left" | "center" | "right" | "justify"; wrap: boolean; base_id?: number;
 }
+export interface FormatChange {
+  number_format?: string | null; bold?: boolean | null; italic?: boolean | null; underline?: boolean | null;
+  font_name?: string | null; font_size?: number | null; font_color?: string | null; fill_color?: string | null;
+  halign?: "left" | "center" | "right" | "justify" | null; wrap?: boolean | null;
+}
+export interface FormatRequest { base_seq: number; range: Range; change: FormatChange }
 export interface SheetLayout {
   sheet_id: string; col_widths: Record<number, number>; row_heights: Record<number, number>;
   hidden_cols: number[]; hidden_rows: number[]; merges: Range[];

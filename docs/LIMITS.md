@@ -30,3 +30,10 @@ value 0.1 s; 60 x PageDown 2.6 s; about 480 cells in the DOM at any time (virtua
 - Paste does not shift relative references in formulas; dates pasted from text stay text; no optimistic display (the screen shows what the server computed, after the round trip).
 - Docker images were not built in the sandbox (see `deploy/README.md`), so numbers behind nginx and in containers are unmeasured.
 - Formula coverage gaps are listed in `docs/ROADMAP.md`.
+
+### Cell formatting
+- One format request changes at most 50,000 cells (whole-column formatting is not supported yet).
+- Fonts, fills and colours that Excel stores as theme or indexed colours are shown without colour; formatting them sets an explicit RGB colour.
+- Borders, merged cells, column widths and row heights are kept in the file but cannot be changed or seen yet; wrapped text is clipped to the row height.
+- Formats made in Gridora are appended to the file's `styles.xml`; existing entries never change. Workbooks whose `styles.xml` uses prefixed XML namespaces cannot be formatted.
+- Number formats show server-made text (`Cell.d`); dates keep using the grid's own date display (calendar preference).

@@ -11,6 +11,7 @@ from ..model.dates import is_date_format
 from ..model.workbook import StyleInfo
 from ..package import xmlsafe
 from ..package.xmlsafe import local
+from .styles import BUILTIN_CODES, read_book
 
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 STRICT_MAIN_NS = "http://purl.oclc.org/ooxml/spreadsheetml/main"
@@ -121,6 +122,8 @@ def parse_styles(data: bytes, limits: ResourceLimits, deadline: Deadline) -> Sty
                 fid = 0
             table.xf_numfmt.append(fid)
             table.xf_is_date.append(is_date_format(codes.get(fid), fid))
+            code = codes.get(fid) or BUILTIN_CODES.get(fid)
+            table.xf_code.append(None if code in (None, "", "General") else code)
 
     def end(name: str) -> None:
         nonlocal in_xfs
@@ -130,6 +133,12 @@ def parse_styles(data: bytes, limits: ResourceLimits, deadline: Deadline) -> Sty
     xmlsafe.parse(data, start=start, end=end, max_depth=limits.max_xml_depth, deadline=deadline)
     if len(table.xf_numfmt) > 65535:
         raise import_failed("xlsx.too_many_styles", "The workbook has too many cell formats.")
+    table.n_imported = len(table.xf_numfmt)
+    table.codes = dict(codes)
+    try:
+        read_book(data, table)
+    except Exception:  # noqa: BLE001 - an unusual layout: formats stay readable for display but cannot be changed
+        table.props = None
     return table
 
 

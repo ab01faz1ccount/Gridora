@@ -21,6 +21,7 @@ from .newpackage import write_new_package
 from .relayout import relaid_chunks
 from .rowpatch import sheet_chunks
 from .sheetsource import SheetSource
+from .styles import patch_styles
 from .textenc import col_letters
 
 _CALCPR = re.compile(rb"<calcPr\b([^>]*?)(/?)>")
@@ -69,6 +70,8 @@ def export_xlsx_file(state: WorkbookState, path: Path, limits: ResourceLimits) -
             _add(hits, "xlsx.calc_chain_dropped")
         for code, h in risks.assess(model, state).items():
             hits[code] = h
+    if state.styles is not None and (state.styles.derived or state.styles.new_codes):
+        _patch_styles(model, parts, state)
     if model.kind in ("xlsm", "xltm"):
         _add(hits, "xlsx.macro_enabled_extension")
     for fnd in state.findings:
@@ -172,6 +175,18 @@ def _formulas_changed(edited: list[SheetState]) -> bool:
             if s.orig[k][3] != s.formulas.get(k):
                 return True
     return False
+
+
+def _patch_styles(model: PackageModel, parts: list[Part], state: WorkbookState) -> None:
+    """Append the formats made since import to styles.xml (existing entries never change)."""
+    name = None
+    for r in model.relationships(model.workbook_part):
+        if not r.external and r.type.rsplit("/", 1)[-1] == "styles":
+            name = model.actual_name(resolve_target(model.workbook_part, r.target))
+    if name is None or state.styles is None:
+        raise unsupported_workbook("export.styles_not_patchable", "This workbook has no cell format part to extend.")
+    part = next(p for p in parts if p.name == name)
+    part.data, part.state = patch_styles(model.read(name), state.styles), "dirty"
 
 
 def _set_full_calc(model: PackageModel, parts: list[Part]) -> bool:

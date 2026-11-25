@@ -19,9 +19,9 @@ def test_import_signatures_accept_file_id_keyword_only():
         assert p.default is None
 
 
-def test_optional_extensions_claimed_and_not_claimed():
+def test_optional_extensions_claimed():
     e = create_engine({})
-    assert not isinstance(e, FormattingEngine)
+    assert isinstance(e, FormattingEngine)  # since contract 0.8.0
     assert isinstance(e, StructureEngine)  # insert/delete rows and columns (src/gridora_engine/structure.py)
 
 

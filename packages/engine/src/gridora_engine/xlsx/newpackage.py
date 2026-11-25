@@ -12,6 +12,7 @@ from ..model.workbook import SheetState, WorkbookState
 from ..package.parts import Part
 from ..package.zipout import write_parts
 from .rowpatch import cell_xml
+from .styles import BASE_STYLES, patch_styles
 from .textenc import col_letters, xml_escape
 
 NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
@@ -61,12 +62,7 @@ def write_new_package(state: WorkbookState, path: Path) -> int:
     wbrels = HDR + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + "".join(
         f'<Relationship Id="rId{i + 1}" Type="{REL}/worksheet" Target="worksheets/sheet{i + 1}.xml"/>' for i in range(n)
     ) + f'<Relationship Id="rId{n + 1}" Type="{REL}/styles" Target="styles.xml"/></Relationships>'
-    styles = (HDR + f"<styleSheet {NS}><fonts count=\"1\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts>"
-              '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
-              '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-              '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-              '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>'
-              '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
+    styles = patch_styles(BASE_STYLES.encode(), state.styles).decode() if state.styles is not None else BASE_STYLES
     parts = [Part("[Content_Types].xml", "added", ct.encode()), Part("_rels/.rels", "added", root.encode()),
              Part("xl/workbook.xml", "added", wb.encode()), Part("xl/_rels/workbook.xml.rels", "added", wbrels.encode()),
              Part("xl/styles.xml", "added", styles.encode())]

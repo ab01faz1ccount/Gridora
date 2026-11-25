@@ -27,6 +27,7 @@ OPTIONAL_METHODS = (
     "detect_date_columns",
     "find_cells",
     "fill_edits",
+    "format_cells",
 )
 
 

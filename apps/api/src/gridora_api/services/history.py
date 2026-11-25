@@ -25,6 +25,7 @@ from gridora_contracts.models import (
     CellsChangedResult,
     Delta,
     ErrorDetail,
+    FormatRequest,
     HistoryEntry,
     Operation,
     Range,
@@ -166,6 +167,25 @@ async def commit_or_drop(
 
 
 # ----------------------------------------------------------------------- edit ----
+async def check_capacity(db: AsyncSession, row: WorkbookRow, base_seq: int | None) -> None:
+    """The edit is based on the current history head and the history still has room."""
+    head = await head_seq(db, row.id)
+    check_base(base_seq, head)
+    total = (
+        await db.execute(
+            select(func.count()).select_from(HistoryRow).where(HistoryRow.document_id == row.id)
+        )
+    ).scalar_one()
+    if total >= MAX_HISTORY_ENTRIES:
+        raise DomainError(
+            "operation_conflict",
+            "The undo history is full.",
+            details=[
+                ErrorDetail(code="history.full", message="save the workbook to start a new history")
+            ],
+        )
+
+
 async def apply_edits(
     db: AsyncSession,
     services: Services,
@@ -191,21 +211,7 @@ async def apply_edits(
                 )
             ],
         )
-    head = await head_seq(db, row.id)
-    check_base(req.base_seq, head)
-    total = (
-        await db.execute(
-            select(func.count()).select_from(HistoryRow).where(HistoryRow.document_id == row.id)
-        )
-    ).scalar_one()
-    if total >= MAX_HISTORY_ENTRIES:
-        raise DomainError(
-            "operation_conflict",
-            "The undo history is full.",
-            details=[
-                ErrorDetail(code="history.full", message="save the workbook to start a new history")
-            ],
-        )
+    await check_capacity(db, row, req.base_seq)
 
     engine_sheet = entry.to_engine(sheet_id)
     try:
@@ -237,6 +243,35 @@ async def apply_edits(
     return CellsChangedResult(
         history_entry=entry_out(h), sheet_id=sheet_id, cells=_cells_of(delta, after=True),
         others=others_of(delta),
+    )
+
+
+async def apply_format(
+    db: AsyncSession,
+    services: Services,
+    copies: WorkingCopies,
+    row: WorkbookRow,
+    entry: Entry,
+    sheet_id: str,
+    req: FormatRequest,
+) -> CellsChangedResult:
+    """Change the look of a range: one history entry; cells come back with their new format ids."""
+    await check_capacity(db, row, req.base_seq)
+    rng = req.range.model_copy(update={"sheet_id": entry.to_engine(sheet_id)})
+    change = req.change.model_dump(exclude_unset=True)
+    engine_delta = await copies.call(
+        entry, cast(Any, services.engine).format_cells, entry.handle, rng, change
+    )
+    delta = _public_delta(engine_delta, entry)
+    op = Operation(
+        type="format_cells",
+        target=SheetRangeTarget(range=req.range),
+        params={"properties": sorted(change)},
+    )
+    h = await record_entry(db, copies, row, op, delta, "history.format_cells")
+    await commit_or_drop(db, copies, row.id)
+    return CellsChangedResult(
+        history_entry=entry_out(h), sheet_id=sheet_id, cells=_cells_of(delta, after=True), others=[]
     )
 
 
