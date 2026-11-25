@@ -242,5 +242,12 @@
   "find.inFormulas": "Formulas too",
   "find.none": "Not found",
   "find.wrapped": "Back at the start",
-  "find.close": "Close find"
+  "find.close": "Close find",
+  "freeze.label": "Freeze panes",
+  "freeze.none": "No frozen panes",
+  "freeze.row": "Freeze first row",
+  "freeze.col": "Freeze first column",
+  "freeze.both": "Freeze first row and column",
+  "freeze.here": "Freeze above and left of the selected cell",
+  "freeze.custom": "Frozen (custom)"
 }

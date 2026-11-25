@@ -16,8 +16,10 @@ from gridora_contracts.models import (
     FillRequest,
     FindMatch,
     FindResult,
+    FrozenRequest,
     Job,
     SetCalendarRequest,
+    SheetMeta,
     Window,
     Workbook,
 )
@@ -224,6 +226,26 @@ async def fill_range(
         CellEditRequest(base_seq=body.base_seq, edits=edits),
     )
     return ok(request, result)
+
+
+@router.put("/workbooks/{id}/sheets/{sheet_id}/frozen", response_model=Envelope[SheetMeta])
+async def set_frozen(
+    id: str, sheet_id: str, body: FrozenRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[SheetMeta]:
+    """Freeze the first rows and columns of a sheet (0/0 unfreezes). A view setting: it is kept
+    with the workbook, is not part of the undo history and does not change any cell."""
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    meta = dict(row.meta_json)
+    sheets = [dict(s) for s in meta.get("sheets", [])]
+    target = next((s for s in sheets if s["id"] == sheet_id), None)
+    if target is None:
+        raise DomainError("not_found")
+    target["frozen"] = {"rows": body.rows, "cols": body.cols} if body.rows or body.cols else None
+    meta["sheets"] = sheets
+    row.meta_json = meta  # reassign: SQLAlchemy does not see in-place JSON mutation
+    await db.commit()
+    sheet = next(s for s in wb_service.workbook_meta(row).sheets if s.id == sheet_id)
+    return ok(request, sheet)
 
 
 def _need_calendar(st: Any) -> None:

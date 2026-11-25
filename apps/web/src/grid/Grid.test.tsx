@@ -458,3 +458,18 @@ describe("Grid column resize", () => {
     await waitFor(() => expect(widthOf(1)).toBe(before));
   });
 });
+
+describe("Grid frozen panes", () => {
+  it("keeps the frozen rows and columns rendered while the body scrolls", async () => {
+    usePrefs.setState({ digits: "latin" });
+    const { src } = source(10_000, 20);
+    render(<Grid source={src} rtl={false} viewport={VIEW} frozen={{ rows: 2, cols: 1 }} />);
+    await waitFor(() => expect(cellEls().length).toBeGreaterThan(20));
+    scrollTo(scroller(), 5000, 300);
+    await waitFor(() => expect(rowsRendered().has(200)).toBe(true));
+    const rs = rowsRendered();
+    expect(rs.has(0) && rs.has(1)).toBe(true);
+    const cs = new Set(cellEls().map((e) => Number(e.dataset.c)));
+    expect(cs.has(0)).toBe(true);
+  });
+});
