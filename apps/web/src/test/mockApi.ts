@@ -38,8 +38,13 @@ export function mockApi(routes: Record<string, Handler>, defaults: Record<string
 }
 
 export const ok = <T>(data: T) => ({ status: 200, body: { data, meta: { request_id: "r1" } } });
-export const err = (status: number, code: string, headers?: Record<string, string>) => ({
+export const err = (
+  status: number,
+  code: string,
+  headers?: Record<string, string>,
+  details: { code: string; message: string }[] = [],
+) => ({
   status,
   headers,
-  body: { error: { code, message: "server text must not be shown", details: [], request_id: "r9" } },
+  body: { error: { code, message: "server text must not be shown", details, request_id: "r9" } },
 });

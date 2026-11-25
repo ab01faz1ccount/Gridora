@@ -33,6 +33,11 @@ Self-hosted, no outbound data flows, least privilege, all uploads hostile.
 
 **Backups:** encrypted at rest if the host provides disk encryption; backup access limited to admins.
 
+**Accounts and sign-up:** anyone may create a plain `user` account (`POST /auth/register`; admins can only be made on the server, a request cannot ask for a role). Sign-up is limited per IP, capped by `MAX_USERS`, can be switched off, refuses short or very common passwords and reserved names, and every account is limited in workspaces and storage (admins exempt). Each sign-in or sign-up creates its own server-side session (random token, only its hash stored, HttpOnly, SameSite=Strict, CSRF header on every change); one account never reaches another's data (ownership is checked before any work, covered by the isolation tests). Changing the password needs the current one and ends all other sessions of the account.
+
 ## Known gaps (to be closed in later phases)
+
+No e-mail address on accounts, so there is no self-service password reset and no e-mail verification; a forgotten password is reset by an administrator. No CAPTCHA; the per-IP limit is the only brake on scripted sign-up (behind a proxy, `TRUST_PROXY_HEADERS` must be on so the limit sees the real address).
+
 
 Malware scanning of uploads, SSO, per-field encryption, sharing between users (not offered in v1).

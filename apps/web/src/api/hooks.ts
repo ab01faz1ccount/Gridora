@@ -38,6 +38,40 @@ export function useLogin() {
   });
 }
 
+export interface AuthConfig {
+  registration_enabled: boolean;
+  password_min_length: number;
+}
+
+/** What the sign-in page needs before anyone is signed in (is sign-up open?). */
+export function useAuthConfig() {
+  return useQuery({
+    queryKey: ["auth-config"],
+    queryFn: () => api.get<AuthConfig>("/auth/config"),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useRegister() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { username: string; password: string }) =>
+      api.post<AuthResult>("/auth/register", v),
+    onSuccess: (me) => {
+      setCsrfToken(me.csrf_token);
+      qc.setQueryData(keys.me, me);
+    },
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (v: { current_password: string; new_password: string }) =>
+      api.post<void>("/auth/password", v),
+  });
+}
+
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({

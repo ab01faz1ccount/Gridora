@@ -104,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.login_window_seconds,
         settings.login_max_failures_per_user,
         settings.login_max_failures_per_ip,
+        settings.register_max_per_ip,
     )
 
     install_error_handlers(app)

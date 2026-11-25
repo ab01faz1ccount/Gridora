@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     login_max_failures_per_user: int = Field(default=5, ge=1)
     login_max_failures_per_ip: int = Field(default=30, ge=1)
 
+    # Self-service sign-up and what one account may use (admins are exempt from the quotas).
+    registration_enabled: bool = True
+    register_max_per_ip: int = Field(default=10, ge=1)  # attempts per login_window_seconds
+    max_users: int = Field(default=1000, ge=1)
+    max_workspaces_per_user: int = Field(default=50, ge=1)
+    user_storage_bytes: int = Field(default=2 * 1024**3, ge=1)
+
     # argon2id parameters (argon2-cffi defaults follow RFC 9106 low-memory profile).
     argon2_time_cost: int = Field(default=3, ge=1)
     argon2_memory_cost_kib: int = Field(default=65536, ge=8)

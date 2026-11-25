@@ -225,7 +225,7 @@ def test_every_mutating_route_except_login_requires_a_session(app: FastAPI) -> N
         checked = 0
         for method, template in sorted(implemented_routes(app)):
             if (
-                template == "/api/v1/auth/login"
+                template in ("/api/v1/auth/login", "/api/v1/auth/register")  # the public doors
                 or method == "GET"
                 and template != "/api/v1/auth/me"
             ):

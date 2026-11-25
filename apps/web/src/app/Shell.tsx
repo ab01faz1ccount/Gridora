@@ -4,6 +4,7 @@ import { Button } from "@/components/Button";
 import { useT } from "@/i18n";
 import { usePrefs, type Calendar, type Digits } from "@/state/prefs";
 import { useUi } from "@/state/ui";
+import { navigate } from "./router";
 
 export function Shell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   const t = useT();
@@ -45,7 +46,8 @@ export function Shell({ children, wide = false }: { children: ReactNode; wide?: 
         </Button>
         {session.data ? (
           <>
-            <span className="muted" dir="ltr">{session.data.user.username}</span>
+            <a href="/account" className="muted" dir="ltr" title={t("nav.account")}
+              onClick={(e) => { e.preventDefault(); navigate("/account"); }}>{session.data.user.username}</a>
             <Button onClick={() => logout.mutate()}>{t("nav.logout")}</Button>
           </>
         ) : null}

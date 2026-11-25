@@ -37,6 +37,18 @@ docker compose exec api python -m gridora_api.cli reset-password --username NAME
 ```
 Passwords are read from the prompt or standard input, never from arguments.
 
+**Self-service sign-up.** The sign-in page lets anyone who can reach the server create a plain (non-admin) account and use it for their own work; accounts never see each other's files. Settings (environment, prefix `GRIDORA_`):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `REGISTRATION_ENABLED` | `true` | `false` closes sign-up (then only the command line creates users) |
+| `REGISTER_MAX_PER_IP` | `10` | sign-up attempts per IP per 15 minutes |
+| `MAX_USERS` | `1000` | no more accounts after this many |
+| `MAX_WORKSPACES_PER_USER` | `50` | workspaces one account may have |
+| `USER_STORAGE_BYTES` | `2147483648` | total size of one account's files (admins are exempt from both quotas) |
+
+A server that is open to the internet should keep these limits, or set `REGISTRATION_ENABLED=false` and add users by hand. Users change their own password on the Account page (it signs their other devices out); a forgotten password is reset with `reset-password` above.
+
 ## 4. Upgrade
 1. Take a backup (section 6).
 2. `git pull && docker compose up -d --build` (database migrations run when the API starts).

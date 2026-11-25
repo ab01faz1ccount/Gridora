@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useSession } from "@/api/hooks";
+import { AccountPage } from "@/features/auth/AccountPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { WorkbookPage } from "@/features/workbook/WorkbookPage";
 import { WorkspaceDetailPage } from "@/features/workspaces/WorkspaceDetailPage";
@@ -35,6 +36,7 @@ export function App() {
     body = (
       <Shell wide={route.name === "workbook"}>
         {route.name === "workbook" ? <WorkbookPage id={route.id} />
+          : route.name === "account" ? <AccountPage />
           : route.name === "workspace" ? <WorkspaceDetailPage id={route.id} />
           : <WorkspacesPage />}
       </Shell>
