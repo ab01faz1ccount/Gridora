@@ -256,3 +256,6 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .wbs-format select { font: inherit; max-inline-size: 150px; }
 .wbs-format [aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .wbs-color { inline-size: 30px; block-size: 28px; padding: 0; border: 1px solid var(--border); background: none; cursor: pointer; }
+.auth-switch { margin: 12px 0 0; text-align: center; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
+.small { font-size: 0.85em; margin: 2px 0 10px; }

@@ -35,6 +35,9 @@ Code strings are stable and part of the contract.
 | POST | `/auth/login` | sets session cookie, returns user |
 | POST | `/auth/logout` | |
 | GET | `/auth/me` | |
+| GET | `/auth/config` | public: `{registration_enabled, password_min_length}` for the sign-in page |
+| POST | `/auth/register` | body `{username, password}` → 201 `AuthResult` and a session cookie; always a plain `user`; refused with `validation_failed` (`auth.username_invalid`, `auth.password_too_short`, `auth.password_common`), `operation_conflict` (`auth.username_taken`, `auth.registration_full`), `forbidden` (`auth.registration_disabled`), `rate_limited` (per IP) |
+| POST | `/auth/password` | body `{current_password, new_password}` → 204; needs the session and CSRF token; ends every other session of the user |
 All mutating requests require the CSRF header `X-CSRF-Token`.
 
 ## 3. Workspaces and files

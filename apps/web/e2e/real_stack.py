@@ -361,6 +361,35 @@ def run(p):
 
     # expected: the 401 of the "who am I" probe before sign-in, and the 409 this script causes on purpose
     bad = [e for e in errors if "favicon" not in e and "status of 401" not in e and "status of 409" not in e]
+    # ---------------- sign-up: a new person gets their own empty space ----------------
+    name = f"e2e_{int(time.time())}"
+    pw = "correct horse battery"
+    ctx2 = browser.new_context(viewport={"width": 1280, "height": 800})
+    ctx2.add_init_script("localStorage.setItem('gridora.prefs', JSON.stringify({locale:'en',digits:'latin',calendar:'gregorian'}))")
+    p2 = ctx2.new_page()
+    p2.goto(BASE + "/")
+    p2.get_by_role("button", name="Create an account").click()
+    p2.get_by_label("Username").fill(name)
+    p2.get_by_label("Password", exact=True).fill(pw)
+    p2.get_by_label("Repeat the password").fill(pw)
+    p2.get_by_role("button", name="Create account").click()
+    p2.get_by_label("Workspace name").wait_for(timeout=15000)
+    check(p2.get_by_text(name).first.is_visible(), "sign-up: the new account is signed in")
+    check(p2.locator(".card, li, [role=listitem]").filter(has_text="e2e").count() == 0
+          or p2.get_by_text("sales.xlsx").count() == 0, "sign-up: the new account sees none of the admin's files")
+    p2.get_by_label("Workspace name").fill("mine")
+    p2.keyboard.press("Enter")
+    p2.get_by_text("mine").first.wait_for(timeout=10000)
+    check(True, "sign-up: the new user creates their own workspace")
+    p2.goto(BASE + "/account")
+    p2.get_by_label("Current password").fill(pw)
+    p2.get_by_label("New password").fill("another long phrase!")
+    p2.get_by_label("Repeat the password").fill("another long phrase!")
+    p2.get_by_role("button", name="Change password").click()
+    p2.get_by_text("Password changed").wait_for(timeout=10000)
+    check(True, "sign-up: password change works")
+    ctx2.close()
+
     check(not bad, f"no console errors or page errors ({bad[:3]})")
     browser.close()
 
