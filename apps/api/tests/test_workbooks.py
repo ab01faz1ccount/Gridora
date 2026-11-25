@@ -218,3 +218,22 @@ def test_workspace_delete_removes_workbooks_and_closes_copies(
         return [docs, wbs]
 
     assert run_db(counts) == [0, 0]
+
+
+def test_freeze_panes_are_kept_with_the_workbook(alice: Session, bob: Session, ws: str) -> None:
+    ids = import_csv(alice, ws, "f.csv", CSV)
+    url = f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/frozen"
+    r = alice.put(url, json={"rows": 1, "cols": 2})
+    assert r.status_code == 200 and r.json()["data"]["frozen"] == {"rows": 1, "cols": 2}
+    wb = Workbook.model_validate(alice.get(f"/api/v1/workbooks/{ids['wb']}").json()["data"])
+    assert wb.sheets[0].frozen is not None and (
+        wb.sheets[0].frozen.rows,
+        wb.sheets[0].frozen.cols,
+    ) == (1, 2)
+    assert alice.put(url, json={"rows": 0, "cols": 0}).json()["data"].get("frozen") is None
+    assert alice.put(url, json={"rows": 101, "cols": 0}).status_code == 400
+    assert alice.put(url, json={"rows": -1, "cols": 0}).status_code == 400
+    assert bob.put(url, json={"rows": 1, "cols": 0}).status_code == 404
+    assert (
+        alice.put(url.replace(ids["sheet"], "nope"), json={"rows": 1, "cols": 0}).status_code == 404
+    )

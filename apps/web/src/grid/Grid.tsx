@@ -58,6 +58,8 @@ export interface GridProps {
   handleRef?: Ref<GridHandle>;
   /** Ctrl+D / Ctrl+R or a drag of the fill handle: continue `source` into the adjacent `target`. */
   onFill?: (plan: FillPlan) => void;
+  /** Rows and columns kept in view while scrolling (off in the very tall "scaled" mode). */
+  frozen?: { rows: number; cols: number };
   source: DataSource;
   rtl: boolean;
   /** Test/measurement hooks. */
@@ -158,13 +160,14 @@ const CellView = memo(function CellView(p: CellViewProps) {
 
 export function Grid({
   source, rtl, cache: cacheProp, viewport, colWidth, onSelectionChange, label,
-  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem, handleRef, onFill, styles, onFormatKey,
+  onEdit, onClear, onUndo, onRedo, onPaste, onClipboardProblem, handleRef, onFill, frozen, styles, onFormatKey,
 }: GridProps) {
   const t = useT();
   const prefs = usePrefs();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const bodyLayerRef = useRef<HTMLDivElement>(null);
   const rowHdrLayerRef = useRef<HTMLDivElement>(null);
+  const leftLayerRef = useRef<HTMLDivElement>(null);
 
   // data
   const cache = useMemo(() => cacheProp ?? new BlockCache(source), [cacheProp, source]);
@@ -199,6 +202,11 @@ export function Grid({
   const bodyH = Math.max(0, size.height - HEADER_H);
   const bodyW = Math.max(0, size.width - HEADER_W);
   const scroller = useMemo(() => makeScroller(rows.total, bodyH), [rows.total, bodyH]);
+  // frozen panes need real (unscaled) scrolling; a sheet tall enough to be scaled is shown unfrozen
+  const fr = scroller.scaled ? 0 : Math.min(frozen?.rows ?? 0, Math.max(0, source.rowCount - 1));
+  const fc = scroller.scaled ? 0 : Math.min(frozen?.cols ?? 0, Math.max(0, source.colCount - 1));
+  const frozenH = rows.offset(fr);
+  const frozenW = cols.offset(fc);
   const contentTop = scroller.toContent(scroll.top);
   const contentLeft = Math.abs(scroll.left); // RTL scrollLeft is <= 0
 
@@ -208,8 +216,11 @@ export function Grid({
   // ask the cache for what is on screen (+ one block of prefetch in each direction)
   useEffect(() => {
     if (rr.last < rr.first || cr.last < cr.first) return;
+    if (fr > 0) cache.ensure(0, fr - 1, Math.max(cr.first, 0), cr.last);
+    if (fc > 0) cache.ensure(rr.first - 100, rr.last + 100, 0, fc - 1);
+    if (fr > 0 && fc > 0) cache.ensure(0, fr - 1, 0, fc - 1);
     cache.ensure(rr.first - 100, rr.last + 100, cr.first, cr.last);
-  }, [cache, rr.first, rr.last, cr.first, cr.last]);
+  }, [cache, rr.first, rr.last, cr.first, cr.last, fr, fc]);
 
   // position the layers: in scaled mode this changes on EVERY scroll event; it is one style write
   const layerTop = scroll.top + rows.offset(rr.first) - contentTop;
@@ -217,6 +228,7 @@ export function Grid({
     const px = `${layerTop}px`;
     if (bodyLayerRef.current) bodyLayerRef.current.style.top = px;
     if (rowHdrLayerRef.current) rowHdrLayerRef.current.style.top = px;
+    if (leftLayerRef.current) leftLayerRef.current.style.top = px;
   });
 
   const onScroll = useCallback(() => {
@@ -248,17 +260,21 @@ export function Grid({
       const rowTop = rows.offset(p.r);
       const rowBottom = rowTop + ROW_H;
       const curTop = scroller.toContent(el.scrollTop);
-      if (rowTop < curTop) el.scrollTop = scroller.toScroll(rowTop);
-      else if (rowBottom > curTop + bodyH) el.scrollTop = scroller.toScroll(rowBottom - bodyH);
+      if (p.r >= fr) {
+        if (rowTop < curTop + frozenH) el.scrollTop = scroller.toScroll(rowTop - frozenH);
+        else if (rowBottom > curTop + bodyH) el.scrollTop = scroller.toScroll(rowBottom - bodyH);
+      }
       // horizontal
       const colStart = cols.offset(p.c);
       const colEnd = colStart + cols.size(p.c);
       const curLeft = Math.abs(el.scrollLeft);
       const sign = rtl ? -1 : 1;
-      if (colStart < curLeft) el.scrollLeft = sign * colStart;
-      else if (colEnd > curLeft + bodyW) el.scrollLeft = sign * (colEnd - bodyW);
+      if (p.c >= fc) {
+        if (colStart < curLeft + frozenW) el.scrollLeft = sign * (colStart - frozenW);
+        else if (colEnd > curLeft + bodyW) el.scrollLeft = sign * (colEnd - bodyW);
+      }
     },
-    [rows, cols, scroller, bodyH, bodyW, rtl],
+    [rows, cols, scroller, bodyH, bodyW, rtl, fr, fc, frozenH, frozenW],
   );
 
   useImperativeHandle(handleRef, () => ({
@@ -487,34 +503,58 @@ export function Grid({
   };
 
   // build the visible cells
+  const cellAt = (r: number, c: number, top: number, start: number) => {
+    const look = cache.getCell(r, c);
+    const d = cellDisplay(look.cell, display);
+    styles?.need(look.cell?.s);
+    return (
+      <CellView key={c} id={`gv-${r}-${c}`} r={r} c={c} top={top} start={start} w={cols.size(c)}
+        text={d.text} kind={d.kind}
+        loading={look.status === "loading" || look.status === "absent"} failed={look.status === "error"}
+        selected={inRange(bounds, r, c)} active={sel.active.r === r && sel.active.c === c}
+        look={styleCss(styles?.get(look.cell?.s))} />
+    );
+  };
   const cells = [];
   const rowHeaders = [];
+  const leftCells = []; // frozen columns, scrolling rows
   for (let r = rr.first; r <= rr.last; r++) {
     const top = rows.offset(r) - rows.offset(rr.first);
-    rowHeaders.push(
-      <div key={r} className={"gv-rowhdr-cell" + (r >= bounds.r0 && r <= bounds.r1 ? " gv-hdr-selected" : "")}
-        style={{ top, blockSize: ROW_H }} aria-hidden="true">
-        {r + 1}
-      </div>,
-    );
-    const rowCells = [];
-    for (let c = cr.first; c <= cr.last; c++) {
-      const look = cache.getCell(r, c);
-      const d = cellDisplay(look.cell, display);
-      styles?.need(look.cell?.s);
-      rowCells.push(
-        <CellView key={c} id={`gv-${r}-${c}`} r={r} c={c} top={top}
-          start={cols.offset(c) - cols.offset(cr.first)} w={cols.size(c)} text={d.text} kind={d.kind}
-          loading={look.status === "loading" || look.status === "absent"} failed={look.status === "error"}
-          selected={inRange(bounds, r, c)} active={sel.active.r === r && sel.active.c === c}
-          look={styleCss(styles?.get(look.cell?.s))} />,
+    if (r >= fr) {
+      rowHeaders.push(
+        <div key={r} className={"gv-rowhdr-cell" + (r >= bounds.r0 && r <= bounds.r1 ? " gv-hdr-selected" : "")}
+          style={{ top, blockSize: ROW_H }} aria-hidden="true">
+          {r + 1}
+        </div>,
       );
     }
+    const rowCells = [];
+    const leftRow = [];
+    for (let c = Math.max(cr.first, 0); c <= cr.last; c++) {
+      if (r < fr) continue; // frozen rows are drawn in their own band
+      if (c >= fc) rowCells.push(cellAt(r, c, top, cols.offset(c) - cols.offset(cr.first)));
+    }
+    for (let c = 0; c < fc && r >= fr; c++) leftRow.push(cellAt(r, c, top, cols.offset(c)));
     cells.push(
       <div key={r} role="row" aria-rowindex={r + 2} style={{ display: "contents" }}>
         {rowCells}
       </div>,
     );
+    if (leftRow.length) leftCells.push(<div key={r} role="presentation" style={{ display: "contents" }}>{leftRow}</div>);
+  }
+  // frozen rows (a sticky band under the column headers) and the corner where both meet
+  const topHeaders = [];
+  const topCells = [];
+  const cornerCells = [];
+  for (let r = 0; r < fr; r++) {
+    topHeaders.push(
+      <div key={r} className={"gv-rowhdr-cell" + (r >= bounds.r0 && r <= bounds.r1 ? " gv-hdr-selected" : "")}
+        style={{ top: rows.offset(r), blockSize: ROW_H }} aria-hidden="true">{r + 1}</div>,
+    );
+    const row = [];
+    for (let c = Math.max(cr.first, fc); c <= cr.last; c++) row.push(cellAt(r, c, rows.offset(r), cols.offset(c) - cols.offset(Math.max(cr.first, fc))));
+    topCells.push(<div key={r} role="row" aria-rowindex={r + 2} style={{ display: "contents" }}>{row}</div>);
+    for (let c = 0; c < fc; c++) cornerCells.push(cellAt(r, c, rows.offset(r), cols.offset(c)));
   }
   const colHeaders = [];
   for (let c = cr.first; c <= cr.last; c++) {
@@ -528,6 +568,14 @@ export function Grid({
       </div>,
     );
   }
+
+  const editorAt = (top: number, start: number) => editing ? (
+    <CellEditor key={`${editing.r}:${editing.c}`} initial={initial} label={t("grid.cellEditor")} top={top} start={start}
+      w={cols.size(editing.c)} onKeyDown={onEditorKey} onBlur={(draft) => finishEdit(draft, true)} />
+  ) : null;
+  const inFrozenCorner = editing && editing.r < fr && editing.c < fc;
+  const inFrozenTop = editing && editing.r < fr && editing.c >= fc && editing.c >= cr.first && editing.c <= cr.last;
+  const inFrozenLeft = editing && editing.c < fc && editing.r >= fr && editing.r >= rr.first && editing.r <= rr.last;
 
   const activeId = `gv-${sel.active.r}-${sel.active.c}`;
   const activeRendered = sel.active.r >= rr.first && sel.active.r <= rr.last &&
@@ -549,10 +597,32 @@ export function Grid({
             </div>
           </div>
         </div>
+        {fr > 0 ? (
+          <div className="gv-frozen-top" style={{ blockSize: frozenH, marginBlockEnd: -frozenH, inlineSize: HEADER_W + cols.total, insetBlockStart: HEADER_H }}>
+            <div className="gv-frozen-hdr" style={{ inlineSize: HEADER_W, blockSize: frozenH }}>{topHeaders}</div>
+            {fc > 0 ? (
+              <div className="gv-frozen-corner" style={{ inlineSize: frozenW, blockSize: frozenH, insetInlineStart: HEADER_W }}>
+                {cornerCells}{inFrozenCorner && editing ? editorAt(rows.offset(editing.r), cols.offset(editing.c)) : null}
+              </div>
+            ) : null}
+            <div className="gv-frozen-run" style={{ inlineSize: cols.total - frozenW, blockSize: frozenH }}>
+              <div className="gv-layer" style={{ insetInlineStart: cols.offset(Math.max(cr.first, fc)) - frozenW }}>{topCells}
+                {inFrozenTop && editing ? editorAt(rows.offset(editing.r), cols.offset(editing.c) - cols.offset(Math.max(cr.first, fc))) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="gv-main" style={{ blockSize: scroller.proxyPx }}>
           <div className="gv-rowhdr" style={{ inlineSize: HEADER_W, blockSize: scroller.proxyPx }}>
             <div ref={rowHdrLayerRef} className="gv-layer">{rowHeaders}</div>
           </div>
+          {fc > 0 ? (
+            <div className="gv-frozen-left" style={{ inlineSize: frozenW, blockSize: scroller.proxyPx, marginInlineEnd: -frozenW, insetInlineStart: HEADER_W }}>
+              <div ref={leftLayerRef} className="gv-layer" style={{ inlineSize: frozenW }}>{leftCells}
+                {inFrozenLeft && editing ? editorAt(rows.offset(editing.r) - rows.offset(rr.first), cols.offset(editing.c)) : null}
+              </div>
+            </div>
+          ) : null}
           <div className="gv-body" style={{ inlineSize: cols.total, blockSize: scroller.proxyPx }}>
             <div ref={bodyLayerRef} className="gv-layer" style={{ insetInlineStart: cols.offset(cr.first) }}>
               {cells}
@@ -568,13 +638,8 @@ export function Grid({
                     blockSize: rows.offset(fillPlan.target.r1 + 1) - rows.offset(fillPlan.target.r0),
                     inlineSize: cols.offset(fillPlan.target.c1 + 1) - cols.offset(fillPlan.target.c0) }} />
               ) : null}
-              {editing && editing.r >= rr.first && editing.r <= rr.last && editing.c >= cr.first && editing.c <= cr.last ? (
-                <CellEditor key={`${editing.r}:${editing.c}`} initial={initial} label={t("grid.cellEditor")}
-                  top={rows.offset(editing.r) - rows.offset(rr.first)}
-                  start={cols.offset(editing.c) - cols.offset(cr.first)} w={cols.size(editing.c)}
-                  onKeyDown={onEditorKey}
-                  onBlur={(draft) => finishEdit(draft, true)} />
-              ) : null}
+              {editing && editing.r >= Math.max(rr.first, fr) && editing.r <= rr.last && editing.c >= Math.max(cr.first, fc) && editing.c <= cr.last
+                ? editorAt(rows.offset(editing.r) - rows.offset(rr.first), cols.offset(editing.c) - cols.offset(cr.first)) : null}
             </div>
           </div>
         </div>

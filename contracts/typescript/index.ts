@@ -21,6 +21,7 @@ export interface Range { sheet_id: string; r0: number; c0: number; r1: number; c
 export interface Window { row0: number; col0: number; rows: number; cols: number }
 export interface CellWindow { sheet_id: string; row0: number; col0: number; rows: number; cols: number; cells: Cell[] }
 
+export interface FrozenRequest { rows: number; cols: number }
 export interface SheetMeta {
   id: string; name: string; index: number;
   visible: "visible" | "hidden" | "very_hidden";

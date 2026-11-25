@@ -101,6 +101,11 @@ class Frozen(_Base):
     cols: int = 0
 
 
+class FrozenRequest(_Base):
+    rows: int = Field(ge=0, le=100)
+    cols: int = Field(ge=0, le=26)
+
+
 class SheetMeta(_Base):
     id: str
     name: str

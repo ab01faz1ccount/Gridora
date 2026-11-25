@@ -101,6 +101,9 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
             "change": {"bold": True},
         },
     ),
+    ("PUT", "/api/v1/workbooks/{id}/sheets/{sheet_id}/frozen"): lambda c, ids: c.put(
+        f"/api/v1/workbooks/{ids['wb']}/sheets/{ids['sheet']}/frozen", json={"rows": 1, "cols": 0}
+    ),
     ("PUT", "/api/v1/workbooks/{id}/calendar"): lambda c, ids: c.put(
         f"/api/v1/workbooks/{ids['wb']}/calendar", json={"calendar": "hijri"}
     ),
