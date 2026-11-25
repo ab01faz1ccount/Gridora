@@ -140,6 +140,18 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .gv-rowhdr { position: sticky; inset-inline-start: 0; z-index: 2; flex: none; background: var(--bg);
   border-inline-end: 1px solid var(--border); }
 .gv-body { position: relative; flex: none; }
+/* frozen panes: bands that stay put while the rest scrolls (opaque, so scrolled cells pass under them) */
+.gv-frozen-top { display: flex; flex: none; position: sticky; z-index: 3; background: var(--surface);
+  border-block-end: 2px solid var(--border); box-sizing: content-box; }
+.gv-frozen-hdr { position: sticky; inset-inline-start: 0; z-index: 4; flex: none; background: var(--bg);
+  border-inline-end: 1px solid var(--border); }
+.gv-frozen-hdr .gv-rowhdr-cell { inset-inline-start: 0; inline-size: 100%; }
+.gv-frozen-corner { position: sticky; z-index: 3; flex: none; background: var(--surface);
+  border-inline-end: 2px solid var(--border); }
+.gv-frozen-run { position: relative; flex: none; }
+.gv-frozen-left { position: sticky; z-index: 2; flex: none; background: var(--surface);
+  border-inline-end: 2px solid var(--border); box-sizing: content-box; }
+.gv-frozen-left .gv-layer { inset-inline-start: 0; }
 .gv-layer { position: absolute; inset-block-start: 0; }
 .gv-rowhdr .gv-layer { inset-inline-start: 0; inline-size: 100%; }
 .gv-colhdr-cell, .gv-rowhdr-cell { position: absolute; display: flex; align-items: center; justify-content: center;

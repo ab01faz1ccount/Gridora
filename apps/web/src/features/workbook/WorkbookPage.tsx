@@ -1,7 +1,7 @@
 import type { CellEdit, SheetMeta } from "@contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import { errorKey } from "@/api/errors";
 import { useWorkbook } from "@/api/hooks";
 import { navigate } from "@/app/router";
@@ -163,6 +163,18 @@ function WorkbookView({
   const multi = b.r0 !== b.r1 || b.c0 !== b.c1;
   const sum = (void version, summarize(cache, b));
 
+  const qc = useQueryClient();
+  const fr = sheet.frozen?.rows ?? 0;
+  const fcols = sheet.frozen?.cols ?? 0;
+  const freezeValue = fr === 0 && fcols === 0 ? "none" : fr === 1 && fcols === 0 ? "row"
+    : fr === 0 && fcols === 1 ? "col" : fr === 1 && fcols === 1 ? "both" : "custom";
+  const freeze = (how: string) => {
+    const [rows, cols] = how === "row" ? [1, 0] : how === "col" ? [0, 1] : how === "both" ? [1, 1]
+      : how === "here" ? [active.r, active.c] : how === "custom" ? [fr, fcols] : [0, 0];
+    api.put(`/workbooks/${editor.workbookId}/sheets/${sheet.id}/frozen`, { rows: Math.min(rows, 100), cols: Math.min(cols, 26) })
+      .then(() => qc.invalidateQueries({ queryKey: ["workbook", editor.workbookId] }))
+      .catch(fail);
+  };
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.code === "version_conflict") return; // the banner says it, in more words
     push("error", e instanceof RangeError ? t("edit.rangeTooLarge") : t(errorKey(e)));
@@ -207,6 +219,14 @@ function WorkbookView({
           {t("shell.history")}
         </Button>
         <Button onClick={() => setFinding(!finding)} aria-pressed={finding}>{t("shell.find")}</Button>
+        <select aria-label={t("freeze.label")} value={freezeValue} onChange={(e) => freeze(e.target.value)}>
+          <option value="none">{t("freeze.none")}</option>
+          <option value="row">{t("freeze.row")}</option>
+          <option value="col">{t("freeze.col")}</option>
+          <option value="both">{t("freeze.both")}</option>
+          <option value="here">{t("freeze.here")}</option>
+          {freezeValue === "custom" ? <option value="custom">{t("freeze.custom")}</option> : null}
+        </select>
         {(["tables", "charts", "tools", "export"] as const).map((k) => (
           <Button key={k} onClick={() => setPanel(panel === k ? null : k)} aria-pressed={panel === k}>{t(`shell.${k}`)}</Button>
         ))}
@@ -277,7 +297,7 @@ function WorkbookView({
           onCommit={(text) => commit(active.r, active.c, text)} />
       </div>
       <div className="wbs-grid gv-host">
-        <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel} handleRef={gridRef} onFill={fill}
+        <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel} handleRef={gridRef} onFill={fill} frozen={sheet.frozen}
           onEdit={commit} onClear={clear} onUndo={undo} onRedo={redo}
           onPaste={paste} onClipboardProblem={clipboardProblem} />
       </div>
