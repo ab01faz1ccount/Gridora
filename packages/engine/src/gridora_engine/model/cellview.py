@@ -19,6 +19,7 @@ def make_cell(
     styles = state.styles
     v = to_contract_value(tag, val, state.strings)
     fmt = None
+    shown = None
     if style and styles is not None:
         if tag == NUM and style < len(styles.xf_is_date) and styles.xf_is_date[style]:
             iso = serial_to_iso(val, state.date_system)
@@ -26,13 +27,25 @@ def make_cell(
                 v = DateValue.model_construct(k="date", iso=iso)
         if style < len(styles.xf_numfmt) and styles.xf_numfmt[style]:
             fmt = str(styles.xf_numfmt[style])
+        if tag == NUM and style < len(styles.xf_code) and styles.xf_code[style] and not styles.xf_is_date[style]:
+            shown = _shown(val, styles.xf_code[style], state.date_system == "1904")
     key = (r << 14) | c
     text = sheet.formulas.get(key) if sheet.formulas else None
     if text is None and sheet.fkind and sheet.fkind.get(key) == 3:
         text = child_text(sheet, key)
     return Cell.model_construct(
-        r=r, c=c, v=v, f=None if text is None else "=" + text, s=style or None, t=fmt
+        r=r, c=c, v=v, f=None if text is None else "=" + text, s=style or None, t=fmt, d=shown
     )
+
+
+def _shown(val: float, code: str | None, date1904: bool) -> str | None:
+    """The number as its format shows it (None when the format cannot be applied)."""
+    from ..formula.numfmt import format_value
+
+    try:
+        return format_value(val, code or "", date1904)
+    except Exception:  # noqa: BLE001 - an unusual format code: the grid then shows the plain number
+        return None
 
 
 def read_cell(state: WorkbookState, sheet: SheetState, r: int, c: int) -> Cell:

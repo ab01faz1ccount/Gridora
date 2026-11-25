@@ -16,14 +16,29 @@ export interface CellDisplay {
 }
 
 /**
- * Raw display only. Cell styles and number formats (`Cell.s`, `Cell.t`) are NOT applied: no
- * contract exposes the style table yet (apps/DESIGN.md 3.3). Numbers use the chosen digit set.
+ * Numbers with a number format show the text the server made (`Cell.d`: 1,234.50, 25% ...); the other
+ * values show as they are. Look (font, colours) is applied by the grid from `Cell.s`, not here. The
+ * chosen digit set applies to all numbers.
  */
+const PERSIAN = "۰۱۲۳۴۵۶۷۸۹";
+const ARABIC = "٠١٢٣٤٥٦٧٨٩";
+
+/** Digits (and the separators between them) of server-made text in the chosen digit set. */
+export function localizeDigits(text: string, digits: Digits): string {
+  if (digits === "latin") return text;
+  const set = digits === "persian" ? PERSIAN : ARABIC;
+  return text
+    .replace(/\d/g, (d) => set[Number(d)] ?? d)
+    .replace(/(?<=[۰-۹٠-٩]),(?=[۰-۹٠-٩])/g, "٬")
+    .replace(/(?<=[۰-۹٠-٩])\.(?=[۰-۹٠-٩])/g, "٫");
+}
+
 export function cellDisplay(cell: Cell | undefined, p: DisplayPrefs): CellDisplay {
   const v = cell?.v;
   if (!v) return { text: "", kind: "empty" };
   switch (v.k) {
     case "num":
+      if (cell?.d) return { text: localizeDigits(cell.d, p.digits), kind: "num" };
       return { text: formatNumber(v.n, p.digits, 10, false), kind: "num" };
     case "str":
       return { text: v.s, kind: "str" };

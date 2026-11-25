@@ -19,9 +19,9 @@ def test_import_signatures_accept_file_id_keyword_only():
         assert p.default is None
 
 
-def test_optional_extensions_are_not_claimed_yet():
+def test_optional_extensions_claimed_and_not():
     e = create_engine({})
-    assert not isinstance(e, FormattingEngine)
+    assert isinstance(e, FormattingEngine)  # since contract 0.8.0
     assert not isinstance(e, StructureEngine)
 
 

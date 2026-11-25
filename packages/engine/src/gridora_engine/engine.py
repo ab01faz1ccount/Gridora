@@ -35,6 +35,8 @@ from .errors import (
     too_large_for_history,
     validation_failed,
 )
+from .formatting import ensure_from_delta, table_of, to_out
+from .formatting import format_cells as _format_cells
 from .formula.parser import FormulaSyntaxError
 from .formula.parser import parse as parse_formula
 from .limits import ResourceLimits
@@ -151,6 +153,20 @@ class GridoraEngine:
             raise bad_request(code, "The fill range does not fit the selection." if code == "fill.shape"
                               else "The fill range is too large.") from None
 
+    # -- FormattingEngine (contract 0.8.0) ----------------------------------------------------
+    def get_styles(self, wb: WorkbookHandle, ids: list[int]) -> list[Any]:
+        table = table_of(self._state(wb))
+        return [to_out(table, i if 0 <= i < len(table.xf_numfmt) else 0) for i in ids]
+
+    def get_sheet_layout(self, wb: WorkbookHandle, sheet_id: str) -> Any:
+        from gridora_contracts.models import SheetLayout
+
+        self._sheet(wb, sheet_id)
+        return SheetLayout(sheet_id=sheet_id)  # column widths and row heights are not read yet
+
+    def format_cells(self, wb: WorkbookHandle, rng: Range, change: dict[str, Any]) -> Delta:
+        return _format_cells(self, wb, rng, change)
+
     def apply_cell_edits(self, wb: WorkbookHandle, sheet_id: str, edits: list[CellEdit]) -> Delta:
         state, sheet = self._sheet(wb, sheet_id)
         limits = self.limits
@@ -246,6 +262,8 @@ class GridoraEngine:
         if delta.kind != "cell_patch":
             raise validation_failed("delta.unsupported_kind", "This kind of change is not supported yet.")
         state, sheet = self._sheet(wb, delta.sheet_id)
+        if delta.styles:
+            ensure_from_delta(state, delta.styles)
         cells = delta.before if inverse else delta.after
         if len(cells) > self.limits.max_patch_cells:
             raise too_large_for_history()

@@ -1,4 +1,4 @@
-import type { CellEdit, SheetMeta } from "@contracts";
+import type { CellEdit, FormatChange, SheetMeta, StyleInfo } from "@contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, ApiError } from "@/api/client";
@@ -14,7 +14,9 @@ import { columnLetters } from "@/grid/geometry";
 import { boundsOf, single, type FillPlan, type Selection } from "@/grid/selection";
 import { cellRaw, summarize } from "@/grid/summary";
 import { CompatPanel } from "@/features/import/CompatPanel";
+import { StyleStore } from "@/grid/styles";
 import { FindBar } from "./FindBar";
+import { FormatBar } from "./FormatBar";
 import { OperationPanel } from "@/features/operations/OperationPanel";
 import { ChartsPanel } from "@/features/charts/ChartsPanel";
 import { ExportPanel } from "@/features/export/ExportPanel";
@@ -127,6 +129,13 @@ function WorkbookView({
   // Same cache object for the life of the sheet; a grown sheet only swaps its dimensions in.
   const cache = useMemo(() => editor.caches.get(sheet.id, source), [editor, sheet.id, source]);
   const ed = useSyncExternalStore(editor.subscribe, editor.getSnapshot);
+  // Looks (font, colours ...) behind the format ids that cells carry, fetched once per id.
+  const styles = useMemo(
+    () => new StyleStore((ids) => api.get<StyleInfo[]>(`/workbooks/${editor.workbookId}/styles`, { query: { ids: ids.join(",") } })),
+    [editor],
+  );
+  useEffect(() => () => styles.dispose(), [styles]);
+  useSyncExternalStore(styles.subscribe, styles.getVersion);
   const version = useSyncExternalStore(cache.subscribe, cache.getVersion);
   const [sel, setSel] = useState<Selection>(single({ r: 0, c: 0 }));
   const [taskQuery, setTaskQuery] = useState("");
@@ -190,6 +199,17 @@ function WorkbookView({
       }))
       .catch(fail);
   };
+  const format = (change: FormatChange) => {
+    editor
+      .write(`/workbooks/${editor.workbookId}/sheets/${sheet.id}/format`, (base_seq) => ({
+        base_seq, range: { sheet_id: sheet.id, r0: b.r0, c0: b.c0, r1: b.r1, c1: b.c1 }, change,
+      }))
+      .catch(fail);
+  };
+  const activeCell = (void version, cache.getCell(active.r, active.c).cell);
+  styles.need(activeCell?.s);
+  const look = styles.get(activeCell?.s);
+  const formatKey = (k: "bold" | "italic" | "underline") => format({ [k]: !look?.[k] });
   const clipboardProblem = (reason: "notLoaded" | "tooLarge") =>
     push("error", t(reason === "notLoaded" ? "clipboard.notLoaded" : "clipboard.tooLarge"));
   const commit = (r: number, c: number, text: string) => {
@@ -286,6 +306,7 @@ function WorkbookView({
           <Button onClick={() => editor.dismissConflict()}>{t("common.dismiss")}</Button>
         </div>
       ) : null}
+      <FormatBar look={look} onChange={format} />
       {finding ? (
         <FindBar workbookId={editor.workbookId} sheetId={sheet.id} active={sel.active}
           onGo={(r, c) => gridRef.current?.goTo(r, c)}
@@ -297,7 +318,7 @@ function WorkbookView({
           onCommit={(text) => commit(active.r, active.c, text)} />
       </div>
       <div className="wbs-grid gv-host">
-        <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel} handleRef={gridRef} onFill={fill} frozen={sheet.frozen}
+        <Grid source={source} cache={cache} rtl={sheet.rtl} onSelectionChange={setSel} handleRef={gridRef} onFill={fill} frozen={sheet.frozen} styles={styles} onFormatKey={formatKey}
           onEdit={commit} onClear={clear} onUndo={undo} onRedo={redo}
           onPaste={paste} onClipboardProblem={clipboardProblem} />
       </div>

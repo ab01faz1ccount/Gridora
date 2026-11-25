@@ -280,6 +280,36 @@ def run(p):
     check(shown, "find: a missing text says so")
     box.press("Escape")
 
+    # ---------------- cell formatting ----------------
+    page.get_by_role("grid").focus()
+    goto_cell(page, 20, 12)
+    page.get_by_role("button", name="Bold").click()
+    weight = lambda: page.evaluate("getComputedStyle(document.querySelector('#gv-20-12')).fontWeight")
+    deadline = time.time() + 8
+    while time.time() < deadline and int(weight()) < 600:
+        time.sleep(0.2)
+    check(int(weight()) >= 600, "format: the Bold button makes the cell bold")
+    page.get_by_label("Number format").select_option("0.00%")
+    check(wait_cell(page, 20, 12, "7700.00%"), "format: number format 0.00% shows 7700.00% (value stays 77)")
+    page.get_by_label("Font", exact=True).select_option("Tahoma")
+    deadline = time.time() + 8
+    fam = ""
+    while time.time() < deadline and "Tahoma" not in fam:
+        fam = page.evaluate("getComputedStyle(document.querySelector('#gv-20-12')).fontFamily")
+        time.sleep(0.2)
+    check("Tahoma" in fam, "format: the font picker sets the font")
+    page.get_by_role("grid").focus()
+    for _ in range(3):
+        page.keyboard.press("Control+Z")
+        time.sleep(0.4)
+    check(wait_cell(page, 20, 12, "77") and int(weight()) < 600, "format: three undos bring back the plain cell")
+    page.keyboard.press("Control+B")
+    deadline = time.time() + 8
+    while time.time() < deadline and int(weight()) < 600:
+        time.sleep(0.2)
+    check(int(weight()) >= 600, "format: Ctrl+B makes the cell bold")
+    page.screenshot(path=f"{SHOTS}/format.png")
+
     # ---------------- Data Table, chart, export (panels) ----------------
     page.get_by_role("grid").focus()
     page.keyboard.press("Control+Home")
