@@ -16,7 +16,7 @@ from ...core.errors import DomainError, request_id_of
 from ...db.models import DataTableRow, Document, StoredFile, WorkbookRow, Workspace
 from ...db.repos.owned import get_owned, list_owned
 from ...db.session import get_db
-from ...services import audit
+from ...services import audit, quotas
 from ...services import files as file_service
 from ...services import tables as table_service
 from ...services.auth import AuthContext
@@ -78,6 +78,7 @@ async def list_workspaces(request: Request, ctx: Ctx, db: Db) -> Envelope[list[W
 async def create_workspace(
     body: NameBody, request: Request, ctx: Ctx, db: Db
 ) -> Envelope[WorkspaceOut]:
+    await quotas.check_workspace_slot(db, request.app.state.settings, ctx.user)
     w = Workspace(owner_id=ctx.user.id, name=body.name)
     db.add(w)
     audit.record(
@@ -174,6 +175,7 @@ async def upload_file(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[U
     )
     rec: StoredFile | None = None
     try:
+        await quotas.check_storage(db, settings, ctx.user, stored.size)
         rec = await file_service.finalize_upload(
             db, request.app.state.layout, owner_id=ctx.user.id, workspace_id=w.id, stored=stored
         )

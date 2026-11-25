@@ -56,7 +56,7 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-const AUTH_PATHS = new Set(["/auth/login", "/auth/me"]);
+const AUTH_PATHS = new Set(["/auth/login", "/auth/me", "/auth/register", "/auth/password"]);
 
 export async function request<T>(
   method: string,

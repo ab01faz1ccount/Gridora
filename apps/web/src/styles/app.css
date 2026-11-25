@@ -263,3 +263,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8125rem; }
 .chart-legend i { display: inline-block; inline-size: 10px; block-size: 10px; margin-inline-end: 4px; border-radius: 2px; }
 .btn[href] { text-decoration: none; display: inline-block; }
+
+.auth-switch { margin: 12px 0 0; text-align: center; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
+.small { font-size: 0.85em; margin: 2px 0 10px; }
