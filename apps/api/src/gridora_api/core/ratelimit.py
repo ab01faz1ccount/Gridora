@@ -25,10 +25,16 @@ def ip_key(ip: str | None) -> str:
     return "i:" + hashlib.sha256((ip or "unknown").encode()).hexdigest()[:64]
 
 
+def register_key(ip: str | None) -> str:
+    return "r:" + hashlib.sha256((ip or "unknown").encode()).hexdigest()[:64]
+
+
 class LoginLimiter:
-    def __init__(self, window_seconds: int, max_user: int, max_ip: int) -> None:
+    def __init__(
+        self, window_seconds: int, max_user: int, max_ip: int, max_register: int = 10
+    ) -> None:
         self.window = timedelta(seconds=window_seconds)
-        self.limits = {"u": max_user, "i": max_ip}
+        self.limits = {"u": max_user, "i": max_ip, "r": max_register}
 
     async def check(self, db: AsyncSession, keys: list[str]) -> None:
         now = datetime.now(UTC)

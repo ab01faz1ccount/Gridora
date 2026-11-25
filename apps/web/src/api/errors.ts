@@ -25,6 +25,16 @@ const REASONS: Record<string, MessageKey> = {
   "stub.xlsx_unsupported": "error.reason.stub_xlsx",
   "stub.formulas_unsupported": "error.reason.formulas_unsupported",
   "operation.confirm_required": "error.reason.confirm_required",
+  "auth.username_invalid": "error.reason.username_invalid",
+  "auth.username_taken": "error.reason.username_taken",
+  "auth.password_too_short": "error.reason.password_too_short",
+  "auth.password_common": "error.reason.password_common",
+  "auth.password_too_long": "error.reason.password_too_long",
+  "auth.password_unchanged": "error.reason.password_unchanged",
+  "auth.registration_disabled": "error.reason.registration_disabled",
+  "auth.registration_full": "error.reason.registration_full",
+  "quota.workspaces": "error.reason.quota_workspaces",
+  "quota.storage": "error.reason.quota_storage",
 };
 
 export function reasonOf(e: unknown): string | undefined {
