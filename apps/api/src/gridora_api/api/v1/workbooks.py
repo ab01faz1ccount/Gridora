@@ -21,6 +21,7 @@ from gridora_contracts.models import (
     Job,
     SetCalendarRequest,
     SheetMeta,
+    StructureRequest,
     StyleInfo,
     Window,
     Workbook,
@@ -230,26 +231,6 @@ async def fill_range(
     return ok(request, result)
 
 
-@router.put("/workbooks/{id}/sheets/{sheet_id}/frozen", response_model=Envelope[SheetMeta])
-async def set_frozen(
-    id: str, sheet_id: str, body: FrozenRequest, request: Request, ctx: Ctx, db: Db
-) -> Envelope[SheetMeta]:
-    """Freeze the first rows and columns of a sheet (0/0 unfreezes). A view setting: it is kept
-    with the workbook, is not part of the undo history and does not change any cell."""
-    row = await history_service.lock_workbook(db, ctx.user.id, id)
-    meta = dict(row.meta_json)
-    sheets = [dict(s) for s in meta.get("sheets", [])]
-    target = next((s for s in sheets if s["id"] == sheet_id), None)
-    if target is None:
-        raise DomainError("not_found")
-    target["frozen"] = {"rows": body.rows, "cols": body.cols} if body.rows or body.cols else None
-    meta["sheets"] = sheets
-    row.meta_json = meta  # reassign: SQLAlchemy does not see in-place JSON mutation
-    await db.commit()
-    sheet = next(s for s in wb_service.workbook_meta(row).sheets if s.id == sheet_id)
-    return ok(request, sheet)
-
-
 def _need_formatting(st: Any) -> None:
     if not st.services.formatting_available:
         raise DomainError(
@@ -300,6 +281,62 @@ async def format_range(
         db, st.services, st.copies, row, entry, sheet_id, body
     )
     return ok(request, result)
+
+
+def _need_structure(st: Any) -> None:
+    if not st.services.structure_available:
+        raise DomainError(
+            "operation_conflict",
+            "This engine version cannot insert or delete rows and columns.",
+            details=[ErrorDetail(code="engine.not_implemented", message="structure")],
+        )
+
+
+@router.post(
+    "/workbooks/{id}/sheets/{sheet_id}/structure", response_model=Envelope[CellsChangedResult]
+)
+async def change_structure(
+    id: str,
+    sheet_id: str,
+    body: StructureRequest,
+    request: Request,
+    ctx: Ctx,
+    db: Db,
+) -> Envelope[CellsChangedResult]:
+    """Insert or delete rows / columns: formulas follow, one history entry (undoable). Sheets with
+    merged cells, filters, validation, tables, drawings or array formulas are refused (409)."""
+    st = request.app.state
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    if sheet_id not in {s.id for s in wb_service.workbook_meta(row).sheets}:
+        raise DomainError("not_found")
+    _need_structure(st)
+    entry = await wb_service.ensure_open(
+        db, st.services, st.copies, st.layout, row, time_limit=st.settings.import_timeout_seconds
+    )
+    result = await history_service.apply_structure(
+        db, st.services, st.copies, row, entry, sheet_id, body
+    )
+    return ok(request, result)
+
+
+@router.put("/workbooks/{id}/sheets/{sheet_id}/frozen", response_model=Envelope[SheetMeta])
+async def set_frozen(
+    id: str, sheet_id: str, body: FrozenRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[SheetMeta]:
+    """Freeze the first rows and columns of a sheet (0/0 unfreezes). A view setting: it is kept
+    with the workbook, is not part of the undo history and does not change any cell."""
+    row = await history_service.lock_workbook(db, ctx.user.id, id)
+    meta = dict(row.meta_json)
+    sheets = [dict(s) for s in meta.get("sheets", [])]
+    target = next((s for s in sheets if s["id"] == sheet_id), None)
+    if target is None:
+        raise DomainError("not_found")
+    target["frozen"] = {"rows": body.rows, "cols": body.cols} if body.rows or body.cols else None
+    meta["sheets"] = sheets
+    row.meta_json = meta  # reassign: SQLAlchemy does not see in-place JSON mutation
+    await db.commit()
+    sheet = next(s for s in wb_service.workbook_meta(row).sheets if s.id == sheet_id)
+    return ok(request, sheet)
 
 
 def _need_calendar(st: Any) -> None:

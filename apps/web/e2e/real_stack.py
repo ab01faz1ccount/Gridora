@@ -246,8 +246,23 @@ def run(p):
     check(wait_cell(page, 10, 8, "1") and wait_cell(page, 12, 8, "3"), "spill: undo of the blocking value restores the spill")
     page.keyboard.press("Control+Z")
     check(wait_cell(page, 10, 8, "") and wait_cell(page, 12, 8, ""), "spill: undo of the formula removes the whole spill")
+
     page.keyboard.press("Control+Y")
     check(wait_cell(page, 12, 8, "3"), "spill: redo brings the spill back")
+    page.keyboard.press("Control+Z")  # the spill is a formula on this sheet; rows can't move around it
+    check(wait_cell(page, 12, 8, ""), "spill: removed again before the row tests")
+
+    # insert / delete rows (docs/API_CONTRACTS.md, StructureEngine)
+    goto_cell(page, 1, 0)
+    page.get_by_label("Rows and columns").select_option("insertRowAbove")
+    check(wait_cell(page, 2, 3, "31.5") and wait_cell(page, 1, 3, ""), "rows: inserting above row 2 moves the formula down")
+    check(wait_cell(page, 2, 0, "نان"), "rows: its neighbours moved with it")
+    page.keyboard.press("Control+z")
+    check(wait_cell(page, 1, 3, "31.5") and wait_cell(page, 1, 0, "نان"), "rows: undo puts everything back")
+    page.keyboard.press("Control+y")
+    check(wait_cell(page, 2, 3, "31.5"), "rows: redo inserts again")
+    page.keyboard.press("Control+z")
+    check(wait_cell(page, 1, 3, "31.5"), "rows: second undo")
 
     # ---------------- fill (Ctrl+D) and find (Ctrl+F) ----------------
     goto_cell(page, 20, 12)

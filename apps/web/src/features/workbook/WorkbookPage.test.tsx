@@ -193,3 +193,39 @@ describe("WorkbookPage editing", () => {
     expect(screen.queryByText("Edited cells (4 cells)")).toBeNull();
   });
 });
+
+describe("WorkbookPage rows and columns", () => {
+  const structureEntry = { ...entry(1), delta: { kind: "sheet_structure", sheet_id: "s1", change: {} }, label: "history.insert_rows" };
+
+  it("inserting a row above the selection is one request and reloads the sheet", async () => {
+    const api = mockApi({
+      "GET /workbooks/w1": () => ok(WORKBOOK),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
+      "GET /documents/w1/history?limit=100": () => ok([]),
+      "POST /workbooks/w1/sheets/s1/structure": () => ok({ history_entry: structureEntry, sheet_id: "s1", cells: [] }),
+    });
+    const user = userEvent.setup();
+    page();
+    await ready();
+    await user.selectOptions(screen.getByLabelText(catalogs.en["structure.label"]), "insertRowAbove");
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ base_seq: 0, axis: "row", op: "insert", at: 0, count: 1 });
+    // the answer carries no cells, so the grid asks for the window again
+    await waitFor(() => expect(api.calls.filter((c) => c.path.includes("/cells?r0=0")).length).toBeGreaterThan(1));
+  });
+
+  it("a refusal is shown as a plain-language message", async () => {
+    mockApi({
+      "GET /workbooks/w1": () => ok(WORKBOOK),
+      "GET /workbooks/w1/sheets/s1/cells?r0=0&c0=0&rows=100&cols=26": () => ok({ sheet_id: "s1", row0: 0, col0: 0, rows: 100, cols: 26, cells: [] }),
+      "GET /documents/w1/history?limit=100": () => ok([]),
+      "POST /workbooks/w1/sheets/s1/structure": () => err(409, "operation_conflict", undefined, [{ code: "structure.unsupported_feature", message: "x" }]),
+    });
+    useUi.setState({ toasts: [] });
+    const user = userEvent.setup();
+    page();
+    await ready();
+    await user.selectOptions(screen.getByLabelText(catalogs.en["structure.label"]), "deleteCols");
+    await waitFor(() => expect(useUi.getState().toasts.map((t) => t.text)).toEqual([catalogs.en["error.reason.structure_unsupported"]]));
+  });
+});

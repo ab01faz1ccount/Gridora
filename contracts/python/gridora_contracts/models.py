@@ -605,6 +605,14 @@ class FillRequest(_Base):  # v0.7.0
     target: Range  # the new cells, against one side of `source`, same columns (down/up) or rows (right/left)
 
 
+class StructureRequest(_Base):  # v0.8.0
+    base_seq: int
+    axis: Literal["row", "col"]
+    op: Literal["insert", "delete"]
+    at: int = Field(ge=0)  # 0-based index of the first row/column inserted before, or deleted
+    count: int = Field(ge=1, le=100_000)
+
+
 class CellEditRequest(_Base):
     base_seq: int  # last history seq the client has seen; mismatch -> 409 version_conflict
     edits: list[CellEdit]

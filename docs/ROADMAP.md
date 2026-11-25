@@ -29,7 +29,7 @@ Everything here can be built and tested with automated checks (unit tests, API t
 ### Engine
 8. `SUBTOTAL` for rows hidden by an AutoFilter; `A1#` spill references; implicit-intersection removal for bare ranges.
 9. Faster export after a bulk write (22 s for 100,000 rows) and progress/cancel for long engine calls (design in `packages/engine/DESIGN.md` §0.8).
-10. Row/column insert and delete (`StructureEngine`) — the riskiest feature; needs reference rewriting and its own test plan.
+10. Row/column insert and delete (`StructureEngine`) — DONE for plain sheets: cells, every formula of the workbook (Excel's reference rules), row heights/hidden rows, column widths and undo/redo. Sheets with merged cells, filters, validation, conditional formats, tables, drawings, comments, hyperlinks, array or spilled formulas, and workbooks with charts, pivot tables or defined names pointing at the sheet are refused (409 `structure.*`) rather than risked. Lifting those refusals is follow-up work, one feature at a time.
 11. Process-level import isolation (snapshot profile W, ADR-011/015) so hostile parsing cannot take the API down.
 12. Shared and array formula member cells are read-only today; make them editable.
 

@@ -184,6 +184,19 @@ function WorkbookView({
       .then(() => qc.invalidateQueries({ queryKey: ["workbook", editor.workbookId] }))
       .catch(fail);
   };
+  const restructure = (how: string) => {
+    const nr = b.r1 - b.r0 + 1;
+    const nc = b.c1 - b.c0 + 1;
+    const [axis, op, at, count] = how === "insertRowAbove" ? ["row", "insert", b.r0, nr]
+      : how === "insertRowBelow" ? ["row", "insert", b.r1 + 1, nr]
+      : how === "deleteRows" ? ["row", "delete", b.r0, nr]
+      : how === "insertColLeft" ? ["col", "insert", b.c0, nc]
+      : how === "insertColRight" ? ["col", "insert", b.c1 + 1, nc]
+      : ["col", "delete", b.c0, nc];
+    editor
+      .write(`/workbooks/${editor.workbookId}/sheets/${sheet.id}/structure`, (base_seq) => ({ base_seq, axis, op, at, count }))
+      .catch(fail);
+  };
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.code === "version_conflict") return; // the banner says it, in more words
     push("error", e instanceof RangeError ? t("edit.rangeTooLarge") : t(errorKey(e)));
@@ -246,6 +259,12 @@ function WorkbookView({
           <option value="both">{t("freeze.both")}</option>
           <option value="here">{t("freeze.here")}</option>
           {freezeValue === "custom" ? <option value="custom">{t("freeze.custom")}</option> : null}
+        </select>
+        <select aria-label={t("structure.label")} value="" onChange={(e) => e.target.value && restructure(e.target.value)}>
+          <option value="">{t("structure.label")}</option>
+          {(["insertRowAbove", "insertRowBelow", "deleteRows", "insertColLeft", "insertColRight", "deleteCols"] as const).map((k) => (
+            <option key={k} value={k}>{t(`structure.${k}`)}</option>
+          ))}
         </select>
         {(["tables", "charts", "tools", "export"] as const).map((k) => (
           <Button key={k} onClick={() => setPanel(panel === k ? null : k)} aria-pressed={panel === k}>{t(`shell.${k}`)}</Button>
