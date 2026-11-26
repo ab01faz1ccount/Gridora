@@ -473,3 +473,16 @@ describe("Grid frozen panes", () => {
     expect(cs.has(0)).toBe(true);
   });
 });
+
+describe("Grid header selection", () => {
+  it("clicking a column header selects the whole column; a row number selects the whole row", async () => {
+    const { src } = source(50, 5);
+    const seen: { active: { r: number; c: number }; anchor: { r: number; c: number }; focus: { r: number; c: number } }[] = [];
+    render(<Grid source={src} rtl={false} viewport={VIEW} onSelectionChange={(s) => seen.push(s)} />);
+    await waitFor(() => expect(cellEls().length).toBeGreaterThan(0));
+    fireEvent.pointerDown(document.querySelector('[data-hdr-c="2"]')!);
+    expect(seen.at(-1)).toMatchObject({ anchor: { r: 0, c: 2 }, focus: { r: 49, c: 2 } });
+    fireEvent.pointerDown(document.querySelector('[data-hdr-r="3"]')!);
+    expect(seen.at(-1)).toMatchObject({ anchor: { r: 3, c: 0 }, focus: { r: 3, c: 4 } });
+  });
+});

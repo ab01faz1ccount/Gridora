@@ -152,6 +152,30 @@ function WorkbookView({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // Shortcuts work wherever the focus is on the page (a toolbar button, the empty page), not only inside the grid.
+  // The grid handles the same keys itself and marks the event as handled, so nothing runs twice; text boxes keep
+  // their own undo.
+  const keysRef = useRef<{ undo: () => void; redo: () => void; format: (k: "bold" | "italic" | "underline" | "strike") => void }>(
+    { undo: () => undefined, redo: () => undefined, format: () => undefined },
+  );
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if ((e.target as HTMLElement | null)?.closest?.("input,textarea,select,[contenteditable=true]")) return;
+      const k = keysRef.current;
+      if (e.code === "KeyZ") (e.shiftKey ? k.redo : k.undo)();
+      else if (e.code === "KeyY") k.redo();
+      else if (e.shiftKey) return;
+      else if (e.code === "KeyB") k.format("bold");
+      else if (e.code === "KeyI") k.format("italic");
+      else if (e.code === "KeyU") k.format("underline");
+      else if (e.code === "Digit5") k.format("strike");
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const taskRef = useRef<HTMLInputElement>(null);
   // Ctrl+K (any keyboard layout) jumps to "what do you want to do?"
   useEffect(() => {
@@ -218,6 +242,7 @@ function WorkbookView({
         base_seq, range: { sheet_id: sheet.id, r0: b.r0, c0: b.c0, r1: b.r1, c1: b.c1 }, change,
       }))
       .catch(fail);
+    gridRef.current?.focus(); // so the next shortcut and arrow key go to the grid
   };
   const activeCell = (void version, cache.getCell(active.r, active.c).cell);
   styles.need(activeCell?.s);
@@ -237,6 +262,9 @@ function WorkbookView({
   const redo = () => {
     if (ed.canRedo) editor.redo().catch(fail);
   };
+  useEffect(() => {
+    keysRef.current = { undo, redo, format: formatKey };
+  });
 
   return (
     <>
