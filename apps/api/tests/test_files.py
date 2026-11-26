@@ -303,8 +303,15 @@ def test_new_file_is_a_stored_xlsx_with_an_import_job(
 
 
 def test_new_file_name_is_checked_and_extension_not_doubled(alice: Session, ws: str) -> None:
-    assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": ""}).status_code == 422
+    assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": ""}).status_code == 400
     bad = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "a\x00b"})
-    assert bad.status_code == 422
+    assert bad.status_code == 400
     r = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "book.xlsx"})
     assert r.json()["data"]["file"]["display_name"] == "book.xlsx"
+
+
+def test_persian_half_space_is_kept_in_names_but_bidi_overrides_are_not(
+    alice: Session, ws: str
+) -> None:
+    r = upload(alice, ws, "گزارش\u200cفروش\u202e.csv", CSV)
+    assert r.json()["data"]["file"]["display_name"] == "گزارش\u200cفروش.csv"
