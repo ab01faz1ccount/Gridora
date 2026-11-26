@@ -27,7 +27,7 @@ Owner decision: the UI is Persian-first with RTL from day one (ADR-009).
 - Normalize Arabic `ي`→`ی`, `ك`→`ک`, remove tatweel/ZWNJ-aware options, digit normalization. Never applied silently; always a user-chosen operation with preview.
 
 ## Sorting and search
-- Persian-aware collation for sort; search ignores ي/ی and ك/ک differences when the user enables "ignore variants".
+- Persian-aware collation for sort; one shared fold (`gridora_contracts.persian`: ي ى ئ→ی, ك→ک, ة ۀ→ه, أ إ ٱ آ→ا, ؤ→و, digits, ZWNJ/tatweel/diacritics ignored) is used for matching only and never written to cells. Ctrl+F always folds; filter, remove_duplicates, find_replace, join and group_aggregate fold with the `ignore_variants` option. Formulas keep exact Excel semantics.
 
 ## Testing
 - Snapshot tests of key screens in RTL; fixture files with Persian sheet names, text and digits; round-trip through XLSX and CSV (UTF-8 with BOM and Windows-1256).

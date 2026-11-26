@@ -84,6 +84,12 @@
       "type": "boolean",
       "x-gridora-order": 0
     },
+    "ignore_variants": {
+      "default": false,
+      "title": "ops.group_aggregate.params.ignore_variants.title",
+      "type": "boolean",
+      "x-gridora-persian-option": true
+    },
     "sort_groups": {
       "default": false,
       "title": "ops.group_aggregate.params.sort_groups.title",

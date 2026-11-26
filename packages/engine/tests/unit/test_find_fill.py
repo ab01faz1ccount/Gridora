@@ -41,6 +41,23 @@ def test_find_folds_persian_digits_letters_and_case(tmp_path):
     assert eng.find_cells(h, s.id, "123", whole_cell=True) == ([(5, 1)], False)
 
 
+def test_find_ignores_arabic_persian_variants_marks_and_zwnj(tmp_path):
+    eng, h, s = book(tmp_path, "")
+    put(eng, h, s, 0, 0, "أحمد")  # hamza-above alef
+    put(eng, h, s, 1, 0, "مدرسه\u200c‌ای")  # ZWNJ inside
+    put(eng, h, s, 2, 0, "عَرَبِي")  # diacritics + Arabic yeh
+    put(eng, h, s, 3, 0, "آب")  # alef with madda
+    put(eng, h, s, 4, 0, "مسئله")
+    put(eng, h, s, 5, 0, "نان")
+    assert eng.find_cells(h, s.id, "احمد") == ([(0, 0)], False)
+    assert eng.find_cells(h, s.id, "إحمد") == ([(0, 0)], False)
+    assert eng.find_cells(h, s.id, "مدرسهای") == ([(1, 0)], False)
+    assert eng.find_cells(h, s.id, "عربی") == ([(2, 0)], False)
+    assert eng.find_cells(h, s.id, "اب") == ([(3, 0)], False)
+    assert eng.find_cells(h, s.id, "مسیله") == ([(4, 0)], False)
+    assert eng.find_cells(h, s.id, "نون") == ([], False)  # different words stay different
+
+
 def test_find_in_formulas_continues_after_a_cell_and_limits(tmp_path):
     rows = '<row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1*2</f><v>2</v></c></row>'
     eng, h, s = book(tmp_path, rows)
