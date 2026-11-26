@@ -162,8 +162,10 @@ async def list_files(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[li
     return ok(request, [file_out(f) for f in rows])
 
 
-async def _register_upload(request: Request, ctx: AuthContext, db: AsyncSession, w: Workspace, stored: StoredUpload) -> UploadResult:
-    """Quota, storage record, import job and audit entry for a file that is already in quarantine."""
+async def _register_upload(
+    request: Request, ctx: AuthContext, db: AsyncSession, w: Workspace, stored: StoredUpload
+) -> UploadResult:
+    """Quota, storage record, import job and audit entry for a file already in quarantine."""
     settings = request.app.state.settings
     rec: StoredFile | None = None
     try:
@@ -226,8 +228,10 @@ class NewFileBody(BaseModel):
 
 
 @router.post("/workspaces/{id}/files/new", status_code=201, response_model=Envelope[UploadResult])
-async def new_file(id: str, body: NewFileBody, request: Request, ctx: Ctx, db: Db) -> Envelope[UploadResult]:
-    """An empty workbook, created here instead of uploaded. It is imported like any file (a job to wait for)."""
+async def new_file(
+    id: str, body: NewFileBody, request: Request, ctx: Ctx, db: Db
+) -> Envelope[UploadResult]:
+    """An empty workbook made here, not uploaded; imported like any file (a job to wait for)."""
     w = await get_owned(db, Workspace, ctx.user.id, id)
     stored = blank.store_blank(request.app.state.layout, body.name, rtl=body.rtl)
     return ok(request, await _register_upload(request, ctx, db, w, stored))

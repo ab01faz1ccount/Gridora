@@ -290,7 +290,9 @@ def test_magic_check_reads_only_the_header(tmp_path: Path) -> None:
 
 
 # ------------------------------------------------------------- a new, empty file ----
-def test_new_file_is_a_stored_xlsx_with_an_import_job(alice: Session, ws: str, settings: Settings) -> None:
+def test_new_file_is_a_stored_xlsx_with_an_import_job(
+    alice: Session, ws: str, settings: Settings
+) -> None:
     r = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "حساب‌ها"})
     assert r.status_code == 201, r.text
     rec = r.json()["data"]["file"]
@@ -300,7 +302,7 @@ def test_new_file_is_a_stored_xlsx_with_an_import_job(alice: Session, ws: str, s
     assert quarantine_files(settings) == []
 
 
-def test_new_file_name_is_checked_and_a_typed_extension_is_not_doubled(alice: Session, ws: str) -> None:
+def test_new_file_name_is_checked_and_extension_not_doubled(alice: Session, ws: str) -> None:
     assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": ""}).status_code == 422
     assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "a\x00b"}).status_code == 422
     r = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "book.xlsx"})

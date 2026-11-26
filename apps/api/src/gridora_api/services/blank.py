@@ -1,3 +1,4 @@
+# ruff: noqa: E501 (XML literals)
 """A new, empty workbook: one empty sheet, written as a small valid .xlsx so it goes through the same
 import path as any uploaded file (nothing special-cased downstream)."""
 
