@@ -287,3 +287,31 @@ def test_magic_check_reads_only_the_header(tmp_path: Path) -> None:
     finally:
         builtins.open = real_open
     assert spies and all(n == 8192 for s in spies for n in s.read_sizes)
+
+
+# ------------------------------------------------------------- a new, empty file ----
+def test_new_file_is_a_stored_xlsx_with_an_import_job(
+    alice: Session, ws: str, settings: Settings
+) -> None:
+    r = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "حساب‌ها"})
+    assert r.status_code == 201, r.text
+    rec = r.json()["data"]["file"]
+    assert rec["display_name"] == "حساب‌ها.xlsx" and r.json()["data"]["job_id"]
+    path = Path(settings.data_root) / "users" / alice.user_id / "original" / f"{rec['id']}.xlsx"
+    assert path.read_bytes().startswith(b"PK")
+    assert quarantine_files(settings) == []
+
+
+def test_new_file_name_is_checked_and_extension_not_doubled(alice: Session, ws: str) -> None:
+    assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": ""}).status_code == 400
+    bad = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "a\x00b"})
+    assert bad.status_code == 400
+    r = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "book.xlsx"})
+    assert r.json()["data"]["file"]["display_name"] == "book.xlsx"
+
+
+def test_persian_half_space_is_kept_in_names_but_bidi_overrides_are_not(
+    alice: Session, ws: str
+) -> None:
+    r = upload(alice, ws, "گزارش\u200cفروش\u202e.csv", CSV)
+    assert r.json()["data"]["file"]["display_name"] == "گزارش\u200cفروش.csv"

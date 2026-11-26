@@ -326,5 +326,9 @@
   "error.reason.registration_disabled": "Sign-up is closed on this server.",
   "error.reason.registration_full": "This server cannot take more accounts right now.",
   "error.reason.quota_workspaces": "You have reached the number of workspaces your account allows.",
-  "error.reason.quota_storage": "Your storage space is full. Delete files to upload more."
+  "error.reason.quota_storage": "Your storage space is full. Delete files to upload more.",
+  "newFile.button": "New file",
+  "newFile.defaultName": "New sheet",
+  "newFile.name": "File name",
+  "newFile.create": "Create"
 }

@@ -228,7 +228,7 @@ pytest -q && ruff check . && mypy src
 | Area | Routes |
 |---|---|
 | Session | `POST /login`, `POST /logout`, `GET /me` |
-| Workspaces and files | `GET/POST /workspaces`, `GET/PATCH/DELETE /workspaces/{id}`, `GET/POST /workspaces/{id}/files`, `GET /files/{id}/download`, `POST /files/{id}/open`, `GET /jobs/{id}`, `GET /jobs/{id}/compatibility` |
+| Workspaces and files | `GET/POST /workspaces`, `GET/PATCH/DELETE /workspaces/{id}`, `GET/POST /workspaces/{id}/files`, `POST /workspaces/{id}/files/new`, `GET /files/{id}/download`, `POST /files/{id}/open`, `GET /jobs/{id}`, `GET /jobs/{id}/compatibility` |
 | Workbooks | `GET /workbooks/{id}`, `GET /workbooks/{id}/compatibility`, `GET /workbooks/{id}/sheets/{sheet_id}/cells`, `PATCH` cells, `POST /workbooks/{id}/save`, `POST /workbooks/{id}/export`, `PUT /workbooks/{id}/calendar` |
 | History and operations | `GET /documents/{id}/history`, `POST /documents/{id}/undo`, `POST /documents/{id}/redo`, `GET /operations`, `GET /operations/i18n`, `POST /documents/{id}/operations` and `/preview` |
 | Data Tables | `GET/POST /workspaces/{id}/tables`, `POST /tables/from-range`, `GET /tables/{id}`, `GET /tables/{id}/rows`, `POST /tables/{id}/operations` and `/preview`, `POST /tables/{id}/undo`, `/redo`, `GET /tables/{id}/history`, `POST /tables/{id}/to-sheet`, `POST /tables/{id}/export` |

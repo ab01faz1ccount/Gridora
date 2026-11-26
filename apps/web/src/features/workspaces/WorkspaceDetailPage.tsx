@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { ApiError } from "@/api/client";
 import { errorKey } from "@/api/errors";
 import { openFile, useFiles, useWorkspace } from "@/api/hooks";
@@ -23,6 +24,8 @@ export function WorkspaceDetailPage({ id }: { id: string }) {
   const files = useFiles(id);
   const entries = useImports((s) => s.entries).filter((e) => e.workspaceId === id);
   const start = useImports((s) => s.start);
+  const createNew = useImports((s) => s.createNew);
+  const [naming, setNaming] = useState<string | null>(null);
 
   const refreshFiles = () => void qc.invalidateQueries({ queryKey: ["files", id] });
   const openWorkbook = (workbookId: string) => navigate(`/workbooks/${workbookId}`);
@@ -56,6 +59,22 @@ export function WorkspaceDetailPage({ id }: { id: string }) {
         <Button onClick={() => navigate("/workspaces")}>{t("workbook.back")}</Button>
         <h1 id="wsd-title"><bdi>{ws.data.name}</bdi></h1>
       </div>
+
+      {naming === null ? (
+        <Button variant="primary" onClick={() => setNaming(t("newFile.defaultName"))}>{t("newFile.button")}</Button>
+      ) : (
+        <form className="wbs-task" onSubmit={(e) => {
+          e.preventDefault();
+          if (naming.trim()) createNew(id, naming.trim(), refreshFiles);
+          setNaming(null);
+        }}>
+          <label className="field">{t("newFile.name")}
+            <input value={naming} onChange={(e) => setNaming(e.target.value)} dir="auto" maxLength={120} autoFocus />
+          </label>
+          <Button type="submit" variant="primary" disabled={!naming.trim()}>{t("newFile.create")}</Button>
+          <Button onClick={() => setNaming(null)}>{t("common.cancel")}</Button>
+        </form>
+      )}
 
       <DropZone onFiles={(fs) => fs.forEach((f) => start(id, f, refreshFiles))} />
 

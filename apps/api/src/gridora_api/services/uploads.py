@@ -37,7 +37,11 @@ class StoredUpload:
 def clean_display_name(raw: str | None) -> str:
     name = (raw or "").replace("\\", "/").rsplit("/", 1)[-1]
     name = unicodedata.normalize("NFC", name)
-    name = "".join(ch for ch in name if unicodedata.category(ch)[0] != "C").strip(" .")
+    # control and format characters go (bidi overrides could disguise an extension), except the
+    # zero-width non-joiner: Persian writes it inside words ("حساب‌ها")
+    name = "".join(
+        ch for ch in name if ch == "\u200c" or unicodedata.category(ch)[0] != "C"
+    ).strip(" .")
     return name[:255] or "file"
 
 

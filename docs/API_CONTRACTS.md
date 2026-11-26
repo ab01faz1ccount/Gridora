@@ -48,6 +48,7 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | GET/PATCH/DELETE | `/workspaces/{id}` | delete is destructive; requires `?confirm=true` |
 | GET | `/workspaces/{id}/files` | |
 | POST | `/workspaces/{id}/files` | multipart upload → returns `{ file, job_id }` |
+| POST | `/workspaces/{id}/files/new` | `{ name, rtl? }` → an empty workbook, imported like an upload → `{ file, job_id }` |
 | GET | `/files/{id}/download` | streams a stored version |
 
 ## 4. Jobs
