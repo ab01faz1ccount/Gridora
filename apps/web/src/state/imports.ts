@@ -2,8 +2,8 @@
 // inside the app; the job id is remembered in storage so polling resumes after a page reload.
 import { MAX_UPLOAD_BYTES } from "@contracts";
 import { create } from "zustand";
-import { ApiError } from "@/api/client";
-import { uploadFile } from "@/api/upload";
+import { api, ApiError } from "@/api/client";
+import { uploadFile, type UploadResult } from "@/api/upload";
 
 export type Phase = "uploading" | "processing" | "done" | "failed";
 
@@ -56,6 +56,8 @@ export function restoreImports(): ImportEntry[] {
 interface ImportsState {
   entries: ImportEntry[];
   start: (workspaceId: string, file: File, onUploaded?: () => void) => void;
+  /** An empty workbook made on the server; it shows up as a card like an import. */
+  createNew: (workspaceId: string, name: string, onCreated?: () => void) => void;
   jobFinished: (key: string, ok: boolean, error?: ApiError, info?: { workbookId?: string; attention?: number }) => void;
   cancel: (key: string) => void;
   dismiss: (key: string) => void;
@@ -102,6 +104,18 @@ export const useImports = create<ImportsState>((set, get) => {
           update(key, { phase: "failed", error: e instanceof ApiError ? e
             : new ApiError({ code: "internal_error", message: "", status: 0 }), abort: undefined });
         });
+    },
+
+    createNew: (workspaceId, name, onCreated) => {
+      const key = `imp-${Date.now()}-${counter++}`;
+      set((s) => ({ entries: [{ key, workspaceId, name, size: 0, phase: "processing", loaded: 0, startedAt: Date.now() }, ...s.entries] }));
+      api.post<UploadResult>(`/workspaces/${workspaceId}/files/new`, { name })
+        .then((r) => {
+          update(key, { jobId: r.job_id, fileId: r.file.id, name: r.file.display_name });
+          onCreated?.();
+        })
+        .catch((e: unknown) => update(key, { phase: "failed", error: e instanceof ApiError ? e
+          : new ApiError({ code: "internal_error", message: "", status: 0 }) }));
     },
 
     jobFinished: (key, ok, error, info) =>

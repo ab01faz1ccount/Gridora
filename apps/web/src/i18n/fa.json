@@ -324,5 +324,9 @@
   "error.reason.registration_disabled": "ثبت‌نام روی این سرور بسته است.",
   "error.reason.registration_full": "این سرور فعلاً حساب جدید نمی‌پذیرد.",
   "error.reason.quota_workspaces": "به سقف تعداد فضای کاری حساب خود رسیده‌اید.",
-  "error.reason.quota_storage": "فضای ذخیرهٔ شما پر است. برای بارگذاری بیشتر فایل‌ها را حذف کنید."
+  "error.reason.quota_storage": "فضای ذخیرهٔ شما پر است. برای بارگذاری بیشتر فایل‌ها را حذف کنید.",
+  "newFile.button": "فایل جدید",
+  "newFile.defaultName": "جدول جدید",
+  "newFile.name": "نام فایل",
+  "newFile.create": "ساخت"
 }

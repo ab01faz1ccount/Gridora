@@ -16,10 +16,11 @@ from ...core.errors import DomainError, request_id_of
 from ...db.models import DataTableRow, Document, StoredFile, WorkbookRow, Workspace
 from ...db.repos.owned import get_owned, list_owned
 from ...db.session import get_db
-from ...services import audit, quotas
+from ...services import audit, blank, quotas
 from ...services import files as file_service
 from ...services import tables as table_service
 from ...services.auth import AuthContext
+from ...services.uploads import StoredUpload
 from ..deps import auth, client_ip
 
 router = APIRouter(tags=["workspaces"])
@@ -161,18 +162,9 @@ async def list_files(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[li
     return ok(request, [file_out(f) for f in rows])
 
 
-@router.post("/workspaces/{id}/files", status_code=201, response_model=Envelope[UploadResult])
-async def upload_file(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[UploadResult]:
-    w = await get_owned(db, Workspace, ctx.user.id, id)  # ownership BEFORE reading the body
+async def _register_upload(request: Request, ctx: AuthContext, db: AsyncSession, w: Workspace, stored: StoredUpload) -> UploadResult:
+    """Quota, storage record, import job and audit entry for a file that is already in quarantine."""
     settings = request.app.state.settings
-    cl = request.headers.get("content-length")
-    stored = await file_service.receive(
-        request.stream(),
-        request.headers.get("content-type", ""),
-        int(cl) if cl and cl.isdigit() else None,
-        request.app.state.layout,
-        settings.max_upload_bytes,
-    )
     rec: StoredFile | None = None
     try:
         await quotas.check_storage(db, settings, ctx.user, stored.size)
@@ -201,7 +193,44 @@ async def upload_file(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[U
             file_service.remove_stored(request.app.state.layout, [rec.storage_key])
         stored.quarantine.unlink(missing_ok=True)
         raise
-    return ok(request, UploadResult(file=file_out(rec), job_id=str(job_id)))
+    return UploadResult(file=file_out(rec), job_id=str(job_id))
+
+
+@router.post("/workspaces/{id}/files", status_code=201, response_model=Envelope[UploadResult])
+async def upload_file(id: str, request: Request, ctx: Ctx, db: Db) -> Envelope[UploadResult]:
+    w = await get_owned(db, Workspace, ctx.user.id, id)  # ownership BEFORE reading the body
+    settings = request.app.state.settings
+    cl = request.headers.get("content-length")
+    stored = await file_service.receive(
+        request.stream(),
+        request.headers.get("content-type", ""),
+        int(cl) if cl and cl.isdigit() else None,
+        request.app.state.layout,
+        settings.max_upload_bytes,
+    )
+    return ok(request, await _register_upload(request, ctx, db, w, stored))
+
+
+class NewFileBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    rtl: bool = True
+
+    @field_validator("name")
+    @classmethod
+    def _clean(cls, v: str) -> str:
+        v = v.strip()
+        if not v or _CTRL.search(v):
+            raise ValueError("name must be non-empty text without control characters")
+        return v
+
+
+@router.post("/workspaces/{id}/files/new", status_code=201, response_model=Envelope[UploadResult])
+async def new_file(id: str, body: NewFileBody, request: Request, ctx: Ctx, db: Db) -> Envelope[UploadResult]:
+    """An empty workbook, created here instead of uploaded. It is imported like any file (a job to wait for)."""
+    w = await get_owned(db, Workspace, ctx.user.id, id)
+    stored = blank.store_blank(request.app.state.layout, body.name, rtl=body.rtl)
+    return ok(request, await _register_upload(request, ctx, db, w, stored))
 
 
 @router.get("/files/{id}/download")

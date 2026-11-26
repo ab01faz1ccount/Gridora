@@ -60,6 +60,9 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
     ("POST", "/api/v1/workspaces/{id}/files"): lambda c, ids: c.post(
         f"/api/v1/workspaces/{ids['ws']}/files", files=CSV
     ),
+    ("POST", "/api/v1/workspaces/{id}/files/new"): lambda c, ids: c.post(
+        f"/api/v1/workspaces/{ids['ws']}/files/new", json={"name": "x"}
+    ),
     ("GET", "/api/v1/files/{id}/download"): lambda c, ids: c.get(
         f"/api/v1/files/{ids['file']}/download"
     ),
