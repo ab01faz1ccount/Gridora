@@ -304,6 +304,7 @@ def test_new_file_is_a_stored_xlsx_with_an_import_job(
 
 def test_new_file_name_is_checked_and_extension_not_doubled(alice: Session, ws: str) -> None:
     assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": ""}).status_code == 422
-    assert alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "a\x00b"}).status_code == 422
+    bad = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "a\x00b"})
+    assert bad.status_code == 422
     r = alice.post(f"/api/v1/workspaces/{ws}/files/new", json={"name": "book.xlsx"})
     assert r.json()["data"]["file"]["display_name"] == "book.xlsx"
