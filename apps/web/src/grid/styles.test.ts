@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cellDisplay, localizeDigits, type DisplayPrefs } from "./cellText";
 import { StyleStore, styleCss } from "./styles";
 
-const info = (id: number, extra: Partial<StyleInfo> = {}): StyleInfo => ({ id, bold: false, italic: false, underline: false, wrap: false, ...extra });
+const info = (id: number, extra: Partial<StyleInfo> = {}): StyleInfo => ({ id, bold: false, italic: false, underline: false, strike: false, wrap: false, ...extra });
 
 describe("StyleStore", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -61,5 +61,10 @@ describe("number-format text", () => {
   });
   it("leaves words alone", () => {
     expect(localizeDigits("Total 5%", "persian")).toBe("Total ۵%");
+  });
+
+  it("combines underline and strikethrough in one text-decoration", () => {
+    expect(styleCss(info(2, { strike: true }))).toMatchObject({ textDecoration: "line-through" });
+    expect(styleCss(info(3, { strike: true, underline: true }))).toMatchObject({ textDecoration: "underline line-through" });
   });
 });

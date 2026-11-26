@@ -52,6 +52,8 @@ const COL_OVERSCAN = 2;
 /** What a parent can ask of the grid (Find moves the cursor to a match). */
 export interface GridHandle {
   goTo(r: number, c: number): void;
+  /** Puts the keyboard focus back on the grid (after a toolbar button). */
+  focus(): void;
 }
 
 export interface GridProps {
@@ -80,7 +82,7 @@ export interface GridProps {
   /** Looks of the cells' format ids (font, colours ...); without it cells are drawn plain. */
   styles?: StyleStore;
   /** Ctrl+B / Ctrl+I / Ctrl+U. */
-  onFormatKey?: (k: "bold" | "italic" | "underline") => void;
+  onFormatKey?: (k: "bold" | "italic" | "underline" | "strike") => void;
 }
 
 const noSubscribe = (): (() => void) => () => undefined;
@@ -278,6 +280,7 @@ export function Grid({
   );
 
   useImperativeHandle(handleRef, () => ({
+    focus: () => scrollerRef.current?.focus({ preventScroll: true }),
     goTo: (r: number, c: number) => {
       const p = { r: Math.min(Math.max(0, r), Math.max(0, source.rowCount - 1)), c: Math.min(Math.max(0, c), Math.max(0, source.colCount - 1)) };
       update(single(p));
@@ -377,7 +380,7 @@ export function Grid({
       return;
     }
     if (mod && !e.shiftKey && !e.altKey && onFormatKey && editable) {
-      const k = e.code === "KeyB" ? "bold" : e.code === "KeyI" ? "italic" : e.code === "KeyU" ? "underline" : null;
+      const k = e.code === "KeyB" ? "bold" : e.code === "KeyI" ? "italic" : e.code === "KeyU" ? "underline" : e.code === "Digit5" ? "strike" : null;
       if (k) {
         e.preventDefault();
         onFormatKey(k);
@@ -476,6 +479,13 @@ export function Grid({
   };
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("[data-fill-handle]")) return;
+    // a click on a column or row header selects the whole column or row (Shift extends)
+    const hdr = (e.target as HTMLElement).closest<HTMLElement>("[data-hdr-c],[data-hdr-r]");
+    if (hdr) {
+      scrollerRef.current?.focus({ preventScroll: true });
+      update(headerSelection(hdr, e.shiftKey ? sel : null));
+      return;
+    }
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
     if (!target) return;
     const p = { r: Number(target.dataset.r), c: Number(target.dataset.c) };
@@ -483,8 +493,30 @@ export function Grid({
     if (e.shiftKey) update({ active: sel.active, anchor: sel.anchor, focus: p });
     else update(single(p));
   };
+  /** Selection for a click on a header: the whole column or row; with `from`, extended from its anchor. */
+  const headerSelection = (hdr: HTMLElement, from: Selection | null): Selection => {
+    const lastR = Math.max(0, source.rowCount - 1);
+    const lastC = Math.max(0, source.colCount - 1);
+    if (hdr.dataset.hdrC !== undefined) {
+      const c = Number(hdr.dataset.hdrC);
+      if (from) return { active: from.active, anchor: from.anchor, focus: { r: lastR, c } };
+      return { active: { r: 0, c }, anchor: { r: 0, c }, focus: { r: lastR, c } };
+    }
+    const r = Number(hdr.dataset.hdrR);
+    if (from) return { active: from.active, anchor: from.anchor, focus: { r, c: lastC } };
+    return { active: { r, c: 0 }, anchor: { r, c: 0 }, focus: { r, c: lastC } };
+  };
   const onPointerOver = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.buttons !== 1) return; // dragging with the primary button extends the range
+    const hdr = (e.target as HTMLElement).closest<HTMLElement>("[data-hdr-c],[data-hdr-r]");
+    if (hdr && !fillRef.current) {
+      const wholeCols = sel.anchor.r === 0 && sel.focus.r === Math.max(0, source.rowCount - 1);
+      const wholeRows = sel.anchor.c === 0 && sel.focus.c === Math.max(0, source.colCount - 1);
+      if ((hdr.dataset.hdrC !== undefined && wholeCols) || (hdr.dataset.hdrR !== undefined && wholeRows)) {
+        update(headerSelection(hdr, sel));
+      }
+      return;
+    }
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-r]");
     if (!target) return;
     if (fillRef.current) {
@@ -523,7 +555,7 @@ export function Grid({
     if (r >= fr) {
       rowHeaders.push(
         <div key={r} className={"gv-rowhdr-cell" + (r >= bounds.r0 && r <= bounds.r1 ? " gv-hdr-selected" : "")}
-          style={{ top, blockSize: ROW_H }} aria-hidden="true">
+          style={{ top, blockSize: ROW_H }} data-hdr-r={r} aria-hidden="true">
           {r + 1}
         </div>,
       );
@@ -549,7 +581,7 @@ export function Grid({
   for (let r = 0; r < fr; r++) {
     topHeaders.push(
       <div key={r} className={"gv-rowhdr-cell" + (r >= bounds.r0 && r <= bounds.r1 ? " gv-hdr-selected" : "")}
-        style={{ top: rows.offset(r), blockSize: ROW_H }} aria-hidden="true">{r + 1}</div>,
+        style={{ top: rows.offset(r), blockSize: ROW_H }} data-hdr-r={r} aria-hidden="true">{r + 1}</div>,
     );
     const row = [];
     for (let c = Math.max(cr.first, fc); c <= cr.last; c++) row.push(cellAt(r, c, rows.offset(r), cols.offset(c) - cols.offset(Math.max(cr.first, fc))));
@@ -561,7 +593,7 @@ export function Grid({
     colHeaders.push(
       <div key={c} className={"gv-colhdr-cell" + (c >= bounds.c0 && c <= bounds.c1 ? " gv-hdr-selected" : "")}
         style={{ insetInlineStart: cols.offset(c) - cols.offset(cr.first), inlineSize: cols.size(c), blockSize: HEADER_H }}
-        role="columnheader" aria-colindex={c + 1} aria-label={t("grid.colHeader", { name: columnLetters(c) })}>
+        role="columnheader" data-hdr-c={c} aria-colindex={c + 1} aria-label={t("grid.colHeader", { name: columnLetters(c) })}>
         <bdi dir="ltr">{columnLetters(c)}</bdi>
         <div className="gv-grip" role="separator" aria-orientation="vertical" aria-label={t("grid.resizeColumn", { name: columnLetters(c) })}
           data-grip={c} onPointerDown={(e) => startResize(c, e)} onDoubleClick={() => resetWidth(c)} />

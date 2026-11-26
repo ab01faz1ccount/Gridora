@@ -37,7 +37,7 @@ def to_out(table: StyleInfo, xf: int) -> StyleOut:
     p = xs.props_of(table, xf)
     base = None if xf < table.n_imported else table.derived[xf - table.n_imported].root
     return StyleOut(
-        id=xf, number_format=p.number_format, bold=p.bold, italic=p.italic, underline=p.underline,
+        id=xf, number_format=p.number_format, bold=p.bold, italic=p.italic, underline=p.underline, strike=p.strike,
         font_name=p.font_name, font_size=p.font_size, font_color=p.font_color, fill_color=p.fill_color,
         halign=p.halign, wrap=p.wrap, base_id=base,
     )
@@ -59,7 +59,7 @@ def _clean(change: dict[str, Any]) -> dict[str, Any]:
     for k, v in change.items():
         if k not in _KEYS:
             raise validation_failed("format.unknown_property", "This formatting property does not exist.")
-        if k in ("bold", "italic", "underline", "wrap"):
+        if k in ("bold", "italic", "underline", "strike", "wrap"):
             v = bool(v)  # None puts the default (off) back
         elif k == "number_format" and v in ("", "General"):
             v = None
