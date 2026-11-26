@@ -222,7 +222,7 @@ function WorkbookView({
   const activeCell = (void version, cache.getCell(active.r, active.c).cell);
   styles.need(activeCell?.s);
   const look = styles.get(activeCell?.s);
-  const formatKey = (k: "bold" | "italic" | "underline") => format({ [k]: !look?.[k] });
+  const formatKey = (k: "bold" | "italic" | "underline" | "strike") => format({ [k]: !look?.[k] });
   const clipboardProblem = (reason: "notLoaded" | "tooLarge") =>
     push("error", t(reason === "notLoaded" ? "clipboard.notLoaded" : "clipboard.tooLarge"));
   const commit = (r: number, c: number, text: string) => {

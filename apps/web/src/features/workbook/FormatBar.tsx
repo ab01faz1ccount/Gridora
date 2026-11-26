@@ -1,4 +1,4 @@
-// Format toolbar: bold/italic/underline, font, size, colours, alignment, wrap and number format for the
+// Format toolbar: bold/italic/underline/strikethrough, font, size, colours, alignment, wrap and number format for the
 // selected cells. It shows the look of the active cell; every button sends one change (one undo step).
 import type { FormatChange, StyleInfo } from "@contracts";
 import { useEffect, useRef } from "react";
@@ -63,6 +63,8 @@ export function FormatBar({ look, onChange, disabled }: {
         title={t("format.italic")} disabled={disabled}><i>{t("format.glyph.italic")}</i></Button>
       <Button onClick={() => onChange({ underline: !look?.underline })} aria-pressed={look?.underline ?? false}
         aria-label={t("format.underline")} title={t("format.underline")} disabled={disabled}><u>{t("format.glyph.underline")}</u></Button>
+      <Button onClick={() => onChange({ strike: !look?.strike })} aria-pressed={look?.strike ?? false}
+        aria-label={t("format.strike")} title={t("format.strike")} disabled={disabled}><s>{t("format.glyph.strike")}</s></Button>
       <ColorBox label={t("format.textColor")} value={look?.font_color ?? "#000000"} onPick={(hex) => onChange({ font_color: hex })} />
       <ColorBox label={t("format.fillColor")} value={look?.fill_color ?? "#FFFFFF"} onPick={(hex) => onChange({ fill_color: hex })} />
       <Button onClick={() => onChange({ fill_color: null, font_color: null })} aria-label={t("format.noColors")}

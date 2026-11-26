@@ -118,3 +118,20 @@ def test_bad_requests(tmp_path):
         eng.format_cells(h, rng(s, 0, 0, 0, 0), {})
     with pytest.raises(GridoraEngineError):
         eng.format_cells(h, rng(s, 0, 0, 0, 0), {"sparkle": True})
+
+
+def test_strikethrough_is_set_exported_and_read_back(tmp_path):
+    eng, h, s = book(tmp_path)
+    eng.format_cells(h, rng(s, 1, 1, 1, 1), {"strike": True, "underline": True})
+    st = eng.get_styles(h, [read_window(eng, h, s)[(1, 1)].s])[0]
+    assert st.strike and st.underline and not st.bold
+    out = tmp_path / "strike.xlsx"
+    eng.export_xlsx(h, out)
+    assert "<strike/>" in zipfile.ZipFile(out).read("xl/styles.xml").decode()
+    eng2 = create_engine({})
+    h2, wb2, _ = eng2.import_xlsx(out)
+    c = read_window(eng2, h2, wb2.sheets[0])[(1, 1)]
+    st2 = eng2.get_styles(h2, [c.s])[0]
+    assert st2.strike and st2.underline
+    eng.format_cells(h, rng(s, 1, 1, 1, 1), {"strike": None})  # null puts the default back
+    assert not eng.get_styles(h, [read_window(eng, h, s)[(1, 1)].s])[0].strike

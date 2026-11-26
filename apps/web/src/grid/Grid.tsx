@@ -80,7 +80,7 @@ export interface GridProps {
   /** Looks of the cells' format ids (font, colours ...); without it cells are drawn plain. */
   styles?: StyleStore;
   /** Ctrl+B / Ctrl+I / Ctrl+U. */
-  onFormatKey?: (k: "bold" | "italic" | "underline") => void;
+  onFormatKey?: (k: "bold" | "italic" | "underline" | "strike") => void;
 }
 
 const noSubscribe = (): (() => void) => () => undefined;
@@ -377,7 +377,7 @@ export function Grid({
       return;
     }
     if (mod && !e.shiftKey && !e.altKey && onFormatKey && editable) {
-      const k = e.code === "KeyB" ? "bold" : e.code === "KeyI" ? "italic" : e.code === "KeyU" ? "underline" : null;
+      const k = e.code === "KeyB" ? "bold" : e.code === "KeyI" ? "italic" : e.code === "KeyU" ? "underline" : e.code === "Digit5" ? "strike" : null;
       if (k) {
         e.preventDefault();
         onFormatKey(k);

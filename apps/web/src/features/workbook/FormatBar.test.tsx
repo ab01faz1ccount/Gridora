@@ -9,7 +9,7 @@ beforeEach(() => usePrefs.setState({ digits: "latin", locale: "en" }));
 describe("FormatBar", () => {
   it("toggles from the active cell's look", async () => {
     const onChange = vi.fn();
-    render(<FormatBar look={{ id: 2, bold: true, italic: false, underline: false, wrap: false, halign: "center" }} onChange={onChange} />);
+    render(<FormatBar look={{ id: 2, bold: true, italic: false, underline: false, strike: false, wrap: false, halign: "center" }} onChange={onChange} />);
     const bold = screen.getByRole("button", { name: "Bold" });
     expect(bold).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(bold);

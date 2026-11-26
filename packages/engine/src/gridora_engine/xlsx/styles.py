@@ -86,7 +86,7 @@ def _font_props(raw: bytes) -> dict[str, Any]:
     except (KeyError, ValueError):
         size = None
     return {
-        "bold": on("b"), "italic": on("i"), "underline": u is not None and u.get("val", "single") != "none",
+        "bold": on("b"), "italic": on("i"), "underline": u is not None and u.get("val", "single") != "none", "strike": on("strike"),
         "font_name": ch.get("name", {}).get("val"), "font_size": size, "font_color": _rgb(ch.get("color", {})),
     }
 
@@ -253,6 +253,8 @@ def _font_xml(raw: bytes | None, p: Props) -> bytes:
         parts.append(b"<b/>")
     if p.italic:
         parts.append(b"<i/>")
+    if p.strike:
+        parts.append(b"<strike/>")
     if p.underline:
         parts.append(b"<u/>")
     size = p.font_size if p.font_size is not None else (float(ch["sz"]["val"]) if "sz" in ch and "val" in ch["sz"] else 11.0)
@@ -322,7 +324,7 @@ def patch_styles(data: bytes, table: StyleInfo) -> bytes:
         p = d.props
         font_id = int(a["fontId"]) if a.get("fontId", "").isdigit() else 0
         fill_id = int(a["fillId"]) if a.get("fillId", "").isdigit() else 0
-        if (p.bold, p.italic, p.underline, p.font_name, p.font_size, p.font_color) != (rp.bold, rp.italic, rp.underline, rp.font_name, rp.font_size, rp.font_color):
+        if (p.bold, p.italic, p.underline, p.strike, p.font_name, p.font_size, p.font_color) != (rp.bold, rp.italic, rp.underline, rp.strike, rp.font_name, rp.font_size, rp.font_color):
             fx = _font_xml(fonts[font_id] if font_id < len(fonts) else None, p)
             if fx not in new_fonts:
                 new_fonts.append(fx)

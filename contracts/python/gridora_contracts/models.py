@@ -355,6 +355,7 @@ class StyleInfo(_Base):
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    strike: bool = False
     font_name: Optional[str] = None
     font_size: Optional[float] = None
     font_color: Optional[str] = None  # "#RRGGBB"
@@ -585,6 +586,7 @@ class FormatChange(_Base):
     bold: Optional[bool] = None
     italic: Optional[bool] = None
     underline: Optional[bool] = None
+    strike: Optional[bool] = None
     font_name: Optional[str] = Field(default=None, max_length=64)
     font_size: Optional[float] = Field(default=None, ge=1, le=409)
     font_color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")

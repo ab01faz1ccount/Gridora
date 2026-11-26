@@ -37,6 +37,7 @@ class Props:
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    strike: bool = False
     font_name: str | None = None
     font_size: float | None = None
     font_color: str | None = None  # "#RRGGBB"

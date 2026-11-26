@@ -75,7 +75,8 @@ export function styleCss(s: StyleInfo | undefined): CSSProperties | undefined {
   const css: CSSProperties = {};
   if (s.bold) css.fontWeight = 700;
   if (s.italic) css.fontStyle = "italic";
-  if (s.underline) css.textDecoration = "underline";
+  const lines = [s.underline ? "underline" : "", s.strike ? "line-through" : ""].filter(Boolean);
+  if (lines.length) css.textDecoration = lines.join(" ");
   if (s.font_name) css.fontFamily = `"${s.font_name.replace(/["\\]/g, "")}", var(--font, inherit)`;
   if (s.font_size) css.fontSize = Math.round(s.font_size * PT * 10) / 10;
   if (s.font_color) css.color = s.font_color;

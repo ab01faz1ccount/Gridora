@@ -150,12 +150,12 @@ export const ERROR_CODES = [
 ] as const;
 
 export interface StyleInfo {
-  id: number; number_format?: string; bold: boolean; italic: boolean; underline: boolean;
+  id: number; number_format?: string; bold: boolean; italic: boolean; underline: boolean; strike: boolean;
   font_name?: string; font_size?: number; font_color?: string; fill_color?: string;
   halign?: "left" | "center" | "right" | "justify"; wrap: boolean; base_id?: number;
 }
 export interface FormatChange {
-  number_format?: string | null; bold?: boolean | null; italic?: boolean | null; underline?: boolean | null;
+  number_format?: string | null; bold?: boolean | null; italic?: boolean | null; underline?: boolean | null; strike?: boolean | null;
   font_name?: string | null; font_size?: number | null; font_color?: string | null; fill_color?: string | null;
   halign?: "left" | "center" | "right" | "justify" | null; wrap?: boolean | null;
 }
