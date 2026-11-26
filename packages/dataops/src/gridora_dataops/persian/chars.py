@@ -1,4 +1,4 @@
-"""Persian/Arabic character handling shared by sort, dedupe, find/replace and clean_text.
+"""Persian/Arabic character handling shared by sort, dedupe, find/replace, filter, join, group by and clean_text.
 
 Everything is vectorised (Polars `str.replace_many`); no Python loops over rows. All rules are explicit
 and documented here; nothing is applied to user data unless an operation option asks for it.
@@ -6,6 +6,7 @@ and documented here; nothing is applied to user data unless an operation option 
 from __future__ import annotations
 
 import polars as pl
+from gridora_contracts.persian import FOLD
 
 # Persian alphabetical order (آ sorts directly before ا).
 PERSIAN_ORDER = "آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی"
@@ -46,13 +47,6 @@ def _collation_table() -> dict[str, str]:
 
 
 _COLLATION = _collation_table()
-_VARIANT_FOLD: dict[str, str] = {
-    **VARIANT_LETTERS,
-    **{ch: str(d) for d, ch in enumerate(PERSIAN_DIGITS)},
-    **{ch: str(d) for d, ch in enumerate(ARABIC_INDIC_DIGITS)},
-    **{ch: "" for ch in TATWEEL + ZWNJ + DIACRITICS},
-}
-
 
 def collation_key(expr: pl.Expr) -> pl.Expr:
     """Order-preserving sort key for Persian-aware ordering.
@@ -66,5 +60,7 @@ def collation_key(expr: pl.Expr) -> pl.Expr:
 
 
 def variant_fold(expr: pl.Expr) -> pl.Expr:
-    """Fold typing variants so equal-looking text compares equal: ي/ى->ی, ك->ک, digits->Latin, drop tatweel/ZWNJ/diacritics."""
-    return expr.str.replace_many(list(_VARIANT_FOLD), list(_VARIANT_FOLD.values()))
+    """Comparison form of text, vectorised: the same rules as `gridora_contracts.persian.fold_text`
+    (the one definition shared with the engine's Find): Arabic letters, every alef, hamza carriers,
+    all digit scripts, nbsp; tatweel, ZWNJ, diacritics and a lone hamza are dropped; NFKC first."""
+    return expr.str.normalize("NFKC").str.replace_many(list(FOLD), list(FOLD.values()))

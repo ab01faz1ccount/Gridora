@@ -4,19 +4,15 @@ from __future__ import annotations
 from typing import Literal
 
 import polars as pl
+from gridora_contracts.persian import FOLD, IGNORED, variants_of
 from pydantic import Field
 
 from ..errors import DataOpsError, pointer
 from ..ops_common import text_columns
-from ..persian.chars import ARABIC_INDIC_DIGITS, DIACRITICS, PERSIAN_DIGITS, TATWEEL, ZWNJ
 from ..spec import OperationSpec, OpOutput, ParamsModel, PlanEnv, RewriteParams
 
-_VARIANT_CLASS: dict[str, str] = {"ی": "یيى", "ي": "یيى", "ى": "یيى", "ک": "کك", "ك": "کك"}
-for _d in range(10):
-    _cls = f"{_d}{PERSIAN_DIGITS[_d]}{ARABIC_INDIC_DIGITS[_d]}"
-    for _c in _cls:
-        _VARIANT_CLASS[_c] = _cls
-_IGNORABLE = TATWEEL + ZWNJ + DIACRITICS
+_IGNORABLE = IGNORED  # tolerated between the characters of the needle
+_CLASSES = {ch: variants_of(ch) for ch in {*FOLD, *FOLD.values()} - {""} if variants_of(ch) not in ("", ch)}
 
 
 def _esc(ch: str) -> str:
@@ -24,12 +20,17 @@ def _esc(ch: str) -> str:
 
 
 def needle_regex(needle: str, ignore_variants: bool) -> str:
-    """Regex that matches `needle` literally; with `ignore_variants` also Arabic/Persian letter and digit variants,
-    and tolerates tatweel/ZWNJ/diacritics between characters. The surrounding text is never changed."""
+    """Regex that matches `needle` literally; with `ignore_variants` also Arabic/Persian letter, alef, hamza and
+    digit variants, and tolerates tatweel/ZWNJ/diacritics/hamza between characters. The surrounding text is
+    never changed."""
     parts = []
     for ch in needle:
-        cls = _VARIANT_CLASS.get(ch) if ignore_variants else None
-        parts.append(f"[{cls}]" if cls else _esc(ch))
+        if ignore_variants and ch in IGNORED:
+            continue  # ignorable characters are tolerated anyway: they need not be typed
+        cls = _CLASSES.get(ch) if ignore_variants else None
+        parts.append(f"[{''.join(_esc(c) for c in cls)}]" if cls else _esc(ch))
+    if not parts:  # nothing but ignorable characters: match them literally rather than everything
+        return "".join(_esc(ch) for ch in needle)
     return (f"[{_IGNORABLE}]*" if ignore_variants else "").join(parts)
 
 

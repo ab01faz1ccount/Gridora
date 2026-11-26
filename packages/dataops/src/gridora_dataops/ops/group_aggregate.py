@@ -24,6 +24,7 @@ class GroupParams(ParamsModel):
         "x-gridora-column": True, "x-gridora-widget": "column-list", "x-gridora-order": 1})
     aggregations: list[Aggregation] = Field(min_length=1, max_length=50, json_schema_extra={"x-gridora-order": 2})
     sort_groups: bool = Field(False, json_schema_extra={"x-gridora-persian-option": True})
+    ignore_variants: bool = Field(False, json_schema_extra={"x-gridora-persian-option": True})
 
 
 class GroupAggregateOp(OperationSpec):
@@ -42,4 +43,5 @@ class GroupAggregateOp(OperationSpec):
     def plan(self, frame: pl.DataFrame, params: ParamsModel, env: PlanEnv) -> OpOutput:
         assert isinstance(params, GroupParams)
         aggs = [AggSpec(a.fn, a.column, a.name) for a in params.aggregations]
-        return OpOutput(aggregate(frame, params.by, aggs, sort_groups=params.sort_groups))
+        return OpOutput(aggregate(frame, params.by, aggs, sort_groups=params.sort_groups,
+                                   ignore_variants=params.ignore_variants))

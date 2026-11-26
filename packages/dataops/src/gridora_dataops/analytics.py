@@ -8,7 +8,7 @@ import polars as pl
 
 from .errors import DataOpsError
 from .ops_common import unique_name
-from .persian.chars import collation_key
+from .persian.chars import collation_key, variant_fold
 
 AGG_FNS = ("sum", "avg", "count", "count_distinct", "min", "max")
 NULL_CATEGORY = "(خالی)"
@@ -49,8 +49,10 @@ def agg_expr(fn: str, column: Optional[str], dtype: Optional[pl.DataType], ptr: 
 
 
 def aggregate(frame: pl.DataFrame, by: list[str], aggs: list[AggSpec], *, sort_groups: bool = False,
-              ptr: str = "/params/aggregations") -> pl.DataFrame:
-    """Groups appear in first-appearance order (deterministic) unless `sort_groups` (Persian-aware, stable)."""
+              ignore_variants: bool = False, ptr: str = "/params/aggregations") -> pl.DataFrame:
+    """Groups appear in first-appearance order (deterministic) unless `sort_groups` (Persian-aware, stable).
+    With `ignore_variants`, text keys that only differ by Arabic/Persian letter variants, ZWNJ, tatweel or
+    diacritics fall into ONE group, shown with the spelling of its first row."""
     taken = set(by)
     exprs = []
     for i, a in enumerate(aggs):
@@ -60,7 +62,16 @@ def aggregate(frame: pl.DataFrame, by: list[str], aggs: list[AggSpec], *, sort_g
         taken.add(name)
         exprs.append(agg_expr(a.fn, a.column, dtype, f"{ptr}/{i}").alias(name))
     if by:
-        out = frame.group_by(by, maintain_order=True).agg(exprs)
+        folded = [c for c in by if ignore_variants and frame.schema[c] == pl.String]
+        if folded:
+            tmp = {c: f"__g{i}" for i, c in enumerate(folded)}
+            keys = [pl.col(tmp[c]) if c in tmp else pl.col(c) for c in by]
+            out = (frame.with_columns([variant_fold(pl.col(c)).alias(t) for c, t in tmp.items()])
+                   .group_by(keys, maintain_order=True)
+                   .agg([pl.col(c).first() for c in tmp] + exprs)
+                   .drop(list(tmp.values())).select([*by, *[e.meta.output_name() for e in exprs]]))
+        else:
+            out = frame.group_by(by, maintain_order=True).agg(exprs)
         if sort_groups:
             keys = [(collation_key(pl.col(c)) if frame.schema[c] == pl.String else pl.col(c)).alias(f"__k{i}")
                     for i, c in enumerate(by)]

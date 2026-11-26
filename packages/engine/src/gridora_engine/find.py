@@ -1,7 +1,8 @@
 """Find in a sheet (Ctrl+F): row-major scan over the cells' shown text, optionally formula text.
 
-Persian and Arabic digit forms and the Arabic yeh/kaf are folded so a search typed on either keyboard
-finds the same cell. The scan reads the sheet in row chunks through `Engine.get_cells`, so lazy sheets
+Text is compared in its folded form (gridora_contracts.persian): Arabic/Persian digit, yeh, kaf, heh, alef
+and hamza variants are equal and ZWNJ, tatweel and diacritics are ignored, so a search typed on either
+keyboard finds the same cell. The scan reads the sheet in row chunks through `Engine.get_cells`, so lazy sheets
 are only materialised where the scan goes.
 """
 from __future__ import annotations
@@ -17,6 +18,7 @@ from gridora_contracts.models import (
     StrValue,
     Window,
 )
+from gridora_contracts.persian import fold_text
 
 from .formula.numfmt import general_text
 
@@ -25,16 +27,12 @@ if TYPE_CHECKING:
 
     from .engine import GridoraEngine
 
-_FOLD = str.maketrans(
-    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩يكۀ",
-    "01234567890123456789یکه",
-)
 CHUNK_ROWS = 500
 MAX_LIMIT = 1000
 
 
 def fold(s: str, match_case: bool) -> str:
-    s = s.translate(_FOLD)
+    s = fold_text(s)
     return s if match_case else s.casefold()
 
 

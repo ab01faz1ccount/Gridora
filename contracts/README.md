@@ -17,4 +17,5 @@ Install for local development: `pip install -e contracts/python`. Run tests: `py
 - **0.4.0** — `DataTableTarget.version`; optional `ColumnarExecContext`; `RangeSnapshotDelta` and `BlobStore`.
 - **0.4.1** — optional `ColumnarEngine`; history size limit reported as `operation_conflict` with detail `too_large_for_history`.
 - **0.5.0** — `others` on `CellPatchDelta` / `CellsChangedResult` (edits that change other sheets).
+- **0.6.x+** — `gridora_contracts.persian`: the single Persian/Arabic text fold shared by engine and dataops (no schema change).
 - **0.6.x** — calendars (`Workbook.calendar`, `DateColumns`, optional `CalendarEngine`), saved tools, charts, Data Table history (see `docs/API_CONTRACTS.md` and ADR-016).

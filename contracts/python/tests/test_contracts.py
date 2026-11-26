@@ -153,3 +153,20 @@ def test_calendar_models():
         models.SetCalendarRequest(calendar="mayan")
     col = models.DateColumn(col=0, kind="text", calendar="jalali", header_row=True, dates=9, total=10)
     assert models.DateColumns(sheet_id="s", columns=[col]).columns[0].dates == 9
+
+
+def test_persian_fold_makes_variants_compare_equal():
+    from gridora_contracts.persian import fold_text, variants_of
+
+    same = [
+        ("كتاب", "کتاب"), ("علي", "علی"), ("مدرسة", "مدرسه"), ("آب", "اب"), ("أحمد", "احمد"),
+        ("مسئله", "مسیله"), ("جزء", "جز"), ("مؤمن", "مومن"), ("می‌روم", "میروم"),
+        ("کِتاب", "کتاب"), ("كـتـاب", "کتاب"), ("۱۲۳", "123"), ("١٢٣", "123"), ("a b", "a b"),
+        ("ﻻ", "لا"), ("آ", "ا"),
+    ]
+    for a, b in same:
+        assert fold_text(a) == fold_text(b), (a, b)
+    assert fold_text("سلام") != fold_text("سلم")  # real letters stay
+    assert fold_text("ab") == "ab" and fold_text("") == ""
+    assert set(variants_of("ا")) == set("اأإٱآ") and set(variants_of("5")) == set("5۵٥")
+    assert variants_of("ـ") == "" and variants_of("x") == "x"
