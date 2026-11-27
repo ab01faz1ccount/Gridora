@@ -122,6 +122,7 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | GET/POST | `/tools` | v0.6.5: `Tool`; validated statically (known operations, parameters, declared inputs); ≤ 200 per user |
 | GET/PUT/DELETE | `/tools/{id}` | |
 | POST | `/tools/{id}/run` | `ToolRunRequest {workbook_id, target, inputs, base_seq, confirm_destructive}` → 202 `Job` (kind `operation`; `result_ref` = the last history seq). Sheet-range tools on a workbook only; one history entry per step; a run that does not produce plain cell changes is rolled back (`tool.unsupported_output`) |
+| POST | `/tables/{table_id}/tools/{id}/run` | v0.7.0: `TableToolRunRequest {inputs, base_seq, confirm_destructive}` → 202 `Job` (kind `operation`; `result_ref` = the last history seq of the table). `data_table` tools only; every step writes one table version and one undoable history entry; a failure keeps none; a step that creates another table is refused before anything runs (`tool.unsupported_output`) |
 
 ## 10. Charts
 

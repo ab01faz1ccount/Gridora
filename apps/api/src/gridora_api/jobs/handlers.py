@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from gridora_contracts.models import ExportRequest, OperationRequest, ToolRunRequest
+from gridora_contracts.models import (
+    ExportRequest,
+    OperationRequest,
+    TableToolRunRequest,
+    ToolRunRequest,
+)
 
 from ..core.errors import DomainError
 from ..db.models import JobRow, StoredFile
@@ -40,6 +45,15 @@ def make_import_handler(app_state: Any):  # type: ignore[no-untyped-def]
 
 def make_operation_handler(app_state: Any):  # type: ignore[no-untyped-def]
     async def handle(job: JobRow) -> str | None:
+        if "table_tool_run" in job.payload:  # a saved tool on a Data Table: one version per step
+            tseq = await table_history_service.run_tool(
+                app_state,
+                job.owner_id,
+                job.payload["table_id"],
+                job.payload["tool_id"],
+                TableToolRunRequest.model_validate(job.payload["table_tool_run"]),
+            )
+            return str(tseq)
         if "tool_run" in job.payload:  # a saved tool: one history entry per step
             seq = await tools_service.run_tool(
                 app_state,

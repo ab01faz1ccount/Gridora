@@ -10,6 +10,7 @@ Case = Callable[[Any, dict[str, str]], Any]
 
 CSV = {"file": ("x.csv", b"a,b\n1,2\n", "text/csv")}
 
+
 def _TABLE_SORT(ids: dict[str, str]) -> dict[str, object]:  # noqa: N802
     return {
         "type": "sort",
@@ -159,9 +160,7 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
         f"/api/v1/charts/{ids['chart']}/data"
     ),
     ("GET", "/api/v1/tools/{id}"): lambda c, ids: c.get(f"/api/v1/tools/{ids['tool']}"),
-    ("PUT", "/api/v1/tools/{id}"): lambda c, ids: c.put(
-        f"/api/v1/tools/{ids['tool']}", json=TOOL
-    ),
+    ("PUT", "/api/v1/tools/{id}"): lambda c, ids: c.put(f"/api/v1/tools/{ids['tool']}", json=TOOL),
     ("DELETE", "/api/v1/tools/{id}"): lambda c, ids: c.delete(f"/api/v1/tools/{ids['tool']}"),
     ("POST", "/api/v1/tools/{id}/run"): lambda c, ids: c.post(
         f"/api/v1/tools/{ids['tool']}/run",
@@ -173,6 +172,10 @@ ISOLATION_CASES: dict[tuple[str, str], Case] = {
                 "range": {"sheet_id": ids["sheet"], "r0": 0, "c0": 0, "r1": 1, "c1": 1},
             },
         },
+    ),
+    ("POST", "/api/v1/tables/{table_id}/tools/{id}/run"): lambda c, ids: c.post(
+        f"/api/v1/tables/{ids['table']}/tools/{ids['tool']}/run",
+        json={"inputs": {}, "base_seq": 0},
     ),
     ("POST", "/api/v1/tables/{id}/operations/preview"): lambda c, ids: c.post(
         f"/api/v1/tables/{ids['table']}/operations/preview", json=_TABLE_SORT(ids)

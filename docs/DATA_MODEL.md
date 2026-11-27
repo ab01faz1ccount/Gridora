@@ -91,7 +91,10 @@ OperationResult {
 }
 
 Pipeline { id, name, steps: PipelineStep[], input_kind: "sheet_range"|"data_table" }
-PipelineStep { type: string, schema_version: number, params: object, label?: string }  // flat; contracts/ is normative
+PipelineStep { type: string, schema_version: number, params: object, label?: string,
+               extra_targets?: Target[],          // v0.7.0: e.g. the right-hand table of a join
+               extra_target_inputs?: string[] }   // v0.7.0: names of tool inputs of kind "table", bound to extra_targets at run time
+// flat; contracts/ is normative
 // Tool bindings: a param value {"$input": "<name>"} is replaced at run time (bind_tool).
 ```
 Execution contract (implemented by `dataops`):
@@ -113,9 +116,9 @@ Undo applies the inverse; redo re-applies. A new operation after an undo truncat
 ```ts
 Tool { id, owner_id, name, description, pipeline: Pipeline,
        inputs: ToolInput[], created_at }
-ToolInput { name, kind:"column"|"range"|"value", label, required }   // parameters bound at run time
+ToolInput { name, kind:"column"|"range"|"value"|"table", label, required }   // parameters bound at run time; "table" = a Target (a second table)
 ```
-A Tool is a saved, parameterized Pipeline. Running a Tool binds its inputs to a Target and produces ordinary history entries. No scripting language in v1.
+A Tool is a saved, parameterized Pipeline. Running a Tool binds its inputs to a Target and produces ordinary history entries: one per step, on a workbook (`sheet_range` tools) or on a Data Table (`data_table` tools, one table version per step). A step that always creates a new table (`OperationDescriptor.creates_table`) cannot be part of a saved-tool run yet. No scripting language in v1.
 
 ## 8. Chart specification
 

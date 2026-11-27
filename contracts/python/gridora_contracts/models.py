@@ -472,6 +472,15 @@ class Tool(_Base):
     created_at: Optional[datetime] = None
 
 
+class TableToolRunRequest(_Base):
+    """v0.7.0: POST /tables/{id}/tools/{tool_id}/run (a job). Runs a `data_table` tool on that table: every step
+    writes one table version and becomes its own undoable history entry; a failure keeps none of them."""
+
+    inputs: dict[str, Any] = {}
+    base_seq: int
+    confirm_destructive: bool = False
+
+
 class ToolRunRequest(_Base):
     """v0.6.5: POST /tools/{id}/run (a job). Only sheet-range pipelines on a workbook for now;
     every step becomes its own undoable history entry."""

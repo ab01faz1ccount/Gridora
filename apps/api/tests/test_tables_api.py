@@ -437,3 +437,132 @@ def test_a_workbook_run_of_a_table_producing_tool_is_refused_before_it_runs(tuse
     # nothing was created by the refused run: the workspace still holds only the lookup table
     tables = tuser.get(f"/api/v1/workspaces/{ws}/tables").json()["data"]
     assert [t["id"] for t in tables] == [lookup.id]
+
+
+# ------------------------------------------------------------ saved tools on Data Tables
+TABLE_TOOL: dict[str, Any] = {
+    "name": "filter then sort",
+    "pipeline": {
+        "name": "p",
+        "input_kind": "data_table",
+        "steps": [
+            {
+                "type": "filter",
+                "params": {
+                    "where": {
+                        "kind": "condition",
+                        "column": {"$input": "col"},
+                        "op": "gt",
+                        "value": {"$input": "min"},
+                    }
+                },
+            },
+            {
+                "type": "sort",
+                "params": {"keys": [{"column": {"$input": "col"}, "direction": "asc"}]},
+            },
+        ],
+    },
+    "inputs": [
+        {"name": "col", "kind": "column", "label": "column"},
+        {"name": "min", "kind": "value", "label": "minimum"},
+    ],
+}
+
+
+def _table_tool_run(
+    s: Session, tid: str, tool_id: str, inputs: dict[str, Any], base_seq: int = 0
+) -> dict[str, Any]:
+    r = s.post(
+        f"/api/v1/tables/{tid}/tools/{tool_id}/run", json={"inputs": inputs, "base_seq": base_seq}
+    )
+    assert r.status_code == 202, r.text
+    return dict(wait_job(s, r.json()["data"]["id"]))
+
+
+def test_a_data_table_tool_can_be_saved_and_run_with_one_undoable_entry_per_step(
+    tuser: Session,
+) -> None:
+    t = _make(tuser, _ws(tuser))
+    saved = tuser.post("/api/v1/tools", json=TABLE_TOOL)
+    assert saved.status_code == 201, (
+        saved.text
+    )  # used to be refused: the check assumed a sheet range
+    tool_id = saved.json()["data"]["id"]
+
+    job = _table_tool_run(tuser, t.id, tool_id, {"col": "qty", "min": 1})
+    assert job["status"] == "succeeded" and job["result_ref"] == "2", job
+    assert _qty(tuser, t.id) == [2, 3]  # qty > 1, ascending
+    assert tuser.get(f"/api/v1/tables/{t.id}").json()["data"]["version"] == 3
+    hist = tuser.get(f"/api/v1/tables/{t.id}/history").json()["data"]
+    # newest first, like every history listing
+    assert [h["seq"] for h in hist] == [2, 1]
+    assert [h["operation"]["type"] for h in hist] == ["sort", "filter"]
+
+    assert tuser.post(f"/api/v1/tables/{t.id}/undo").status_code == 200  # only the sort goes away
+    assert _qty(tuser, t.id) == [3, 2]
+    assert tuser.post(f"/api/v1/tables/{t.id}/undo").status_code == 200
+    assert _qty(tuser, t.id) == [3, 1, 2]
+    assert tuser.post(f"/api/v1/tables/{t.id}/redo").status_code == 200
+    assert tuser.post(f"/api/v1/tables/{t.id}/redo").status_code == 200
+    assert _qty(tuser, t.id) == [2, 3]
+
+
+def test_a_failing_data_table_tool_run_keeps_nothing(tuser: Session) -> None:
+    t = _make(tuser, _ws(tuser))
+    tool_id = tuser.post("/api/v1/tools", json=TABLE_TOOL).json()["data"]["id"]
+    bad = _table_tool_run(tuser, t.id, tool_id, {"col": "no such column", "min": 1})
+    assert bad["status"] == "failed" and bad["error"]["code"] == "validation_failed", bad
+    missing = _table_tool_run(
+        tuser, t.id, tool_id, {"col": "qty"}
+    )  # required input 'min' is absent
+    assert missing["status"] == "failed", missing
+    stale = _table_tool_run(tuser, t.id, tool_id, {"col": "qty", "min": 1}, base_seq=9)
+    assert stale["status"] == "failed", stale
+    assert _qty(tuser, t.id) == [3, 1, 2]
+    assert tuser.get(f"/api/v1/tables/{t.id}").json()["data"]["version"] == 1
+    assert tuser.get(f"/api/v1/tables/{t.id}/history").json()["data"] == []
+
+
+def test_a_data_table_tool_never_runs_on_the_wrong_kind_of_target(tuser: Session) -> None:
+    t = _make(tuser, _ws(tuser))
+    sheet_tool = tuser.post("/api/v1/tools", json=SORT_TOOL).json()["data"]["id"]
+    job = _table_tool_run(tuser, t.id, sheet_tool, {"col": "qty"})
+    assert job["status"] == "failed" and job["error"]["code"] == "validation_failed", job
+    d = Doc(tuser, "real")
+    table_tool = tuser.post("/api/v1/tools", json=TABLE_TOOL).json()["data"]["id"]
+    on_sheet = wait_job(
+        tuser, _run(tuser, table_tool, d, {"col": "qty", "min": 1}).json()["data"]["id"]
+    )
+    assert on_sheet["status"] == "failed", on_sheet
+    assert _qty(tuser, t.id) == [3, 1, 2]
+
+
+def test_a_data_table_tool_that_would_create_another_table_is_refused_up_front(
+    tuser: Session,
+) -> None:
+    ws = _ws(tuser)
+    t = _make(tuser, ws)
+    group = {
+        **TABLE_TOOL,
+        "pipeline": {
+            "name": "p",
+            "input_kind": "data_table",
+            "steps": [
+                {
+                    "type": "group_aggregate",
+                    "params": {
+                        "by": ["name"],
+                        "aggregations": [{"column": "qty", "fn": "sum"}],
+                    },
+                }
+            ],
+        },
+        "inputs": [],
+    }
+    saved = tuser.post("/api/v1/tools", json=group)
+    assert saved.status_code == 201, saved.text
+    job = _table_tool_run(tuser, t.id, saved.json()["data"]["id"], {})
+    assert job["status"] == "failed" and job["error"]["code"] == "operation_conflict", job
+    tables = tuser.get(f"/api/v1/workspaces/{ws}/tables").json()["data"]
+    assert [x["id"] for x in tables] == [t.id]  # nothing was created
