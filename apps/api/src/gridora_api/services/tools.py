@@ -12,11 +12,13 @@ from typing import Any
 
 from gridora_contracts.models import (
     CellPatchDelta,
+    DataTableTarget,
     ErrorDetail,
     Operation,
     Pipeline,
     Range,
     SheetRangeTarget,
+    Target,
     Tool,
     ToolRunRequest,
 )
@@ -61,7 +63,11 @@ def validate_static(st: Any, tool: Tool) -> None:
                 )
             ],
         )
-    dummy = SheetRangeTarget(range=Range(sheet_id="-", r0=0, c0=0, r1=0, c1=0))
+    dummy: Target = (
+        DataTableTarget(table_id="-")
+        if tool.pipeline.input_kind == "data_table"
+        else SheetRangeTarget(range=Range(sheet_id="-", r0=0, c0=0, r1=0, c1=0))
+    )
     try:
         errors = st.services.executor.validate_tool(tool, dummy, None)
     except Exception as exc:

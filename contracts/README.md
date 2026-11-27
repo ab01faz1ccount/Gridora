@@ -20,3 +20,4 @@ Install for local development: `pip install -e contracts/python`. Run tests: `py
 - **0.6.x+** — `gridora_contracts.persian`: the single Persian/Arabic text fold shared by engine and dataops (no schema change).
 - **0.6.x** — calendars (`Workbook.calendar`, `DateColumns`, optional `CalendarEngine`), saved tools, charts, Data Table history (see `docs/API_CONTRACTS.md` and ADR-016).
 - **0.7.0** — multi-input pipeline steps: `PipelineStep.extra_targets` / `extra_target_inputs`, `ToolInput.kind = "table"`, and `OperationDescriptor.extra_inputs` / `creates_table` / `sheet_output` (additive; lets `join` run inside pipelines and saved tools).
+- **0.7.0 (cont.)** — `TableToolRunRequest` (`POST /tables/{id}/tools/{tool_id}/run`): saved tools on Data Tables.

@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from gridora_contracts.models import Job, Tool, ToolRunRequest
+from gridora_contracts.models import Job, TableToolRunRequest, Tool, ToolRunRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
 from ...core.errors import DomainError
-from ...db.models import JobRow, ToolRow
+from ...db.models import DataTableRow, JobRow, ToolRow
 from ...db.repos.owned import get_owned
 from ...db.session import get_db
 from ...services import tools as tool_service
@@ -60,6 +60,31 @@ async def run_tool(
         ctx.user.id,
         "operation",
         {"doc_id": body.workbook_id, "tool_id": id, "tool_run": body.model_dump(mode="json")},
+    )
+    await db.commit()
+    job = await db.get(JobRow, job_id)
+    if job is None:
+        raise DomainError("internal_error")
+    return ok(request, job_out(job))
+
+
+@router.post("/tables/{table_id}/tools/{id}/run", status_code=202, response_model=Envelope[Job])
+async def run_tool_on_table(
+    table_id: str, id: str, body: TableToolRunRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[Job]:
+    """Run a `data_table` tool on a Data Table (a job; result = last history seq of the table)."""
+    await get_owned(db, DataTableRow, ctx.user.id, table_id)
+    await get_owned(db, ToolRow, ctx.user.id, id)
+    job_id = await request.app.state.runner.submit(
+        db,
+        ctx.user.id,
+        "operation",
+        {
+            "doc_id": table_id,
+            "table_id": table_id,
+            "tool_id": id,
+            "table_tool_run": body.model_dump(mode="json"),
+        },
     )
     await db.commit()
     job = await db.get(JobRow, job_id)

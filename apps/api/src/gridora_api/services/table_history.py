@@ -20,6 +20,7 @@ from gridora_contracts.models import (
     OperationRequest,
     PreviewResult,
     TableChangedResult,
+    TableToolRunRequest,
     TableVersionDelta,
 )
 from sqlalchemy import delete, select
@@ -27,12 +28,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..core.errors import DomainError
-from ..db.models import DataTableRow, HistoryRow
+from ..db.models import DataTableRow, HistoryRow, ToolRow
 from ..db.repos.owned import get_owned, parse_id
 from . import charts as chart_service
 from . import history as history_service
 from . import operations as ops_service
 from . import tables as table_service
+from . import tools as tool_service
 
 
 async def lock_table(db: AsyncSession, owner_id: uuid.UUID, raw_id: str) -> DataTableRow:
@@ -170,6 +172,114 @@ async def run_operation(st: Any, owner_id: uuid.UUID, table_id: str, req: Operat
         for v in stale:  # versions only a discarded redo tail referred to
             _quiet(store.discard_version, str(owner_id), str(row.id), v)
         return h.seq
+
+
+async def run_tool(
+    st: Any, owner_id: uuid.UUID, table_id: str, tool_id: str, req: TableToolRunRequest
+) -> int:
+    """A saved `data_table` tool on this table (a job body). Every step is one table version and one
+    undoable history entry; if anything fails, none is kept. Returns the seq of the last entry."""
+    async with st.sessionmaker() as db:
+        row = await lock_table(db, owner_id, table_id)
+        tool = tool_service.tool_out(await get_owned(db, ToolRow, owner_id, tool_id))
+        if tool.pipeline.input_kind != "data_table":
+            raise _mismatch("this tool works on a sheet range, not on a Data Table")
+        descs = [ops_service.descriptor_for(st.services, s.type) for s in tool.pipeline.steps]
+        for i, dsc in enumerate(descs):
+            if dsc.creates_table:
+                raise DomainError(
+                    "operation_conflict",
+                    details=[
+                        ErrorDetail(
+                            code="tool.unsupported_output",
+                            path=f"/pipeline/steps/{i}/type",
+                            message=(
+                                f"'{dsc.type}' produces a new table, not a new version of this one"
+                            ),
+                        )
+                    ],
+                )
+            if not req.confirm_destructive:
+                ops_service.check_confirmation(dsc, False)
+        history_service.check_base(req.base_seq, await history_service.head_seq(db, row.id))
+        target = DataTableTarget(table_id=str(row.id), version=row.current_version)
+        ctx = _ctx(st, owner_id, row)
+        ex = st.services.executor
+        errors = await _call(ex.validate_tool, tool, target, ctx)
+        if errors:
+            raise DomainError("validation_failed", details=ops_service.details_of(errors))
+        pipeline = ex.bind_tool(tool, req.inputs)
+        for bound in pipeline.steps:  # a table passed as an input must belong to the caller
+            for extra in bound.extra_targets:
+                await ops_service.verify_one(db, owner_id, extra)
+        results = await _call(ex.run_pipeline, pipeline, target, ctx)
+        store = table_service.store_for(st, owner_id)
+        written = [
+            r.delta for r in results if isinstance(r.delta, TableVersionDelta)
+        ]  # versions this run created, in order
+        failed = [r for r in results if r.status != "ok"]
+        chain_ok = not failed and len(written) == len(results)
+        prev = row.current_version
+        for d in written if chain_ok else []:
+            chain_ok = (
+                uuid.UUID(d.table_id) == row.id and d.from_version == prev and d.to_version != prev
+            )
+            prev = d.to_version
+        if not chain_ok:
+            for d in reversed(written):
+                if uuid.UUID(d.table_id) == row.id:
+                    if d.to_version != row.current_version:
+                        _quiet(store.discard_version, str(owner_id), str(row.id), d.to_version)
+                else:
+                    _quiet(store.discard_table, str(owner_id), d.table_id)
+            real = [e for r in failed for e in r.errors if e.code != "pipeline_aborted"]
+            raise DomainError(
+                "validation_failed" if real else "operation_conflict",
+                details=ops_service.details_of(real)
+                or [
+                    ErrorDetail(
+                        code="tool.unsupported_output",
+                        message="the tool did not produce new versions of this table",
+                    )
+                ],
+            )
+        last = written[-1]
+        try:
+            dt: DataTable = await _call(store.restore_version, str(row.id), last.to_version)
+            stale = await _drop_redo_tail(db, row)
+            seq = 0
+            for step_, desc, delta in zip(pipeline.steps, descs, written, strict=True):
+                row.seq_counter += 1
+                seq = row.seq_counter
+                op = Operation(
+                    type=step_.type,
+                    schema_version=step_.schema_version,
+                    target=DataTableTarget(table_id=str(row.id), version=delta.from_version),
+                    params=step_.params,
+                    extra_targets=step_.extra_targets,
+                )
+                db.add(
+                    HistoryRow(
+                        document_id=row.id,
+                        owner_id=owner_id,
+                        seq=seq,
+                        operation_json=op.model_dump(mode="json"),
+                        delta_json=delta.model_dump(mode="json"),
+                        label=desc.label,
+                        undone=False,
+                    )
+                )
+            row.current_version = last.to_version
+            row.meta_json = _meta_at(row, dt)
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            for d in reversed(written):
+                _quiet(store.discard_version, str(owner_id), str(row.id), d.to_version)
+            raise
+        for v in stale:
+            _quiet(store.discard_version, str(owner_id), str(row.id), v)
+        return seq
 
 
 def _discard(store: Any, owner_id: uuid.UUID, row: DataTableRow, result: Any) -> None:

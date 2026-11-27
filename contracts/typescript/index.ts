@@ -62,6 +62,7 @@ export interface ToSheetRequest { workbook_id: string; sheet_id: string; row?: n
 export interface TablePreview { columns: Column[]; rows: unknown[][]; row_count: number; warnings: Warning[] }
 export interface TableRows { table_id: string; version: number; columns: Column[]; row_count: number; offset: number; rows: unknown[][] }
 export interface TableChangedResult { history_entry: HistoryEntry; table: DataTable }
+export interface TableToolRunRequest { inputs?: Record<string, unknown>; base_seq: number; confirm_destructive?: boolean }
 export interface ToolRunRequest { workbook_id: string; target: Target; inputs?: Record<string, unknown>; base_seq: number; confirm_destructive?: boolean }
 export interface ExportRequest { format: "xlsx" | "csv"; sheet_id?: string }
 export interface SetCalendarRequest { calendar: CalendarMode }
