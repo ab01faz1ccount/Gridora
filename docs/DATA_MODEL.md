@@ -123,12 +123,31 @@ A Tool is a saved, parameterized Pipeline. Running a Tool binds its inputs to a 
 ChartSpec {
   id, document_id, type: "bar"|"line"|"pie"|"scatter"|"area",
   title?, source: Target,
-  series: { name?: string, value_col: string|number, category_col?: string|number,
-            aggregate?: "sum"|"avg"|"count"|"min"|"max" }[],
-  options: { stacked?: boolean, legend?: boolean, axis_titles?: {x?:string,y?:string} }
+  series: { name?, value_col, category_col?,
+            aggregate?: "sum"|"avg"|"count"|"min"|"max"|"count_distinct"|"median" }[],
+  options: { stacked?, legend?, axis_titles?: {x?,y?},                       // legacy
+             stack?: "none"|"stacked"|"percent", orientation?: "vertical"|"horizontal",
+             labels?: "none"|"value"|"percent", nulls?: "gap"|"zero", donut? },  // v0.7.0
+  // v0.7.0, all optional:
+  series_by?: column,                      // one series per value of this column (one `series` entry)
+  filters?: { column, op, value?, value2? }[],   // AND-ed; same operators as the `filter` operation
+  sort?: { by: "source"|"category"|"value", direction, order?: [..] },
+  limit?: { top_n, end: "top"|"bottom", other?: boolean },
+  time?: { granularity?: "day"|"month"|"quarter"|"year", calendar: "gregorian"|"jalali" }
 }
+ChartData { categories, series: {name, values: (number|null)[]}[],
+            categories_kind?: "category"|"time"|"number", labels?: string[],   // v0.7.0
+            notes?: { code, params }[], meta? }
 ```
-`dataops` turns a ChartSpec + source into an ECharts-ready dataset; the web app maps it to ECharts options. The spec is ECharts-independent so engines can change.
+A spec stores references and settings, never data. A spec saved before 0.7.0 loads unchanged: every new field is optional and absence means the old behaviour. `dataops` turns a ChartSpec + source into plain categories and series; the web app draws them (hand-written SVG, no chart library). The spec is renderer-independent.
+
+Rules the engine follows (tested in `packages/dataops/tests/test_charts_engine.py`):
+- **Empty is not zero.** A group whose values are all empty is empty (a gap), not 0; `nulls: "zero"` is an explicit user choice. Counts are real zeros.
+- **Nothing disappears silently.** Rows or values a chart cannot draw (empty/unreadable dates, scatter points missing x or y, negative pie values, sampled points, Top N) are reported in `ChartData.notes`. Note codes: `rows_excluded {count, reason}`, `dates_unreadable {count, examples}`, `empty_values {count}`, `negative_values {count}`, `categories_limited {shown, total}`, `other_merged {count}`, `sampled {kept, total}`, `extra_series_ignored {count}`.
+- **Time is time.** A date column (or a text column with `time` set) becomes a chronological axis in the chosen calendar; Jalali text dates in any digit script are read as dates. `labels` carry the display text (`1404/01`), `categories` the bucket start date (ISO).
+- **Filters never touch the source**, they only change what the chart reads.
+- **Top N** ranks categories by the sum of their series values; "Other" is only allowed for sums and counts and always comes last; it is refused on a time axis.
+- **Scatter** shows rows as they are (no aggregate); above 5,000 points it keeps every k-th row (deterministic) and says so.
 
 ## 9. Validation errors and compatibility warnings
 

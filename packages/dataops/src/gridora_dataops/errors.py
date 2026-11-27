@@ -30,6 +30,7 @@ ERROR_CODES = (
     "result_too_large",
     "chart_too_many_categories",
     "chart_series_mismatch",
+    "chart_too_many_series",
     "validation_failed",
 )
 
@@ -39,7 +40,7 @@ ERROR_CODES = (
 # Every other code keeps itself as the detail code. A test pins that each top-level code exists in the contract.
 _VALIDATION = ("unknown_operation", "unsupported_target", "invalid_param", "unknown_param", "unknown_column", "type_mismatch",
                "mixed_column_types", "range_has_error_values", "validation_failed", "result_too_large",
-               "chart_too_many_categories", "chart_series_mismatch")
+               "chart_too_many_categories", "chart_series_mismatch", "chart_too_many_series")
 _CONFLICT = ("range_has_formulas", "would_overwrite", "too_large_for_history", "version_conflict", "version_unavailable",
              "pipeline_aborted", "rollback_incomplete")
 ERROR_ENVELOPE: dict[str, tuple[str, str]] = {

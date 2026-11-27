@@ -29,6 +29,7 @@
   "effects.rows_reordered": "{n} rows will be reordered (the data stays the same)",
   "errors.chart_series_mismatch.message": "All chart series must share the same categories.",
   "errors.chart_too_many_categories.message": "The chart has too many categories.",
+  "errors.chart_too_many_series.message": "A chart can show at most 30 series; use a filter or Top N, or choose a column with fewer distinct values.",
   "errors.invalid_param.message": "A parameter value is invalid.",
   "errors.mixed_column_types.message": "The column mixes data types (for example numbers and text).",
   "errors.not_implemented.message": "This feature is not implemented yet.",
