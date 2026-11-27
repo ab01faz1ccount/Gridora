@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
-CONTRACT_VERSION = "0.6.0"
+CONTRACT_VERSION = "0.7.0"
 MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
 MAX_WINDOW_COLS = 100
 
@@ -337,6 +337,10 @@ class OperationDescriptor(_Base):
     targets: list[Literal["sheet_range", "data_table"]]
     destructive: bool
     supports_preview: bool
+    # v0.7.0 (additive): how the operation fits pipelines and tools.
+    extra_inputs: int = 0  # extra targets it needs (join: 1); see PipelineStep.extra_targets
+    creates_table: bool = False  # the result is always a NEW data table (the source is never changed)
+    sheet_output: Literal["in_place", "new_table"] = "in_place"  # on a sheet range: write back, or a new table
 
 
 class SheetPatch(_Base):
@@ -437,6 +441,11 @@ class PipelineStep(_Base):
     schema_version: int = SCHEMA_VERSION
     params: dict[str, Any] = {}
     label: Optional[str] = None
+    # v0.7.0: extra inputs of a multi-input operation (e.g. the right-hand table of a join), like
+    # Operation.extra_targets. `extra_target_inputs` names tool inputs of kind "table" that bind_tool
+    # turns into `extra_targets` at run time (a saved tool cannot know the table in advance).
+    extra_targets: list[Target] = []
+    extra_target_inputs: list[str] = []
 
 
 class Pipeline(_Base):
@@ -448,7 +457,7 @@ class Pipeline(_Base):
 
 class ToolInput(_Base):
     name: str
-    kind: Literal["column", "range", "value"]
+    kind: Literal["column", "range", "value", "table"]
     label: str
     required: bool = True
 

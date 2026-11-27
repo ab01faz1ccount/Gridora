@@ -91,7 +91,7 @@ def test_validate_reports_each_problem_at_its_place() -> None:
     assert ("invalid_param", "/pipeline/steps/0/params/keys/0/column") in got
     assert ("invalid_param", "/pipeline/steps/1/params/mode") in got
     assert ("unknown_operation", "/pipeline/steps/2/type") in got
-    assert ("invalid_param", "/pipeline/steps/3/type") in got
+    assert ("invalid_param", "/pipeline/steps/3/extra_targets") in got  # a join with no second table
     assert ("invalid_param", "/pipeline/steps/4/params/keep") in got
     assert ("invalid_param", "/inputs/unused") in got and ("invalid_param", "/inputs/3/name") in got
 
@@ -198,7 +198,7 @@ def test_pipeline_guards() -> None:
     tgt = SheetRangeTarget(range=ctx.rng(0, 0, 4, 1))
     assert EX.run_pipeline(pipe("data_table", step("fill")), tgt, ctx)[0].errors[0].path == "/input_kind"
     assert EX.run_pipeline(pipe("sheet_range", step("sort", keys=[{"column": ph("c")}])), tgt, ctx)[0].errors[0].path == "/steps/0/params"
-    assert EX.run_pipeline(pipe("sheet_range", step("join", left_on=["a"], right_on=["a"])), tgt, ctx)[0].errors[0].path == "/steps/0/type"
+    assert EX.run_pipeline(pipe("sheet_range", step("join", left_on=["a"], right_on=["a"])), tgt, ctx)[0].errors[0].path == "/steps/0/extra_targets"
     res = EX.run_pipeline(pipe("sheet_range", step("fill", has_header=True), step("fill", has_header=False)), tgt, ctx)
     assert res[1].errors[0].path == "/steps/1/params/has_header" and ctx.writes == 0
 
@@ -279,3 +279,87 @@ def test_a_saved_tool_runs_with_different_bindings(tctx: FakeExecContext) -> Non
     assert second[1].status == "ok" and tctx.store.for_owner("u1").read_page("t1", 0, 1) == [["تهران", 10.0]]
     bad = EX.run_pipeline(EX.bind_tool(t, {"by": "nope"}), DataTableTarget(table_id="t1"), tctx)
     assert bad[1].errors[0].path == "/steps/1/params/keys/0/column" and tctx.store.for_owner("u1").versions("u1", "t1") == [1, 2, 3, 4, 5]
+
+
+# ------------------------------------------------------------ multi-input steps (contract 0.7.0)
+def join_step(**extra: Any) -> PipelineStep:
+    return PipelineStep(type="join", params={"how": "inner", "left_on": ["city"], "right_on": ["city"]}, **extra)
+
+
+@pytest.fixture
+def jctx(tctx: FakeExecContext) -> FakeExecContext:
+    tctx.store.create_from_rows(tctx, "cities", [Column(name="city", dtype="string"), Column(name="region", dtype="string")],
+                                [["تهران", "تهران"], ["کرج", "البرز"], ["قم", "قم"]])
+    return tctx
+
+
+def test_a_join_step_runs_inside_a_pipeline_after_a_cleaning_step(jctx: FakeExecContext) -> None:
+    p = pipe("data_table", step("clean_text"), join_step(extra_targets=[DataTableTarget(table_id="t2")]))
+    res = EX.run_pipeline(p, DataTableTarget(table_id="t1"), jctx)
+    assert [r.status for r in res] == ["ok", "ok"]
+    out = res[1].output
+    assert isinstance(out, DataTableTarget)
+    rows = jctx.store.for_owner("u1").read_page(out.table_id, 0, 10)
+    # the cleaning step trimmed the keys, so all four sales rows find their city; the source stays untouched
+    assert sorted(rows) == sorted([["تهران", 10.0, "تهران"], ["کرج", 5.0, "البرز"], ["تهران", 2.0, "تهران"], ["کرج", 5.0, "البرز"]])
+
+
+def test_without_the_cleaning_step_the_untrimmed_keys_do_not_match(jctx: FakeExecContext) -> None:
+    res = EX.run_pipeline(pipe("data_table", join_step(extra_targets=[DataTableTarget(table_id="t2")])),
+                          DataTableTarget(table_id="t1"), jctx)
+    out = res[0].output
+    assert isinstance(out, DataTableTarget)
+    assert jctx.store.for_owner("u1").read_page(out.table_id, 0, 10) == [["کرج", 5.0, "البرز"], ["کرج", 5.0, "البرز"]]
+
+
+def test_a_join_step_with_a_wrong_number_of_extra_targets_is_rejected_before_anything_runs(jctx: FakeExecContext) -> None:
+    res = EX.run_pipeline(pipe("data_table", step("clean_text"), join_step()), DataTableTarget(table_id="t1"), jctx)
+    assert [r.status for r in res] == ["error", "error"]
+    assert res[1].errors[0].path == "/steps/1/extra_targets" and res[0].errors[0].code == "pipeline_aborted"
+    assert jctx.store.for_owner("u1").versions("u1", "t1") == [1]
+
+
+def test_a_missing_right_table_fails_in_the_dry_run_and_nothing_is_written(jctx: FakeExecContext) -> None:
+    p = pipe("data_table", step("clean_text"), join_step(extra_targets=[DataTableTarget(table_id="nope")]))
+    res = EX.run_pipeline(p, DataTableTarget(table_id="t1"), jctx)
+    assert [r.status for r in res] == ["error", "error"] and res[0].errors[0].code == "pipeline_aborted"
+    assert (res[1].errors[0].code, res[1].errors[0].path) == ("table_not_found", "/steps/1/extra_targets/0/table_id")
+    assert jctx.store.for_owner("u1").versions("u1", "t1") == [1]  # the cleaning step before it was never committed
+
+
+def test_an_unknown_right_key_is_reported_at_the_step(jctx: FakeExecContext) -> None:
+    bad = PipelineStep(type="join", params={"left_on": ["city"], "right_on": ["zzz"]}, extra_targets=[DataTableTarget(table_id="t2")])
+    res = EX.run_pipeline(pipe("data_table", bad), DataTableTarget(table_id="t1"), jctx)
+    assert res[0].errors[0].code == "unknown_column" and res[0].errors[0].path == "/steps/0/params/right_on/0"
+
+
+def test_a_saved_tool_takes_the_second_table_as_an_input(jctx: FakeExecContext) -> None:
+    t = tool(step("clean_text"), join_step(extra_target_inputs=["lookup"]),
+             inputs=[ToolInput(name="lookup", kind="table", label="جدول شهرها")], kind="data_table")
+    assert EX.validate_tool(t, DataTableTarget(table_id="t1"), jctx) == []
+    with pytest.raises(DataOpsError) as e:
+        EX.bind_tool(t, {})
+    assert e.value.errors[0].path == "/inputs/lookup"
+    with pytest.raises(DataOpsError) as e2:
+        EX.bind_tool(t, {"lookup": {"kind": "nonsense"}})
+    assert e2.value.errors[0].path == "/inputs/lookup"
+    bound = EX.bind_tool(t, {"lookup": {"kind": "data_table", "table_id": "t2"}})
+    assert bound.steps[1].extra_targets == [DataTableTarget(table_id="t2")] and bound.steps[1].extra_target_inputs == []
+    assert t.pipeline.steps[1].extra_targets == []  # the saved definition is not modified
+    res = EX.run_pipeline(bound, DataTableTarget(table_id="t1"), jctx)
+    assert [r.status for r in res] == ["ok", "ok"]
+
+
+def test_an_unbound_table_input_cannot_run_and_table_inputs_are_checked_at_design_time(jctx: FakeExecContext) -> None:
+    t = tool(join_step(extra_target_inputs=["lookup"]), inputs=[ToolInput(name="lookup", kind="table", label="l")], kind="data_table")
+    res = EX.run_pipeline(t.pipeline, DataTableTarget(table_id="t1"), jctx)
+    assert res[0].errors[0].path == "/steps/0/extra_target_inputs"
+    wrong_kind = tool(join_step(extra_target_inputs=["x"]), inputs=[ToolInput(name="x", kind="value", label="x")], kind="data_table")
+    undeclared = tool(join_step(extra_target_inputs=["nope"]), kind="data_table")
+    unused = tool(step("clean_text"), inputs=[ToolInput(name="lookup", kind="table", label="l")], kind="data_table")
+    misplaced = tool(step("fill", mode=ph("lookup")), inputs=[ToolInput(name="lookup", kind="table", label="l")], kind="data_table")
+    tgt = DataTableTarget(table_id="t1")
+    assert any(e.path == "/pipeline/steps/0/extra_target_inputs" for e in EX.validate_tool(wrong_kind, tgt))
+    assert any(e.path == "/pipeline/steps/0/extra_target_inputs" for e in EX.validate_tool(undeclared, tgt))
+    assert any(e.path == "/inputs/lookup" for e in EX.validate_tool(unused, tgt))
+    assert any("table input" in e.message for e in EX.validate_tool(misplaced, tgt))

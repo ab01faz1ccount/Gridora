@@ -15,10 +15,12 @@ from gridora_contracts.models import (
     ValidationError,
 )
 from gridora_contracts.protocols import ExecContext
+from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 
 from .errors import DataOpsError, pointer, verr
 
+_TARGET = TypeAdapter(Target)
 PLACEHOLDER = "$input"
 SCALARS = {"string", "integer", "number", "boolean"}
 
@@ -58,6 +60,12 @@ def _check_value(kind: str, v: Any) -> Optional[str]:
         return None if isinstance(v, str) and v else "a column input must be a non-empty column name"
     if kind == "value":
         return None if isinstance(v, (bool, int, float, str)) else "a value input must be a text, number or yes/no value"
+    if kind == "table":
+        try:
+            _TARGET.validate_python(v)
+        except (PydanticValidationError, ValueError):
+            return "a table input must be a sheet range or data table target"
+        return None
     try:
         Range.model_validate(v)
     except (PydanticValidationError, ValueError):
@@ -90,8 +98,18 @@ def bind_tool(tool: Tool, inputs: dict[str, Any]) -> Pipeline:
             if name not in declared:
                 errs.append(verr("invalid_param", pointer("pipeline", "steps", i) + "/params" + ptr,
                                  f"step uses undeclared input '{name}'"))
+        extras = list(st.extra_targets)
+        for j, name in enumerate(st.extra_target_inputs):
+            base = pointer("pipeline", "steps", i, "extra_target_inputs", j)
+            if name not in declared or declared[name].kind != "table":
+                errs.append(verr("invalid_param", base, f"'{name}' is not a declared table input"))
+            elif name not in values:
+                errs.append(verr("invalid_param", pointer("inputs", name), f"step {i} needs table input '{name}'"))
+            else:
+                extras.append(_TARGET.validate_python(values[name]))
         steps.append(PipelineStep(type=st.type, schema_version=st.schema_version, label=st.label,
-                                  params=_substitute(st.params, values, set(declared) - set(values))))
+                                  params=_substitute(st.params, values, set(declared) - set(values)),
+                                  extra_targets=extras))
     if errs:
         raise DataOpsError("validation_failed", "the tool inputs are invalid", errors=errs)
     return Pipeline(id=tool.pipeline.id, name=tool.pipeline.name, input_kind=tool.pipeline.input_kind, steps=steps)
@@ -193,9 +211,17 @@ def validate_tool(ex: Any, tool: Tool, target: Target, ctx: Optional[ExecContext
         if spec is None:
             errs.append(verr("unknown_operation", base + "/type", f"unknown operation '{st.type}'"))
             continue
-        if spec.extra_inputs:
-            errs.append(verr("invalid_param", base + "/type", f"'{st.type}' needs extra targets and cannot be a pipeline step"))
-            continue
+        have = len(st.extra_targets) + len(st.extra_target_inputs)
+        if have != spec.extra_inputs:
+            errs.append(verr("invalid_param", base + "/extra_targets",
+                             f"'{st.type}' needs {spec.extra_inputs} extra target(s), the step has {have}"))
+        for name in st.extra_target_inputs:
+            used.add(name)
+            decl_t = declared.get(name)
+            if decl_t is None:
+                errs.append(verr("invalid_param", base + "/extra_target_inputs", f"step uses undeclared input '{name}'"))
+            elif decl_t.kind != "table":
+                errs.append(verr("invalid_param", base + "/extra_target_inputs", f"'{name}' must be a table input"))
         params = copy.deepcopy(st.params)
         schema = spec.descriptor().params_schema
         skip: list[str] = []
@@ -212,11 +238,14 @@ def validate_tool(ex: Any, tool: Tool, target: Target, ctx: Optional[ExecContext
                 errs.append(verr("invalid_param", base + "/params" + ptr, f"'{name}' is a column input but this parameter is not a column"))
             elif decl.kind == "value" and (is_col or not types):
                 errs.append(verr("invalid_param", base + "/params" + ptr, f"'{name}' is a value input but this parameter takes no plain value"))
+            elif decl.kind == "table":
+                errs.append(verr("invalid_param", base + "/params" + ptr, f"'{name}' is a table input: use extra_target_inputs"))
             elif decl.kind == "range":
                 errs.append(verr("invalid_param", base + "/params" + ptr, "range inputs are not accepted by any v1 operation parameter"))
             if parts:
                 _set(params, parts, _dummy(decl.kind, types, enum))
-        op = Operation(type=st.type, schema_version=st.schema_version, target=target, params=params)
+        op = Operation(type=st.type, schema_version=st.schema_version, target=target, params=params,
+                       extra_targets=st.extra_targets)
         _spec, resolved, e2 = ex._resolve(op)
         for e in e2:
             if not any(e.path == "/params" + s or e.path.startswith("/params" + s + "/") for s in skip):

@@ -133,9 +133,12 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
         if next(placeholders(st.params), None) is not None:
             return _fail(n, i, [verr("invalid_param", pointer("steps", i, "params"), "unbound input: use bind_tool first")])
         spec = ex.registry.get(st.type)
-        if spec is not None and spec.extra_inputs:
-            return _fail(n, i, [verr("invalid_param", pointer("steps", i, "type"),
-                                     f"'{st.type}' needs extra targets and cannot be a pipeline step")])
+        if st.extra_target_inputs:
+            return _fail(n, i, [verr("invalid_param", pointer("steps", i, "extra_target_inputs"),
+                                     "unbound input: use bind_tool first")])
+        if spec is not None and len(st.extra_targets) != spec.extra_inputs:
+            return _fail(n, i, [verr("invalid_param", pointer("steps", i, "extra_targets"),
+                                     f"'{st.type}' needs {spec.extra_inputs} extra target(s), the step has {len(st.extra_targets)}")])
         if isinstance(target, SheetRangeTarget) and "has_header" in st.params:
             headers.add(bool(st.params["has_header"]))
             if len(headers) > 1:
@@ -155,7 +158,8 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
     keep = ex.pipeline_handoff
     try:
         for i, st in enumerate(p.steps):
-            op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params)
+            op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params,
+                           extra_targets=st.extra_targets)
             spec, params, errs = ex._resolve(op)
             if errs or spec is None or params is None:
                 return _fail(n, i, _prefixed(errs, i))
@@ -166,7 +170,7 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
                 table_ref = src.table
             else:
                 src = _Source(cur_frame, names_before, spec.has_header(params))
-            frame, warns = ex._plan_from(spec, params, src, [])
+            frame, warns = ex._plan_from(spec, params, src, ex._load_extras(spec, op, ctx))
             plans.append(_Plan(spec, frame, warns, kind, cur_range, list(names_before), exact_before, src.has_header,
                                table_ref if i == 0 else None))
             total_bytes += frame.estimated_size()
@@ -212,7 +216,8 @@ def run_pipeline(ex: Any, p: Pipeline, target: Target, ctx: ExecContext) -> list
             else:  # re-read between steps (memory guard or `pipeline_handoff=False`)
                 if kind == "sheet_range" and plans[i].range is not None:
                     cur_target = SheetRangeTarget(range=plans[i].range)
-                op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params)
+                op = Operation(type=st.type, schema_version=st.schema_version, target=cur_target, params=st.params,
+                               extra_targets=st.extra_targets)
                 res = ex.apply(op, ctx)
         except DataOpsError as e:
             res = OperationResult(status="error", errors=e.errors)
