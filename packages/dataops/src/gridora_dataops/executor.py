@@ -130,7 +130,15 @@ class DataOpsExecutor:
         if len(op.extra_targets) != spec.extra_inputs:
             raise DataOpsError("invalid_param", f"'{op.type}' needs {spec.extra_inputs} extra target(s)",
                                path=pointer("extra_targets"))
-        return [self._load_target(t, ctx, allow_formulas=True, lenient=True) for t in op.extra_targets]
+        out: list[_Source] = []
+        for i, t in enumerate(op.extra_targets):
+            try:
+                out.append(self._load_target(t, ctx, allow_formulas=True, lenient=True))
+            except DataOpsError as e:  # point at the extra target, not at the primary one
+                raise DataOpsError(e.code, e.message, errors=[
+                    verr(x.code, x.path.replace("/target", pointer("extra_targets", i), 1) if x.path.startswith("/target") else x.path,
+                         x.message, x.hint) for x in e.errors]) from None
+        return out
 
     @staticmethod
     def _store(ctx: ExecContext) -> ParquetTableStore:

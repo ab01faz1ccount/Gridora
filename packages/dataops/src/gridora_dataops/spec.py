@@ -97,4 +97,7 @@ class OperationSpec:
             targets=list(self.targets),
             destructive=self.destructive,
             supports_preview=self.supports_preview,
+            extra_inputs=self.extra_inputs,
+            creates_table=self.creates_table,
+            sheet_output="new_table" if self.sheet_output == "new_table" else "in_place",
         )

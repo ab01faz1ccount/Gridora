@@ -96,6 +96,8 @@ export interface OperationDescriptor {
   type: string; label: string; category: string; description: string;
   params_schema: Record<string, unknown>; targets: ("sheet_range" | "data_table")[];
   destructive: boolean; supports_preview: boolean;
+  /** v0.7.0: extra targets the operation needs (join: 1), always a new table, and where a sheet-range run writes. */
+  extra_inputs?: number; creates_table?: boolean; sheet_output?: "in_place" | "new_table";
 }
 
 /** v0.5.0 (ADR-016): cells of another sheet changed by cross-sheet recalculation. */
@@ -114,9 +116,9 @@ export interface OperationResult {
 }
 export interface PreviewResult { columns: string[]; rows: unknown[][]; total_rows?: number; warnings: Warning[] }
 
-export interface PipelineStep { type: string; schema_version: number; params: Record<string, unknown>; label?: string }
+export interface PipelineStep { type: string; schema_version: number; params: Record<string, unknown>; label?: string; extra_targets?: Target[]; extra_target_inputs?: string[] }
 export interface Pipeline { id?: string; name: string; input_kind: "sheet_range" | "data_table"; steps: PipelineStep[] }
-export interface ToolInput { name: string; kind: "column" | "range" | "value"; label: string; required: boolean }
+export interface ToolInput { name: string; kind: "column" | "range" | "value" | "table"; label: string; required: boolean }
 export interface Tool { id?: string; owner_id?: string; name: string; description: string; pipeline: Pipeline; inputs: ToolInput[]; created_at?: string }
 
 export interface HistoryEntry {

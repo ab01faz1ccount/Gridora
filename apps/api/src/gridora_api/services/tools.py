@@ -144,6 +144,22 @@ async def run_tool(st: Any, owner_id: uuid.UUID, tool_id: str, req: ToolRunReque
         await ops_service.verify_targets(db, owner_id, row, probe)
         history_service.check_base(req.base_seq, await history_service.head_seq(db, row.id))
         descs = [ops_service.descriptor_for(st.services, s.type) for s in tool.pipeline.steps]
+        for i, d in enumerate(descs):
+            if d.creates_table or d.sheet_output == "new_table":
+                # decided BEFORE anything runs: the step would create a table that cannot be kept
+                raise DomainError(
+                    "operation_conflict",
+                    details=[
+                        ErrorDetail(
+                            code="tool.unsupported_output",
+                            path=f"/pipeline/steps/{i}/type",
+                            message=(
+                                f"'{d.type}' produces a new table; "
+                                "a workbook run needs a plain cell change"
+                            ),
+                        )
+                    ],
+                )
         if not req.confirm_destructive:
             for d in descs:
                 ops_service.check_confirmation(d, False)
@@ -162,6 +178,9 @@ async def run_tool(st: Any, owner_id: uuid.UUID, tool_id: str, req: ToolRunReque
             raise DomainError("validation_failed", details=ops_service.details_of(errors))
         try:
             pipeline: Pipeline = ex.bind_tool(tool, req.inputs)
+            for bound in pipeline.steps:  # a table passed as an input must belong to the caller
+                for extra in bound.extra_targets:
+                    await ops_service.verify_one(db, owner_id, extra)
             results = await st.copies.call(entry, ex.run_pipeline, pipeline, req.target, ctx)
         except DomainError:
             raise

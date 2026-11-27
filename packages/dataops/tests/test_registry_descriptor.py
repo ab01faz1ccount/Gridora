@@ -82,3 +82,11 @@ def test_persian_texts_contain_persian_letters_only_where_expected() -> None:
             ex = json.loads(v)
             text = ex["caption"] + json.dumps(ex["after"], ensure_ascii=False)
         assert "ي" not in text and "ك" not in text, f"Arabic letter variants in {k}"  # ي / ك
+
+
+def test_descriptors_tell_pipelines_and_tools_how_each_operation_fits() -> None:
+    by_type = {d.type: d for d in DataOpsExecutor().describe_all()}
+    assert by_type["join"].extra_inputs == 1 and by_type["join"].creates_table
+    assert by_type["filter"].sheet_output == "new_table" and not by_type["filter"].creates_table
+    assert by_type["sort"].extra_inputs == 0 and by_type["sort"].sheet_output == "in_place"
+    assert {t for t, d in by_type.items() if d.creates_table} == {"group_aggregate", "join", "pivot", "unpivot"}

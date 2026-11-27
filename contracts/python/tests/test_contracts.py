@@ -139,7 +139,7 @@ def test_optional_columnar_protocols_exist():
 def test_columnar_engine_protocol_and_contract_patch_version():
     from gridora_contracts import ColumnarEngine, models
     assert ColumnarEngine is not None
-    assert models.CONTRACT_VERSION.startswith("0.6.")
+    assert models.CONTRACT_VERSION.startswith("0.7.")
 
 
 # ---- contract v0.6.0: calendars ----

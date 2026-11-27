@@ -380,3 +380,60 @@ def test_table_csv_export(tuser: Session) -> None:
     rep = tuser.get(f"/api/v1/jobs/{done['id']}/compatibility").json()["data"]
     assert [i["code"] for i in rep["items"]] == ["csv.formula_text_neutralized"]
     assert tuser.post(f"/api/v1/tables/{t.id}/export", json={"format": "xlsx"}).status_code == 400
+
+
+# ------------------------------------------------------- multi-input tools (contract 0.7.0)
+JOIN_TOOL: dict[str, Any] = {
+    "name": "join with lookup",
+    "pipeline": {
+        "name": "p",
+        "input_kind": "sheet_range",
+        "steps": [
+            {
+                "type": "join",
+                "params": {"left_on": [{"$input": "key"}], "right_on": ["name"]},
+                "extra_target_inputs": ["lookup"],
+            }
+        ],
+    },
+    "inputs": [
+        {"name": "key", "kind": "column", "label": "key"},
+        {"name": "lookup", "kind": "table", "label": "lookup table"},
+    ],
+}
+
+
+def test_a_tool_with_a_table_input_is_saved_and_returned_unchanged(tuser: Session) -> None:
+    r = tuser.post("/api/v1/tools", json=JOIN_TOOL)
+    assert r.status_code == 201, r.text
+    got = tuser.get(f"/api/v1/tools/{r.json()['data']['id']}").json()["data"]
+    assert got["pipeline"]["steps"][0]["extra_target_inputs"] == ["lookup"]
+    assert got["inputs"][1]["kind"] == "table"
+
+
+def test_a_tool_whose_table_input_is_wired_wrongly_is_refused_at_save_time(tuser: Session) -> None:
+    broken = {**JOIN_TOOL, "inputs": [JOIN_TOOL["inputs"][0]]}  # 'lookup' is not declared
+    r = tuser.post("/api/v1/tools", json=broken)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "validation_failed"
+    paths = [d["path"] for d in r.json()["error"]["details"]]
+    assert "/pipeline/steps/0/extra_target_inputs" in paths
+    step = {**JOIN_TOOL["pipeline"]["steps"][0], "extra_target_inputs": []}
+    no_second_table = {**JOIN_TOOL, "pipeline": {**JOIN_TOOL["pipeline"], "steps": [step]}}
+    r2 = tuser.post("/api/v1/tools", json=no_second_table)
+    assert r2.status_code == 400
+    assert "/pipeline/steps/0/extra_targets" in [d["path"] for d in r2.json()["error"]["details"]]
+
+
+def test_a_workbook_run_of_a_table_producing_tool_is_refused_before_it_runs(tuser: Session) -> None:
+    ws = _ws(tuser)
+    lookup = _make(tuser, ws)
+    d = Doc(tuser, "real")
+    tid = tuser.post("/api/v1/tools", json=JOIN_TOOL).json()["data"]["id"]
+    before_cells = d.cells()
+    inputs = {"key": "نام", "lookup": {"kind": "data_table", "table_id": lookup.id}}
+    job = wait_job(tuser, _run(tuser, tid, d, inputs).json()["data"]["id"])
+    assert job["status"] == "failed" and job["error"]["code"] == "operation_conflict", job
+    assert d.cells() == before_cells and d.history().json()["data"] == []
+    # nothing was created by the refused run: the workspace still holds only the lookup table
+    tables = tuser.get(f"/api/v1/workspaces/{ws}/tables").json()["data"]
+    assert [t["id"] for t in tables] == [lookup.id]
