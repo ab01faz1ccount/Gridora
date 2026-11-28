@@ -262,6 +262,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .chart-svg { inline-size: 100%; block-size: auto; }
 .chart-grid { stroke: var(--border); stroke-width: 1; }
 .chart-text { font-size: 10px; fill: currentColor; }
+.chart-axis { stroke: currentColor; stroke-width: 1; opacity: 0.55; }
+.chart-axis-title { font-size: 10.5px; opacity: 0.8; }
+.chart-value { font-size: 9px; }
+.chart-pie-label { font-size: 10px; fill: #fff; font-weight: 600; }
+.chart-notes { margin: 4px 0 0; padding-inline-start: 1.1em; font-size: 0.8125rem; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8125rem; }
 .chart-legend i { display: inline-block; inline-size: 10px; block-size: 10px; margin-inline-end: 4px; border-radius: 2px; }
 .btn[href] { text-decoration: none; display: inline-block; }
