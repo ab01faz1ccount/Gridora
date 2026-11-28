@@ -13,6 +13,7 @@ from ..values import (
     XlRaise,
     is_matrix,
     parse_number,
+    same_15_digits,
     to_bool,
 )
 from ..xlerrors import XlError
@@ -489,10 +490,10 @@ def _numeq(v: Scalar, t: float) -> bool:
     if isinstance(v, bool):
         return False
     if isinstance(v, (int, float)):
-        return float(v) == t
+        return float(v) == t or same_15_digits(float(v), t)  # the same rule as the = operator
     if isinstance(v, str):
         n = parse_number(v)
-        return n is not None and n == t
+        return n is not None and (n == t or same_15_digits(n, t))
     return False
 
 
@@ -504,7 +505,9 @@ def _numeric_op(op: str, n: float, raw: str) -> Callable[[Scalar], bool]:
         return lambda v: _numeq(v, n)
     if op == "<>":
         return lambda v: not _numeq(v, n)
-    f: Callable[[float], bool] = {"<": lambda x: x < n, ">": lambda x: x > n, "<=": lambda x: x <= n, ">=": lambda x: x >= n}[op]
+    f: Callable[[float], bool] = {
+        "<": lambda x: x < n and not same_15_digits(x, n), ">": lambda x: x > n and not same_15_digits(x, n),
+        "<=": lambda x: x < n or x == n or same_15_digits(x, n), ">=": lambda x: x > n or x == n or same_15_digits(x, n)}[op]
     return lambda v: isnum(v) and f(float(v))
 
 
