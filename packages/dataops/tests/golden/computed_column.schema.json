@@ -67,7 +67,7 @@
             ],
             "title": "ops.computed_column.defs.Call.args.items.title"
           },
-          "maxItems": 10,
+          "maxItems": 21,
           "title": "ops.computed_column.defs.Call.args.title",
           "type": "array"
         },
@@ -108,21 +108,37 @@
             "coalesce",
             "year",
             "month",
-            "day"
+            "day",
+            "to_number",
+            "to_text",
+            "fold",
+            "contains",
+            "starts_with",
+            "ends_with",
+            "switch",
+            "between",
+            "days_between",
+            "add_days"
           ],
           "title": "ops.computed_column.defs.Call.fn.title",
           "type": "string",
           "x-gridora-enum-labels": {
             "abs": "ops.computed_column.defs.Call.fn.options.abs",
             "add": "ops.computed_column.defs.Call.fn.options.add",
+            "add_days": "ops.computed_column.defs.Call.fn.options.add_days",
             "and": "ops.computed_column.defs.Call.fn.options.and",
+            "between": "ops.computed_column.defs.Call.fn.options.between",
             "ceil": "ops.computed_column.defs.Call.fn.options.ceil",
             "coalesce": "ops.computed_column.defs.Call.fn.options.coalesce",
             "concat": "ops.computed_column.defs.Call.fn.options.concat",
+            "contains": "ops.computed_column.defs.Call.fn.options.contains",
             "day": "ops.computed_column.defs.Call.fn.options.day",
+            "days_between": "ops.computed_column.defs.Call.fn.options.days_between",
             "div": "ops.computed_column.defs.Call.fn.options.div",
+            "ends_with": "ops.computed_column.defs.Call.fn.options.ends_with",
             "eq": "ops.computed_column.defs.Call.fn.options.eq",
             "floor": "ops.computed_column.defs.Call.fn.options.floor",
+            "fold": "ops.computed_column.defs.Call.fn.options.fold",
             "ge": "ops.computed_column.defs.Call.fn.options.ge",
             "gt": "ops.computed_column.defs.Call.fn.options.gt",
             "if": "ops.computed_column.defs.Call.fn.options.if",
@@ -144,8 +160,12 @@
             "replace": "ops.computed_column.defs.Call.fn.options.replace",
             "right": "ops.computed_column.defs.Call.fn.options.right",
             "round": "ops.computed_column.defs.Call.fn.options.round",
+            "starts_with": "ops.computed_column.defs.Call.fn.options.starts_with",
             "sub": "ops.computed_column.defs.Call.fn.options.sub",
             "substring": "ops.computed_column.defs.Call.fn.options.substring",
+            "switch": "ops.computed_column.defs.Call.fn.options.switch",
+            "to_number": "ops.computed_column.defs.Call.fn.options.to_number",
+            "to_text": "ops.computed_column.defs.Call.fn.options.to_text",
             "trim": "ops.computed_column.defs.Call.fn.options.trim",
             "upper": "ops.computed_column.defs.Call.fn.options.upper",
             "year": "ops.computed_column.defs.Call.fn.options.year"
@@ -291,7 +311,7 @@
                 ],
                 "title": "ops.computed_column.defs.Call.args.items.title"
               },
-              "maxItems": 10,
+              "maxItems": 21,
               "title": "ops.computed_column.defs.Call.args.title",
               "type": "array"
             },
@@ -332,21 +352,37 @@
                 "coalesce",
                 "year",
                 "month",
-                "day"
+                "day",
+                "to_number",
+                "to_text",
+                "fold",
+                "contains",
+                "starts_with",
+                "ends_with",
+                "switch",
+                "between",
+                "days_between",
+                "add_days"
               ],
               "title": "ops.computed_column.defs.Call.fn.title",
               "type": "string",
               "x-gridora-enum-labels": {
                 "abs": "ops.computed_column.defs.Call.fn.options.abs",
                 "add": "ops.computed_column.defs.Call.fn.options.add",
+                "add_days": "ops.computed_column.defs.Call.fn.options.add_days",
                 "and": "ops.computed_column.defs.Call.fn.options.and",
+                "between": "ops.computed_column.defs.Call.fn.options.between",
                 "ceil": "ops.computed_column.defs.Call.fn.options.ceil",
                 "coalesce": "ops.computed_column.defs.Call.fn.options.coalesce",
                 "concat": "ops.computed_column.defs.Call.fn.options.concat",
+                "contains": "ops.computed_column.defs.Call.fn.options.contains",
                 "day": "ops.computed_column.defs.Call.fn.options.day",
+                "days_between": "ops.computed_column.defs.Call.fn.options.days_between",
                 "div": "ops.computed_column.defs.Call.fn.options.div",
+                "ends_with": "ops.computed_column.defs.Call.fn.options.ends_with",
                 "eq": "ops.computed_column.defs.Call.fn.options.eq",
                 "floor": "ops.computed_column.defs.Call.fn.options.floor",
+                "fold": "ops.computed_column.defs.Call.fn.options.fold",
                 "ge": "ops.computed_column.defs.Call.fn.options.ge",
                 "gt": "ops.computed_column.defs.Call.fn.options.gt",
                 "if": "ops.computed_column.defs.Call.fn.options.if",
@@ -368,8 +404,12 @@
                 "replace": "ops.computed_column.defs.Call.fn.options.replace",
                 "right": "ops.computed_column.defs.Call.fn.options.right",
                 "round": "ops.computed_column.defs.Call.fn.options.round",
+                "starts_with": "ops.computed_column.defs.Call.fn.options.starts_with",
                 "sub": "ops.computed_column.defs.Call.fn.options.sub",
                 "substring": "ops.computed_column.defs.Call.fn.options.substring",
+                "switch": "ops.computed_column.defs.Call.fn.options.switch",
+                "to_number": "ops.computed_column.defs.Call.fn.options.to_number",
+                "to_text": "ops.computed_column.defs.Call.fn.options.to_text",
                 "trim": "ops.computed_column.defs.Call.fn.options.trim",
                 "upper": "ops.computed_column.defs.Call.fn.options.upper",
                 "year": "ops.computed_column.defs.Call.fn.options.year"
@@ -390,6 +430,284 @@
         }
       ],
       "title": "ops.computed_column.params.expr.title",
+      "x-gridora-functions": [
+        {
+          "category": "math",
+          "fn": "add",
+          "returns": "num",
+          "signature": "add(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "sub",
+          "returns": "num",
+          "signature": "sub(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "mul",
+          "returns": "num",
+          "signature": "mul(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "div",
+          "returns": "num",
+          "signature": "div(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "mod",
+          "returns": "num",
+          "signature": "mod(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "neg",
+          "returns": "num",
+          "signature": "neg(number)"
+        },
+        {
+          "category": "math",
+          "fn": "abs",
+          "returns": "num",
+          "signature": "abs(number)"
+        },
+        {
+          "category": "math",
+          "fn": "floor",
+          "returns": "num",
+          "signature": "floor(number)"
+        },
+        {
+          "category": "math",
+          "fn": "ceil",
+          "returns": "num",
+          "signature": "ceil(number)"
+        },
+        {
+          "category": "math",
+          "fn": "round",
+          "returns": "num",
+          "signature": "round(number, digits?)"
+        },
+        {
+          "category": "math",
+          "fn": "min2",
+          "returns": "num",
+          "signature": "min2(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "max2",
+          "returns": "num",
+          "signature": "max2(number, number)"
+        },
+        {
+          "category": "math",
+          "fn": "between",
+          "returns": "bool",
+          "signature": "between(value, low, high)"
+        },
+        {
+          "category": "text",
+          "fn": "concat",
+          "returns": "text",
+          "signature": "concat(any, any, ...)"
+        },
+        {
+          "category": "text",
+          "fn": "upper",
+          "returns": "text",
+          "signature": "upper(text)"
+        },
+        {
+          "category": "text",
+          "fn": "lower",
+          "returns": "text",
+          "signature": "lower(text)"
+        },
+        {
+          "category": "text",
+          "fn": "trim",
+          "returns": "text",
+          "signature": "trim(text)"
+        },
+        {
+          "category": "text",
+          "fn": "len",
+          "returns": "num",
+          "signature": "len(text)"
+        },
+        {
+          "category": "text",
+          "fn": "left",
+          "returns": "text",
+          "signature": "left(text, count)"
+        },
+        {
+          "category": "text",
+          "fn": "right",
+          "returns": "text",
+          "signature": "right(text, count)"
+        },
+        {
+          "category": "text",
+          "fn": "substring",
+          "returns": "text",
+          "signature": "substring(text, start, count)"
+        },
+        {
+          "category": "text",
+          "fn": "replace",
+          "returns": "text",
+          "signature": "replace(text, find, with)"
+        },
+        {
+          "category": "text",
+          "fn": "fold",
+          "returns": "text",
+          "signature": "fold(text)"
+        },
+        {
+          "category": "text",
+          "fn": "contains",
+          "returns": "bool",
+          "signature": "contains(text, part)"
+        },
+        {
+          "category": "text",
+          "fn": "starts_with",
+          "returns": "bool",
+          "signature": "starts_with(text, part)"
+        },
+        {
+          "category": "text",
+          "fn": "ends_with",
+          "returns": "bool",
+          "signature": "ends_with(text, part)"
+        },
+        {
+          "category": "logic",
+          "fn": "eq",
+          "returns": "bool",
+          "signature": "eq(value, value)"
+        },
+        {
+          "category": "logic",
+          "fn": "ne",
+          "returns": "bool",
+          "signature": "ne(value, value)"
+        },
+        {
+          "category": "logic",
+          "fn": "lt",
+          "returns": "bool",
+          "signature": "lt(value, value)"
+        },
+        {
+          "category": "logic",
+          "fn": "le",
+          "returns": "bool",
+          "signature": "le(value, value)"
+        },
+        {
+          "category": "logic",
+          "fn": "gt",
+          "returns": "bool",
+          "signature": "gt(value, value)"
+        },
+        {
+          "category": "logic",
+          "fn": "ge",
+          "returns": "bool",
+          "signature": "ge(value, value)"
+        },
+        {
+          "category": "logic",
+          "fn": "and",
+          "returns": "bool",
+          "signature": "and(yes/no, yes/no, ...)"
+        },
+        {
+          "category": "logic",
+          "fn": "or",
+          "returns": "bool",
+          "signature": "or(yes/no, yes/no, ...)"
+        },
+        {
+          "category": "logic",
+          "fn": "not",
+          "returns": "bool",
+          "signature": "not(yes/no)"
+        },
+        {
+          "category": "logic",
+          "fn": "if",
+          "returns": "any",
+          "signature": "if(test, then, else)"
+        },
+        {
+          "category": "logic",
+          "fn": "switch",
+          "returns": "any",
+          "signature": "switch(value, key, result, ..., default?)"
+        },
+        {
+          "category": "logic",
+          "fn": "is_null",
+          "returns": "bool",
+          "signature": "is_null(any)"
+        },
+        {
+          "category": "logic",
+          "fn": "coalesce",
+          "returns": "any",
+          "signature": "coalesce(any, any, ...)"
+        },
+        {
+          "category": "date",
+          "fn": "year",
+          "returns": "num",
+          "signature": "year(date)"
+        },
+        {
+          "category": "date",
+          "fn": "month",
+          "returns": "num",
+          "signature": "month(date)"
+        },
+        {
+          "category": "date",
+          "fn": "day",
+          "returns": "num",
+          "signature": "day(date)"
+        },
+        {
+          "category": "date",
+          "fn": "days_between",
+          "returns": "num",
+          "signature": "days_between(from, to)"
+        },
+        {
+          "category": "date",
+          "fn": "add_days",
+          "returns": "date",
+          "signature": "add_days(date, days)"
+        },
+        {
+          "category": "convert",
+          "fn": "to_number",
+          "returns": "num",
+          "signature": "to_number(text, decimal separator?)"
+        },
+        {
+          "category": "convert",
+          "fn": "to_text",
+          "returns": "text",
+          "signature": "to_text(any)"
+        }
+      ],
       "x-gridora-order": 2,
       "x-gridora-widget": "expression-builder"
     },

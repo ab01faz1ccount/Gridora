@@ -23,5 +23,17 @@ Every operation is registered via an `OperationDescriptor`. All are previewable 
 Rules:
 - Params are JSON Schema validated; the UI form is generated from the schema.
 - `computed_column` uses a structured expression tree, not free-text scripting (ADR-007).
+  - Functions by category (the schema lists them under `x-gridora-functions`, one row each in `FN_META`):
+    **math** add sub mul div mod neg abs floor ceil round(number, digits?) min2 max2 between;
+    **text** concat upper lower trim len left right substring replace fold contains starts_with ends_with;
+    **logic** eq ne lt le gt ge and or not if switch is_null coalesce;
+    **date** year month day days_between add_days;
+    **convert** to_number (digits of any script, thousands separators; decimal separator `.` unless `","` is given) to_text.
+  - Behaviour worth knowing: `round` goes half away from zero (2.5 → 3, -2.5 → -3); `div`/`mod` by zero leave an empty
+    cell and a `division_by_zero` warning; `to_number` leaves non-numbers empty with a `number_parse_failed` warning;
+    a negative count in `left`/`right`/`substring` gives empty text; text made from numbers shows 15 significant digits
+    (0.1 + 0.2 → `0.3`); integer literals beyond 2^53 are refused rather than silently rounded; `min2`/`max2` and all
+    other arithmetic leave an empty cell empty (use `coalesce` for a stand-in); `round` with digits works on the decimal
+    value you see (`round(1.005, 2)` → 1.01, as in a spreadsheet).
 - Operations that create new data (`group_aggregate`, `pivot`, `join`, …) return `output` and never overwrite the source.
 - New operations are added by registering a descriptor and an implementation; no UI change needed.
