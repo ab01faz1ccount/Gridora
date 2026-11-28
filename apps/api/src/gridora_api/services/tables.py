@@ -71,7 +71,20 @@ def translate(exc: BaseException) -> DomainError | None:
         if code == "owner_unknown"
         else "validation_failed"
     )
-    return DomainError(top, message, details=[ErrorDetail(code=code, message=message)])
+    # keep where the problem is (`path`) and how to fix it (`hint`) when dataops says so,
+    # so the UI can point at the field
+    found = [
+        ErrorDetail(
+            code=e.code,
+            path=getattr(e, "path", None) or None,
+            message=e.message,
+            hint=getattr(e, "hint", None),
+        )
+        for e in getattr(exc, "errors", None) or []
+        if isinstance(getattr(e, "code", None), str)
+        and isinstance(getattr(e, "message", None), str)
+    ]
+    return DomainError(top, message, details=found or [ErrorDetail(code=code, message=message)])
 
 
 async def _run(fn: Any, *args: Any, **kw: Any) -> Any:
@@ -285,9 +298,7 @@ async def to_sheet(
         store = store_for(st, owner_id)
         delta = await st.copies.call(
             entry,
-            lambda: _guarded(
-                store.table_to_cells, str(trow.id), ctx, anchor, trow.current_version
-            ),
+            lambda: _guarded(store.table_to_cells, str(trow.id), ctx, anchor, trow.current_version),
         )
         op = Operation(
             type="table_to_sheet",

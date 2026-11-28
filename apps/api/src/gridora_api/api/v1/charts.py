@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from gridora_contracts.models import ChartData, ChartSpec
+from gridora_contracts.models import ChartData, ChartProfile, ChartProfileRequest, ChartSpec
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.envelope import Envelope, ok
@@ -30,6 +30,27 @@ async def create_chart(
 ) -> Envelope[ChartSpec]:
     """The path decides the document; `document_id` in the body is ignored."""
     return ok(request, await chart_service.create_chart(db, ctx.user.id, id, body))
+
+
+@router.post("/documents/{id}/charts/preview", response_model=Envelope[ChartData])
+async def preview_chart(
+    id: str, body: ChartSpec, request: Request, ctx: Ctx, db: Db
+) -> Envelope[ChartData]:
+    """The data of an unsaved chart (live preview in the builder). Nothing is stored."""
+    return ok(
+        request, await chart_service.preview_chart(db, request.app.state, ctx.user.id, id, body)
+    )
+
+
+@router.post("/documents/{id}/charts/profile", response_model=Envelope[ChartProfile])
+async def profile_source(
+    id: str, body: ChartProfileRequest, request: Request, ctx: Ctx, db: Db
+) -> Envelope[ChartProfile]:
+    """Column facts and suggested charts for a source; the suggestions are optional and editable."""
+    return ok(
+        request,
+        await chart_service.profile_source(db, request.app.state, ctx.user.id, id, body.source),
+    )
 
 
 @router.put("/charts/{id}", response_model=Envelope[ChartSpec])

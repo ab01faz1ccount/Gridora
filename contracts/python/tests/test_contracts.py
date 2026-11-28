@@ -196,3 +196,20 @@ def test_chart_new_models_validate_and_round_trip():
     assert ChartData.model_validate_json(data.model_dump_json()).notes[0].code == "rows_excluded"
     with pytest.raises(Exception):
         ChartLimit(top_n=0)
+
+
+def test_chart_profile_models_and_optional_protocol():
+    from gridora_contracts import ChartProfiler
+    from gridora_contracts.models import (
+        ChartColumnProfile, ChartProfile, ChartProfileRequest, ChartSeries, ChartSuggestion)
+    col = ChartColumnProfile(index=0, name="when", kind="date", nulls=0, distinct=3, min="2025-01-01", max="2025-03-01",
+                             looks_like="time")
+    prof = ChartProfile(rows=3, columns=[col], suggestions=[ChartSuggestion(
+        type="line", series=[ChartSeries(value_col=1, category_col=0, aggregate="sum")], reason="time_and_number")])
+    assert ChartProfile.model_validate_json(prof.model_dump_json()) == prof
+    assert ChartProfileRequest(source=DataTableTarget(table_id="t")).source.kind == "data_table"
+
+    class Impl:
+        def chart_profile(self, source, ctx):  # noqa: ANN001
+            return prof
+    assert isinstance(Impl(), ChartProfiler) and not isinstance(object(), ChartProfiler)

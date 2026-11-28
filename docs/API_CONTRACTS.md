@@ -130,6 +130,8 @@ All mutating requests require the CSRF header `X-CSRF-Token`.
 | GET/POST | `/documents/{id}/charts` | v0.6.4: `ChartSpec`; the path decides the document; the source must live in it (sheet range for a workbook, that table for a table); ≤ 50 per document |
 | PUT/DELETE | `/charts/{id}` | PUT replaces the spec (same source checks) |
 | GET | `/charts/{id}/data` | `ChartData`, computed on demand (needs the real dataops; a table source reads its current version) |
+| POST | `/documents/{id}/charts/preview` | v0.7.0: body `ChartSpec`, returns `ChartData` for a chart that is not saved (live preview); same source checks; nothing is stored |
+| POST | `/documents/{id}/charts/profile` | v0.7.0: body `ChartProfileRequest` (`source`), returns `ChartProfile`: column facts and suggested charts (optional, editable); needs the real dataops |
 
 ## 11. Internal module interfaces (Python)
 

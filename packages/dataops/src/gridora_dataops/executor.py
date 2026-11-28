@@ -9,6 +9,7 @@ import polars as pl
 from gridora_contracts.models import (
     Affected,
     ChartData,
+    ChartProfile,
     ChartSpec,
     DataTableTarget,
     Operation,
@@ -238,6 +239,13 @@ class DataOpsExecutor:
 
         src = self._load_target(spec.source, ctx, has_header=True, allow_formulas=True, lenient=True)
         return build_chart_data(spec, src.frame)
+
+    def chart_profile(self, source: Target, ctx: ExecContext) -> ChartProfile:
+        """Column facts and suggested charts for the Chart Builder (ChartProfiler extension, contract 0.7.0)."""
+        from .charts.profile import profile_frame
+
+        src = self._load_target(source, ctx, has_header=True, allow_formulas=True, lenient=True)
+        return profile_frame(src.frame)
 
     def validate_tool(self, tool: Tool, target: Target, ctx: ExecContext | None = None) -> list[ValidationError]:
         from .tools import validate_tool

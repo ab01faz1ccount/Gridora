@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
 from .models import (
-    Cell, CellEdit, CellValue, CellWindow, ChartData, ColumnarRange, ChartSpec, CompatibilityReport, DataTable,
+    Cell, CellEdit, CellValue, CellWindow, ChartData, ChartProfile, ColumnarRange, ChartSpec, CompatibilityReport, DataTable,
     Delta, Operation, OperationDescriptor, OperationResult, Pipeline, PreviewResult, Range,
     SheetLayout, StyleInfo, Target, Tool, ValidationError, Window, Workbook,
 )
@@ -186,6 +186,14 @@ class OperationExecutor(Protocol):
     def bind_tool(self, tool: Tool, inputs: dict[str, Any]) -> Pipeline:
         """Replaces {"$input": name} placeholders in step params with the bound values."""
         ...
+
+
+@runtime_checkable
+class ChartProfiler(Protocol):
+    """Optional executor extension (v0.7.0): facts about a chart source's columns and suggested charts.
+    apps/api feature-detects it with isinstance(executor, ChartProfiler)."""
+
+    def chart_profile(self, source: Target, ctx: ExecContext) -> ChartProfile: ...
 
 
 @runtime_checkable

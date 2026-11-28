@@ -201,6 +201,92 @@ def test_chart_over_a_data_table(tuser: Session) -> None:
     assert data.json()["data"]["series"][0]["values"] == [3, 1, 2]
 
 
+def test_chart_preview_returns_data_and_stores_nothing(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    spec = {
+        **_sheet_chart(d),
+        "options": {"stacked": False, "legend": True, "labels": "value"},
+        "sort": {"by": "value", "direction": "desc"},
+    }
+    r = tuser.post(f"/api/v1/documents/{d.wb}/charts/preview", json=spec)
+    assert r.status_code == 200, r.text
+    body = r.json()["data"]
+    assert body["categories"] == ["شیراز", "تهران"] and body["series"][0]["values"] == [4.5, 3]
+    assert body["categories_kind"] == "category" and body["notes"] == []
+    assert tuser.get(f"/api/v1/documents/{d.wb}/charts").json()["data"] == []
+
+
+def test_chart_preview_explains_what_is_wrong_and_where(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    spec = {
+        **_sheet_chart(d),
+        "series": [{"value_col": "شهر", "category_col": "شهر", "aggregate": "sum"}],
+    }
+    r = tuser.post(f"/api/v1/documents/{d.wb}/charts/preview", json=spec)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "validation_failed", r.text
+    detail = r.json()["error"]["details"][0]
+    assert detail["path"] == "/series/0/value_col" and "numeric" in detail["message"]
+    other = {**_sheet_chart(Doc(tuser, "real"))}
+    assert tuser.post(f"/api/v1/documents/{d.wb}/charts/preview", json=other).status_code == 400
+
+
+def test_chart_preview_and_profile_are_the_owners_only(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    nope = "00000000-0000-0000-0000-000000000000"
+    assert (
+        tuser.post(f"/api/v1/documents/{nope}/charts/preview", json=_sheet_chart(d)).status_code
+        == 404
+    )
+    assert (
+        tuser.post(
+            f"/api/v1/documents/{nope}/charts/profile", json={"source": _sheet_chart(d)["source"]}
+        ).status_code
+        == 404
+    )
+
+
+def test_chart_profile_of_a_sheet_range_suggests_a_chart(tuser: Session) -> None:
+    d = Doc(tuser, "real")
+    r = tuser.post(
+        f"/api/v1/documents/{d.wb}/charts/profile", json={"source": _sheet_chart(d)["source"]}
+    )
+    assert r.status_code == 200, r.text
+    prof = r.json()["data"]
+    assert prof["rows"] == 2 and [c["name"] for c in prof["columns"]] == ["نام", "تعداد", "شهر"]
+    assert [c["looks_like"] for c in prof["columns"]] == ["category", "measure", "category"]
+    bar = prof["suggestions"][0]
+    assert bar["type"] == "bar" and bar["reason"] == "category_and_number"
+    assert (bar["series"][0]["category_col"], bar["series"][0]["value_col"]) == (0, 1)
+
+
+def test_chart_profile_and_preview_over_a_data_table(tuser: Session) -> None:
+    ws = _ws(tuser)
+    t = _make(tuser, ws)
+    src = {"kind": "data_table", "table_id": t.id}
+    prof = tuser.post(f"/api/v1/documents/{t.id}/charts/profile", json={"source": src})
+    assert prof.status_code == 200, prof.text
+    cols = prof.json()["data"]["columns"]
+    assert [c["name"] for c in cols] == ["name", "qty"] and cols[0]["looks_like"] == "category"
+    assert (
+        cols[1]["looks_like"] == "identifier"
+    )  # 1, 2, 3 reads as a row counter; the person can still pick it
+    spec = {
+        "document_id": t.id,
+        "type": "bar",
+        "source": src,
+        "series": [{"value_col": "qty", "category_col": "name", "aggregate": "sum"}],
+    }
+    out = tuser.post(f"/api/v1/documents/{t.id}/charts/preview", json=spec)
+    assert out.status_code == 200, out.text
+    assert out.json()["data"]["categories"] == ["علی", "رضا", "ب"]
+    assert out.json()["data"]["series"][0]["values"] == [3, 1, 2]
+    wrong = {"kind": "data_table", "table_id": "00000000-0000-0000-0000-000000000000"}
+    assert (
+        tuser.post(f"/api/v1/documents/{t.id}/charts/profile", json={"source": wrong}).status_code
+        == 400
+    )
+
+
 # ------------------------------------------------------------------------------------- tools
 SORT_TOOL: dict[str, Any] = {
     "name": "مرتب‌سازی",

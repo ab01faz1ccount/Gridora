@@ -141,6 +141,8 @@ ChartData { categories, series: {name, values: (number|null)[]}[],
 ```
 A spec stores references and settings, never data. A spec saved before 0.7.0 loads unchanged: every new field is optional and absence means the old behaviour. `dataops` turns a ChartSpec + source into plain categories and series; the web app draws them (hand-written SVG, no chart library). The spec is renderer-independent.
 
+`ChartProfile { rows, columns: ChartColumnProfile[], suggestions: ChartSuggestion[] }` answers "what is in this source and what chart fits" for the Chart Builder (`POST /documents/{id}/charts/profile`); `POST .../charts/preview` returns `ChartData` for an unsaved spec. Suggestions are optional and editable, never the only way to a chart.
+
 Rules the engine follows (tested in `packages/dataops/tests/test_charts_engine.py`):
 - **Empty is not zero.** A group whose values are all empty is empty (a gap), not 0; `nulls: "zero"` is an explicit user choice. Counts are real zeros.
 - **Nothing disappears silently.** Rows or values a chart cannot draw (empty/unreadable dates, scatter points missing x or y, negative pie values, sampled points, Top N) are reported in `ChartData.notes`. Note codes: `rows_excluded {count, reason}`, `dates_unreadable {count, examples}`, `empty_values {count}`, `negative_values {count}`, `categories_limited {shown, total}`, `other_merged {count}`, `sampled {kept, total}`, `extra_series_ignored {count}`.
