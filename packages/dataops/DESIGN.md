@@ -167,11 +167,15 @@ Allowlist (v1): math (`round, abs, floor, ceil, min2, max2`), text (`upper, lowe
 
 ## 9. Chart data aggregation
 
-`chart_data(spec: ChartSpec, ctx) -> ChartData` (contract v0.2: `OperationExecutor.chart_data`).
-- Source table/range -> Polars frame; each series: group by `category_col` (if any) with `aggregate` (`sum|avg|count|min|max`; default no aggregation = plain values), via the same kernel as `group_aggregate`.
-- Deterministic category order: first appearance in the source (user controls order by sorting the source). Nulls stay `None` in series values; null categories get a stable placeholder key. `scatter` returns x values as `categories` and y as the series. `pie` is a single series.
-- Guards: too many distinct categories -> typed error `chart_too_many_categories` (default cap configurable), since `ChartData` has no warnings field.
-- Output only contains plain values (`ChartData`), nothing ECharts-specific.
+`chart_data(spec: ChartSpec, ctx) -> ChartData` (contract v0.2, extended additively in v0.7.0; the shape and the rules are in `docs/DATA_MODEL.md` section 8).
+
+Package `gridora_dataops/charts/`:
+- `common.py` — column lookup, the chart's own filters (they reuse the `filter` operation's row tests), null-aware aggregation on top of the `group_aggregate` kernel (`analytics.aggregate`), date axes (Gregorian and Jalali buckets, via `persian/jalali.py`), the notes collector and the limits (`MAX_CATEGORIES` 5000, `MAX_SERIES` 30, `MAX_SCATTER_POINTS` 5000).
+- `transform.py` — order (source, category with Persian collation, value, manual), Top/Bottom N and "Other", on the small prepared table.
+- `adapters.py` — one function per chart type (`ADAPTERS`): bar/line/area share the category adapter, pie and scatter have their own; each decides its data shape, validation and defaults. A type without an adapter is a typed `not_implemented` error. New chart types add an adapter, not a branch.
+- `__init__.py` — `build_chart_data`, the only entry point: filters, then the adapter.
+
+Guards are typed errors with a `path` and a `hint` (`chart_too_many_categories`, `chart_too_many_series`, `chart_series_mismatch`, `type_mismatch`, `invalid_param`); things that are not errors come back as `ChartData.notes`. Output only contains plain values, nothing renderer-specific. A spec without any v0.7.0 field gives the same categories and values as before, except that all-empty groups are now empty instead of 0.
 
 ## 10. Test plan
 

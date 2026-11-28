@@ -3,7 +3,7 @@
 // Rows/cols are 0-based. IDs are UUID strings. Timestamps are ISO-8601 UTC.
 
 export const SCHEMA_VERSION = 1;
-export const CONTRACT_VERSION = "0.6.0";
+export const CONTRACT_VERSION = "0.7.0";
 export const MAX_WINDOW_ROWS = 1000;
 export const MAX_WINDOW_COLS = 100;
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -124,14 +124,41 @@ export interface HistoryEntry {
   label: string; created_at: string; undone: boolean;
 }
 
-export interface ChartSeries { name?: string; value_col: string | number; category_col?: string | number; aggregate?: "sum" | "avg" | "count" | "min" | "max" }
+export type ChartColumn = string | number;
+export type ChartAggregate = "sum" | "avg" | "count" | "min" | "max" | "count_distinct" | "median";
+export interface ChartSeries { name?: string; value_col: ChartColumn; category_col?: ChartColumn; aggregate?: ChartAggregate }
+/** v0.7.0: one row test; all filters of a chart are AND-ed (same operators as the `filter` operation). */
+export interface ChartFilter {
+  column: ChartColumn;
+  op: "eq" | "ne" | "gt" | "ge" | "lt" | "le" | "between" | "contains" | "not_contains" | "starts_with" | "ends_with" | "is_empty" | "is_not_empty";
+  value?: boolean | number | string | null; value2?: boolean | number | string | null;
+}
+/** v0.7.0: category order; `value` sorts by the sum of the series values; `order` puts those categories first. */
+export interface ChartSort { by: "source" | "category" | "value"; direction: "asc" | "desc"; order?: (string | number)[] | null }
+/** v0.7.0: keep the top/bottom N categories; `other` merges the rest into one category. */
+export interface ChartLimit { top_n: number; end: "top" | "bottom"; other: boolean }
+/** v0.7.0: how a date category is read and grouped (`granularity` null keeps every date). */
+export interface ChartTime { granularity?: "day" | "month" | "quarter" | "year" | null; calendar: "gregorian" | "jalali" }
+export interface ChartOptions {
+  stacked: boolean; legend: boolean; axis_titles?: Record<string, string> | null;
+  stack?: "none" | "stacked" | "percent" | null; orientation?: "vertical" | "horizontal";
+  labels?: "none" | "value" | "percent"; nulls?: "gap" | "zero"; donut?: boolean;
+}
 export interface ChartSpec {
   schema_version: number; id?: string; document_id: string;
   type: "bar" | "line" | "pie" | "scatter" | "area"; title?: string; source: Target;
   series: ChartSeries[];
-  options: { stacked: boolean; legend: boolean; axis_titles?: Record<string, string> };
+  options: ChartOptions;
+  series_by?: ChartColumn | null; filters?: ChartFilter[]; sort?: ChartSort | null; limit?: ChartLimit | null; time?: ChartTime | null;
 }
-export interface ChartData { categories: (string | number)[]; series: { name: string; values: (number | null)[] }[] }
+/** v0.7.0: something to tell the person about what the chart shows. Codes: rows_excluded, empty_values,
+ *  negative_values, categories_limited, other_merged, sampled, dates_unreadable. */
+export interface ChartNote { code: string; params: Record<string, unknown> }
+export interface ChartData {
+  categories: (string | number)[]; series: { name: string; values: (number | null)[] }[];
+  categories_kind?: "category" | "time" | "number" | null; labels?: string[] | null;
+  notes?: ChartNote[]; meta?: Record<string, unknown> | null;
+}
 
 export interface ErrorDetail { code: string; path?: string; message: string; hint?: string }
 export interface ApiError { code: string; message: string; details: ErrorDetail[]; request_id: string }

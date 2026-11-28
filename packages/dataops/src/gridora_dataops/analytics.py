@@ -10,7 +10,7 @@ from .errors import DataOpsError
 from .ops_common import unique_name
 from .persian.chars import collation_key, variant_fold
 
-AGG_FNS = ("sum", "avg", "count", "count_distinct", "min", "max")
+AGG_FNS = ("sum", "avg", "count", "count_distinct", "min", "max", "median")
 NULL_CATEGORY = "(خالی)"
 
 
@@ -28,7 +28,7 @@ def agg_expr(fn: str, column: Optional[str], dtype: Optional[pl.DataType], ptr: 
         return pl.len()
     col = pl.col(column)
     assert dtype is not None
-    if fn in ("sum", "avg") and not dtype.is_numeric():
+    if fn in ("sum", "avg", "median") and not dtype.is_numeric():
         raise DataOpsError("type_mismatch", f"'{fn}' needs a numeric column, '{column}' is {dtype}", path=f"{ptr}/column")
     if fn in ("min", "max") and dtype == pl.Boolean:
         raise DataOpsError("type_mismatch", f"'{fn}' is not valid for a yes/no column", path=f"{ptr}/column")
@@ -37,6 +37,8 @@ def agg_expr(fn: str, column: Optional[str], dtype: Optional[pl.DataType], ptr: 
             return col.sum()
         case "avg":
             return col.mean()
+        case "median":
+            return col.median()
         case "min":
             return col.min()
         case "max":

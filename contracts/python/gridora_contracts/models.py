@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
-CONTRACT_VERSION = "0.6.0"
+CONTRACT_VERSION = "0.7.0"
 MAX_WINDOW_ROWS = 1000  # decided in Phase 2 review (configurable lower by the API)
 MAX_WINDOW_COLS = 100
 
@@ -494,17 +494,59 @@ class TableChangedResult(_Base):
 
 
 # --------------------------------------------------------------- charts ----
+ChartColumn = Union[str, int]
+ChartAggregate = Literal["sum", "avg", "count", "min", "max", "count_distinct", "median"]
+
+
 class ChartSeries(_Base):
     name: Optional[str] = None
-    value_col: Union[str, int]
-    category_col: Optional[Union[str, int]] = None
-    aggregate: Optional[Literal["sum", "avg", "count", "min", "max"]] = None
+    value_col: ChartColumn
+    category_col: Optional[ChartColumn] = None
+    aggregate: Optional[ChartAggregate] = None
+
+
+class ChartFilter(_Base):
+    """v0.7.0: one row test; all filters of a chart are AND-ed. Same operators as the `filter` operation."""
+
+    column: ChartColumn
+    op: Literal["eq", "ne", "gt", "ge", "lt", "le", "between", "contains", "not_contains",
+                "starts_with", "ends_with", "is_empty", "is_not_empty"]
+    value: Optional[Union[bool, float, str]] = None
+    value2: Optional[Union[bool, float, str]] = None
+
+
+class ChartSort(_Base):
+    """v0.7.0: category order. `value` sorts by the sum of the series values of each category."""
+
+    by: Literal["source", "category", "value"] = "source"
+    direction: Literal["asc", "desc"] = "asc"
+    order: Optional[list[Union[str, float]]] = None  # manual order: these categories first, the rest after
+
+
+class ChartLimit(_Base):
+    """v0.7.0: keep the top (or bottom) N categories by value; `other` merges the rest into one category."""
+
+    top_n: int = Field(ge=1, le=500)
+    end: Literal["top", "bottom"] = "top"
+    other: bool = False
+
+
+class ChartTime(_Base):
+    """v0.7.0: how a date category is read and grouped. `granularity` None keeps every date as it is."""
+
+    granularity: Optional[Literal["day", "month", "quarter", "year"]] = None
+    calendar: Literal["gregorian", "jalali"] = "gregorian"
 
 
 class ChartOptions(_Base):
-    stacked: bool = False
+    stacked: bool = False  # legacy; `stack` wins when set
     legend: bool = True
     axis_titles: Optional[dict[str, str]] = None
+    stack: Optional[Literal["none", "stacked", "percent"]] = None  # v0.7.0
+    orientation: Literal["vertical", "horizontal"] = "vertical"  # v0.7.0 (bar)
+    labels: Literal["none", "value", "percent"] = "none"  # v0.7.0
+    nulls: Literal["gap", "zero"] = "gap"  # v0.7.0: empty values are gaps unless the user asks for zero
+    donut: bool = False  # v0.7.0 (pie)
 
 
 class ChartSpec(_Base):
@@ -516,13 +558,31 @@ class ChartSpec(_Base):
     source: Target
     series: list[ChartSeries]
     options: ChartOptions = ChartOptions()
+    series_by: Optional[ChartColumn] = None  # v0.7.0: one series per value of this column (one `series` entry)
+    filters: list[ChartFilter] = Field(default_factory=list, max_length=20)  # v0.7.0
+    sort: Optional[ChartSort] = None  # v0.7.0
+    limit: Optional[ChartLimit] = None  # v0.7.0
+    time: Optional[ChartTime] = None  # v0.7.0
+
+
+class ChartNote(_Base):
+    """v0.7.0: something the person should know about what the chart shows (never an error).
+    `code` is a stable key the UI translates; `params` fills the text. Codes: rows_excluded, empty_values,
+    negative_values, categories_limited, other_merged, sampled, dates_unreadable."""
+
+    code: str
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChartData(_Base):
-    """ECharts-independent dataset; the web app maps it to ECharts options."""
+    """ECharts-independent dataset; the web app draws it (hand-written SVG)."""
 
     categories: list[Union[str, float]]
     series: list[dict[str, Any]]  # {"name": str, "values": list[number|None]}
+    categories_kind: Optional[Literal["category", "time", "number"]] = None  # v0.7.0
+    labels: Optional[list[str]] = None  # v0.7.0: display text per category (e.g. Jalali dates); same length
+    notes: list[ChartNote] = Field(default_factory=list)  # v0.7.0
+    meta: Optional[dict[str, Any]] = None  # v0.7.0: extra payload of chart types that are not category/value
 
 
 # ------------------------------------------------- columnar range (v0.4.0) ----

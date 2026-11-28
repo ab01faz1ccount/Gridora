@@ -120,7 +120,7 @@ The effect is advice for the screen: undo restores everything inside the history
 
 | Top-level (HTTP) | Dataops codes (detail) |
 |---|---|
-| `validation_failed` (400/422 as in API_CONTRACTS) | `unknown_operation`, `unsupported_target`, `invalid_param`, `unknown_param`, `unknown_column`, `type_mismatch`, `mixed_column_types`, `range_has_error_values`, `validation_failed`, `result_too_large`, `chart_too_many_categories`, `chart_series_mismatch` |
+| `validation_failed` (400/422 as in API_CONTRACTS) | `unknown_operation`, `unsupported_target`, `invalid_param`, `unknown_param`, `unknown_column`, `type_mismatch`, `mixed_column_types`, `range_has_error_values`, `validation_failed`, `result_too_large`, `chart_too_many_categories`, `chart_series_mismatch`, `chart_too_many_series` |
 | `operation_conflict` (409) | `range_has_formulas`, `would_overwrite`, **`too_large_for_history`**, `version_conflict`, `version_unavailable`, `pipeline_aborted`, `rollback_incomplete` |
 | `not_found` (404) | `table_not_found` |
 | `forbidden` (403) | `owner_unknown` |

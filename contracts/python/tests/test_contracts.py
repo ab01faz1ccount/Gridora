@@ -139,7 +139,7 @@ def test_optional_columnar_protocols_exist():
 def test_columnar_engine_protocol_and_contract_patch_version():
     from gridora_contracts import ColumnarEngine, models
     assert ColumnarEngine is not None
-    assert models.CONTRACT_VERSION.startswith("0.6.")
+    assert models.CONTRACT_VERSION.startswith(("0.6.", "0.7."))
 
 
 # ---- contract v0.6.0: calendars ----
@@ -170,3 +170,29 @@ def test_persian_fold_makes_variants_compare_equal():
     assert fold_text("ab") == "ab" and fold_text("") == ""
     assert set(variants_of("ا")) == set("اأإٱآ") and set(variants_of("5")) == set("5۵٥")
     assert variants_of("ـ") == "" and variants_of("x") == "x"
+
+
+# ---- contract v0.7.0: chart upgrade (additive) ----
+def test_chart_spec_saved_before_0_7_still_loads_with_defaults():
+    old = {"schema_version": 1, "document_id": "d", "type": "bar", "source": {"kind": "data_table", "table_id": "t"},
+           "series": [{"value_col": "a", "category_col": "b", "aggregate": "sum"}], "options": {"stacked": True, "legend": False}}
+    spec = ChartSpec.model_validate(old)
+    assert spec.options.stacked and not spec.options.legend
+    assert spec.filters == [] and spec.sort is None and spec.limit is None and spec.time is None and spec.series_by is None
+    assert spec.options.nulls == "gap" and spec.options.orientation == "vertical"
+
+
+def test_chart_new_models_validate_and_round_trip():
+    from gridora_contracts.models import (
+        ChartData, ChartFilter, ChartLimit, ChartNote, ChartSeries, ChartSort, ChartTime)
+    spec = ChartSpec(document_id="d", type="line", source=DataTableTarget(table_id="t"),
+                     series=[ChartSeries(value_col="v", category_col="when", aggregate="median")],
+                     filters=[ChartFilter(column="region", op="eq", value="north")],
+                     sort=ChartSort(by="value", direction="desc"), limit=ChartLimit(top_n=5, other=True),
+                     time=ChartTime(granularity="month", calendar="jalali"))
+    assert ChartSpec.model_validate_json(spec.model_dump_json()) == spec
+    data = ChartData(categories=["a"], series=[{"name": "v", "values": [1.0]}], categories_kind="category",
+                     notes=[ChartNote(code="rows_excluded", params={"count": 2})])
+    assert ChartData.model_validate_json(data.model_dump_json()).notes[0].code == "rows_excluded"
+    with pytest.raises(Exception):
+        ChartLimit(top_n=0)

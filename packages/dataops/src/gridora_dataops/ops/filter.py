@@ -130,6 +130,11 @@ def _condition(c: Condition, schema: pl.Schema, ptr: str) -> pl.Expr:
     return r.fill_null(null_means)
 
 
+def condition_predicate(c: Condition, schema: pl.Schema, ptr: str) -> pl.Expr:
+    """One condition as a row test (used by chart filters, so charts and the filter operation agree)."""
+    return _condition(c, schema, ptr)
+
+
 def _node(n: Condition | Group, schema: pl.Schema, ptr: str) -> pl.Expr:
     if isinstance(n, Condition):
         return _condition(n, schema, ptr)
