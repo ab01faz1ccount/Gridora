@@ -179,7 +179,10 @@ def _text(e: pl.Expr, t: Ty) -> pl.Expr:
         f = e.cast(pl.Float64)
         whole = f.is_finite() & (f == f.floor()) & (f.abs() < 1e15)
         # 0.1 + 0.2 shows as 0.3 (15 significant digits, as a spreadsheet does), not 0.30000000000000004
-        return pl.when(whole).then(f.cast(pl.Int64).cast(pl.String)).otherwise(f.round_sig_figs(15).cast(pl.String))
+        # integers from 10^15 up (card numbers, long ids) are written in full: 15 significant digits would round them
+        return (pl.when(whole).then(f.cast(pl.Int64).cast(pl.String))
+                .when(f.abs() >= 1e15).then(e.cast(pl.String))
+                .otherwise(f.round_sig_figs(15).cast(pl.String)))
     if t == "bool":
         return pl.when(e).then(pl.lit("true")).when(~e).then(pl.lit("false"))  # an empty cell stays empty, not "false"
     if t == "date":

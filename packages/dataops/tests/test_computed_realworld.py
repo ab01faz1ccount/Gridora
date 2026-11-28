@@ -77,6 +77,12 @@ def test_to_text_gives_whole_numbers_without_a_decimal_point_and_no_float_noise(
     assert comp(df, call("concat", call("add", lit(0.1), lit(0.2)), lit("-"), col("x")))[0][1] == "0.3-0.1"
 
 
+def test_long_integer_ids_are_written_in_full_never_rounded_to_15_digits() -> None:
+    df = pl.DataFrame({"id": [1234567890123456, 6037991234567890, -1234567890123456, 5]})
+    assert comp(df, call("to_text", col("id")))[0] == ["1234567890123456", "6037991234567890", "-1234567890123456", "5"]
+    assert comp(df, call("concat", lit("#"), col("id")))[0][1] == "#6037991234567890"
+
+
 # ------------------------------------------------------------------ rounding
 def test_round_goes_half_away_from_zero_like_a_spreadsheet_not_to_even() -> None:
     df = pl.DataFrame({"x": [2.5, -2.5, 0.5, 1.5, -0.5, 3.4, None]})
