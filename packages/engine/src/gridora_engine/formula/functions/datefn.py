@@ -50,6 +50,41 @@ _MDY = re.compile(r"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$")
 _TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?\s*$", re.IGNORECASE)
 
 
+_MONTHS = {n: i + 1 for i, names in enumerate([
+    ("jan", "january"), ("feb", "february"), ("mar", "march"), ("apr", "april"), ("may",), ("jun", "june"),
+    ("jul", "july"), ("aug", "august"), ("sep", "sept", "september"), ("oct", "october"), ("nov", "november"),
+    ("dec", "december")]) for n in names}
+_MON = r"([A-Za-z]{3,9})\.?"
+_D_MON_Y = re.compile(rf"^\s*(\d{{1,2}})[-\s]{_MON}[-,\s]\s*(\d{{2}}|\d{{4}})\s*$")  # 5-Mar-2024, 5 March 2024
+_MON_D_Y = re.compile(rf"^\s*{_MON}\s+(\d{{1,2}}),?\s+(\d{{2}}|\d{{4}})\s*$")  # Mar 5, 2024
+_MON_Y = re.compile(rf"^\s*{_MON}\s+(\d{{4}})\s*$")  # March 2024 -> the 1st
+
+
+def _year(text: str) -> int:
+    y = int(text)
+    return y if len(text) == 4 else (2000 + y if y < 30 else 1900 + y)  # Excel: 00-29 -> 20xx, 30-99 -> 19xx
+
+
+def _named_month_date(s: str, date1904: bool) -> float | None:
+    """English month names (Excel reads them in every locale of its English UI): 5-Mar-2024, 5 March 2024,
+    Mar 5, 2024, March 2024. A name that is not a month, or a day that does not exist, is not a date."""
+    for rx, order in ((_D_MON_Y, "dmy"), (_MON_D_Y, "mdy"), (_MON_Y, "my")):
+        m = rx.match(s)
+        if not m:
+            continue
+        g = m.groups()
+        name, day, year = ((g[1], g[0], g[2]) if order == "dmy" else (g[0], g[1], g[2]) if order == "mdy"
+                           else (g[0], "1", g[1]))
+        mo = _MONTHS.get(name.lower())
+        if mo is None:
+            return None
+        y, d = _year(year), int(day)
+        if not 1 <= d <= days_in_month(y, mo):
+            return None
+        return ymd_to_serial(y, mo, d, date1904)
+    return None
+
+
 def parse_date_text(s: str, date1904: bool = False, cal: str = "gregorian") -> float | None:
     s = s.translate(_DIGITS)
     m = _ISO.match(s)
@@ -71,6 +106,9 @@ def parse_date_text(s: str, date1904: bool = False, cal: str = "gregorian") -> f
         if not (1 <= mo <= 12 and 1 <= d <= days_in_month(y, mo)):
             return None
         return ymd_to_serial(y, mo, d, date1904)
+    named = _named_month_date(s, date1904)  # English month names are Gregorian in every calendar mode
+    if named is not None:
+        return named
     t = parse_time_text(s)
     return t
 

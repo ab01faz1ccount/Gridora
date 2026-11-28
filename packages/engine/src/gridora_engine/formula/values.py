@@ -227,7 +227,17 @@ def compare(a: Scalar, b: Scalar) -> int:
         x, y = a.lower(), b.lower()
     else:
         x, y = float(a), float(b)
+        if x != y and same_15_digits(x, y):
+            return 0
     return -1 if x < y else (1 if x > y else 0)
+
+
+def same_15_digits(x: float, y: float) -> bool:
+    """Excel compares numbers at 15 significant digits: 0.1 + 0.2 = 0.3 is TRUE although the doubles differ in the
+    17th. Only pairs that are already within ~2e-14 of each other pay for the check."""
+    if abs(x - y) > 2e-14 * max(abs(x), abs(y)):
+        return False
+    return float(f"{x:.15g}") == float(f"{y:.15g}")
 
 
 def eq_values(a: Scalar, b: Scalar) -> bool:
