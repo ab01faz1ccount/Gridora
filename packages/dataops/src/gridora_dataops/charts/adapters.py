@@ -25,6 +25,7 @@ from .common import (
     resolve,
     time_axis,
 )
+from .distribution import build_boxplot, build_histogram
 from .transform import apply_limit, apply_order, order_axis
 
 Values = list[list[Optional[float]]]
@@ -222,4 +223,5 @@ def build_scatter(spec: ChartSpec, frame: pl.DataFrame) -> ChartData:
 
 ADAPTERS: dict[str, Callable[[ChartSpec, pl.DataFrame], ChartData]] = {
     "bar": build_cartesian, "line": build_cartesian, "area": build_cartesian, "pie": build_pie, "scatter": build_scatter,
+    "histogram": build_histogram, "boxplot": build_boxplot,
 }

@@ -1,6 +1,6 @@
 import type { ChartSpec } from "@contracts";
 import { describe, expect, it } from "vitest";
-import { buildSegments, compact, linePieces, niceTicks, pickLabelIndexes, pieSlices, shorten, stackMode, valueRange } from "./chartLayout";
+import { asBoxes, asHistogram, ticksWithin, buildSegments, compact, linePieces, niceTicks, pickLabelIndexes, pieSlices, shorten, stackMode, valueRange } from "./chartLayout";
 
 const spec = (type: ChartSpec["type"], options: Partial<ChartSpec["options"]> = {}): ChartSpec => ({
   schema_version: 1, document_id: "d", type, source: { kind: "data_table", table_id: "t" }, series: [{ value_col: 1 }],
@@ -115,5 +115,26 @@ describe("localizeDigits", () => {
     expect(localizeDigits("1.5k 20%", "persian")).toBe("۱.۵k ۲۰%");
     expect(localizeDigits("12", "arabic")).toBe("١٢");
     expect(localizeDigits("12", "latin")).toBe("12");
+  });
+});
+
+describe("distribution payloads", () => {
+  const box = { category: "a", n: 5, min: 1, q1: 2, median: 3, q3: 4, max: 9, whisker_low: 1, whisker_high: 5, outliers: [9], outlier_count: 1 };
+  it("reads a histogram payload and refuses a malformed one instead of drawing nonsense", () => {
+    expect(asHistogram({ kind: "histogram", edges: [0, 5, 10], counts: [3, 4], total: 7, percent: false })).toMatchObject({ counts: [3, 4], total: 7 });
+    expect(asHistogram({ kind: "histogram", edges: [0, 5], counts: [3, 4] })).toBeNull(); // edges must be one longer than counts
+    expect(asHistogram({ kind: "boxplot" })).toBeNull();
+    expect(asHistogram(null)).toBeNull();
+    expect(asHistogram({ kind: "histogram", edges: ["a"], counts: [] })).toBeNull();
+  });
+  it("reads box plot payloads and refuses incomplete boxes", () => {
+    expect(asBoxes({ kind: "boxplot", boxes: [box] })?.boxes).toHaveLength(1);
+    expect(asBoxes({ kind: "boxplot", boxes: [{ ...box, q1: "x" }] })).toBeNull();
+    expect(asBoxes({ kind: "boxplot", boxes: [{ ...box, outliers: "none" }] })).toBeNull();
+    expect(asBoxes(undefined)).toBeNull();
+  });
+  it("keeps axis ticks inside the data range", () => {
+    expect(ticksWithin(0, 40, 6).every((v) => v >= 0 && v <= 40)).toBe(true);
+    expect(ticksWithin(3, 17, 5)).toEqual([5, 10, 15]);
   });
 });

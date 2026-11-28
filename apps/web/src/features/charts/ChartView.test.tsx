@@ -92,6 +92,68 @@ describe("ChartView", () => {
   });
 });
 
+describe("distribution charts", () => {
+  const hist: ChartData = {
+    categories: ["0–5", "5–10", "10–15"], series: [{ name: "v", values: [6, 3, 0] }], categories_kind: "category",
+    meta: { kind: "histogram", edges: [0, 5, 10, 15], counts: [6, 3, 0], total: 9, percent: false },
+  };
+  const box = (extra = {}) => ({ category: "north", n: 12, min: 1, q1: 4, median: 6, q3: 9, max: 30, whisker_low: 1, whisker_high: 14, outliers: [30], outlier_count: 1, ...extra });
+  const boxes = (b: unknown[]): ChartData => ({ categories: ["g"], series: [{ name: "v", values: [6] }], meta: { kind: "boxplot", boxes: b } });
+
+  it("a histogram draws one bar per range, joined side by side, with the share in the tooltip", () => {
+    const { container } = render(<ChartView spec={spec("histogram")} data={hist} />);
+    const bars = [...container.querySelectorAll("rect")];
+    expect(bars).toHaveLength(3);
+    expect(bars[0]!.querySelector("title")!.textContent).toBe("0–5: 6 (66.67%)");
+    expect(Number(bars[2]!.getAttribute("height"))).toBe(0); // an empty range is an empty slot, not a gap in the axis
+    const x = bars.map((b) => Number(b.getAttribute("x")) + Number(b.getAttribute("width")));
+    expect(x[0]!).toBeLessThan(Number(bars[1]!.getAttribute("x")) + 1.01);
+  });
+
+  it("percent mode labels the axis with %", () => {
+    const d = { ...hist, series: [{ name: "v", values: [66.7, 33.3, 0] }], meta: { ...hist.meta, percent: true } };
+    const { container } = render(<ChartView spec={spec("histogram", { as_percent: true })} data={d} />);
+    expect(container.textContent).toContain("%");
+  });
+
+  it("an empty histogram draws nothing and does not crash", () => {
+    const d: ChartData = { categories: [], series: [{ name: "v", values: [] }], meta: { kind: "histogram", edges: [], counts: [], total: 0, percent: false } };
+    const { container } = render(<ChartView spec={spec("histogram")} data={d} />);
+    expect(container.querySelector("svg")).toBeNull();
+  });
+
+  it("a box plot draws the box, the whiskers, the median and the unusual values", () => {
+    const { container } = render(<ChartView spec={spec("boxplot")} data={boxes([box()])} />);
+    expect(container.querySelectorAll(".chart-box")).toHaveLength(1);
+    expect(container.querySelectorAll(".chart-box circle")).toHaveLength(1);
+    expect(container.querySelector(".chart-box title")!.textContent).toBe(
+      "north\nValues: 12\nLargest: 30\nThird quartile: 9\nMedian: 6\nFirst quartile: 4\nSmallest: 1");
+    expect(container.textContent).toContain("north");
+  });
+
+  it("several groups side by side, a flat box stays visible, no outliers means no points", () => {
+    const flat = box({ category: "b", q1: 5, median: 5, q3: 5, whisker_low: 5, whisker_high: 5, min: 5, max: 5, outliers: [], outlier_count: 0, n: 1 });
+    const { container } = render(<ChartView spec={spec("boxplot")} data={boxes([box({ outliers: [], outlier_count: 0 }), flat])} />);
+    expect(container.querySelectorAll(".chart-box")).toHaveLength(2);
+    expect(container.querySelectorAll("circle")).toHaveLength(0);
+    const h = Number(container.querySelectorAll(".chart-box rect")[1]!.getAttribute("height"));
+    expect(h).toBeGreaterThanOrEqual(1);
+  });
+
+  it("a payload it does not understand draws nothing instead of a wrong chart", () => {
+    expect(render(<ChartView spec={spec("boxplot")} data={boxes([{ nope: 1 }])} />).container.querySelector("svg")).toBeNull();
+    expect(render(<ChartView spec={spec("histogram")} data={{ ...hist, meta: { kind: "histogram" } }} />).container.querySelector("svg")).toBeNull();
+  });
+
+  it("says when groups are small or unusual values are limited", () => {
+    const d: ChartData = { ...boxes([box()]), notes: [{ code: "small_sample", params: { count: 2, minimum: 5 } }, { code: "outliers_limited", params: { shown: 300, total: 900 } }] };
+    render(<ChartView spec={spec("boxplot")} data={d} />);
+    expect(screen.getAllByRole("listitem").map((l) => l.textContent)).toEqual([
+      "2 groups have fewer than 5 values, so their boxes are only rough.", "Showing 300 of 900 unusual values (the most extreme ones).",
+    ]);
+  });
+});
+
 describe("notes", () => {
   const data: ChartData = {
     categories: ["a"], series: [{ name: "s", values: [1] }],
@@ -110,7 +172,8 @@ describe("notes", () => {
   });
   it("every note code the server can send has a message", () => {
     const codes = [["rows_excluded", { reason: "empty_date" }], ["rows_excluded", { reason: "empty_value" }], ["dates_unreadable", {}],
-      ["empty_values", {}], ["negative_values", {}], ["categories_limited", {}], ["other_merged", {}], ["sampled", {}], ["extra_series_ignored", {}]] as const;
+      ["empty_values", {}], ["negative_values", {}], ["categories_limited", {}], ["other_merged", {}], ["sampled", {}], ["extra_series_ignored", {}],
+      ["small_sample", {}], ["outliers_limited", {}]] as const;
     for (const [code, params] of codes) expect(noteKey({ code, params: { ...params } }), code).toBeDefined();
   });
 });

@@ -7,8 +7,8 @@ import { formatNumber } from "@/i18n/format";
 import { useT, type MessageKey } from "@/i18n";
 import { usePrefs, type Digits } from "@/state/prefs";
 import {
-  buildSegments, compact, linePieces, localizeDigits, niceTicks, pickLabelIndexes, pieSlices, shorten, stackMode,
-  valueRange, type Seg,
+  asBoxes, asHistogram, buildSegments, compact, linePieces, localizeDigits, niceTicks, pickLabelIndexes, pieSlices, shorten, stackMode,
+  ticksWithin, valueRange, type Seg,
 } from "./chartLayout";
 
 const W = 360;
@@ -19,7 +19,9 @@ export function ChartView({ spec, data }: { spec: ChartSpec; data: ChartData }) 
   const digits = usePrefs((s) => s.digits);
   const label = spec.title ?? spec.type;
   const empty = data.categories.length === 0 || data.series.length === 0;
-  const body = empty ? null : spec.type === "pie" ? <Pie spec={spec} data={data} label={label} digits={digits} />
+  const body = spec.type === "histogram" ? <Histogram spec={spec} data={data} label={label} digits={digits} />
+    : spec.type === "boxplot" ? <BoxPlot spec={spec} data={data} label={label} digits={digits} />
+    : empty ? null : spec.type === "pie" ? <Pie spec={spec} data={data} label={label} digits={digits} />
     : spec.type === "scatter" ? <Scatter spec={spec} data={data} label={label} digits={digits} />
     : <Cartesian spec={spec} data={data} label={label} digits={digits} />;
   return (
@@ -42,6 +44,93 @@ const num = (v: number, digits: Digits): string => formatNumber(v, digits, 2);
 function AxisTitle({ text, x, y, rotate }: { text?: string; x: number; y: number; rotate?: boolean }) {
   if (!text) return null;
   return <text x={x} y={y} textAnchor="middle" className="chart-text chart-axis-title" transform={rotate ? `rotate(-90 ${x} ${y})` : undefined}>{text}</text>;
+}
+
+function Histogram({ spec, data, label, digits }: Props) {
+  const meta = asHistogram(data.meta);
+  if (!meta || meta.counts.length === 0) return null;
+  const { edges, counts, total } = meta;
+  const values = data.series[0]?.values.map((v) => v ?? 0) ?? counts;
+  const titles = spec.options.axis_titles ?? {};
+  const H = 220;
+  const pad = { l: 44 + (titles.y ? 14 : 0), r: 12, t: 12, b: 32 + (titles.x ? 14 : 0) };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+  const lo = edges[0]!;
+  const hi = edges[edges.length - 1]!;
+  const ya = niceTicks(0, Math.max(...values, 1));
+  const px = (x: number) => pad.l + ((x - lo) / (hi - lo || 1)) * plotW;
+  const py = (y: number) => pad.t + (1 - (y - ya.lo) / (ya.hi - ya.lo || 1)) * plotH;
+  const suffix = meta.percent ? "%" : "";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} style={{ direction: "ltr" }} className="chart-svg">
+      {ya.ticks.map((tk) => (
+        <g key={`y${tk}`}>
+          <line x1={pad.l} x2={W - pad.r} y1={py(tk)} y2={py(tk)} className="chart-grid" />
+          <text x={pad.l - 4} y={py(tk) + 3} textAnchor="end" className="chart-text">{localizeDigits(compact(tk), digits)}{suffix}</text>
+        </g>
+      ))}
+      {values.map((v, i) => (
+        <rect key={i} x={px(edges[i]!) + 0.5} y={py(v)} width={Math.max(0.5, px(edges[i + 1]!) - px(edges[i]!) - 1)} height={Math.max(0, py(0) - py(v))} fill={color(0)}>
+          <title>{`${data.categories[i]}: ${num(counts[i]!, digits)}${total ? ` (${num((counts[i]! / total) * 100, digits)}%)` : ""}`}</title>
+        </rect>
+      ))}
+      {ticksWithin(lo, hi, 6).map((tk) => (
+        <text key={`x${tk}`} x={px(tk)} y={H - pad.b + 12} textAnchor="middle" className="chart-text">{localizeDigits(compact(tk), digits)}</text>
+      ))}
+      <AxisTitle text={titles.x} x={pad.l + plotW / 2} y={H - 4} />
+      <AxisTitle text={titles.y} x={11} y={pad.t + plotH / 2} rotate />
+    </svg>
+  );
+}
+
+function BoxPlot({ spec, data, label, digits }: Props) {
+  const t = useT();
+  const meta = asBoxes(data.meta);
+  if (!meta || meta.boxes.length === 0) return null;
+  const boxes = meta.boxes;
+  const titles = spec.options.axis_titles ?? {};
+  const H = 220;
+  const pad = { l: 44 + (titles.y ? 14 : 0), r: 12, t: 12, b: 32 + (titles.x ? 14 : 0) };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+  const reach = boxes.flatMap((b) => [b.whisker_low, b.whisker_high, ...b.outliers]);
+  const ya = niceTicks(Math.min(...reach), Math.max(...reach));
+  const py = (y: number) => pad.t + (1 - (y - ya.lo) / (ya.hi - ya.lo || 1)) * plotH;
+  const band = plotW / boxes.length;
+  const bw = Math.min(44, band * 0.6);
+  const cx = (i: number) => pad.l + (i + 0.5) * band;
+  const names = pickLabelIndexes(boxes.length, Math.max(1, Math.floor(plotW / 46)));
+  const tip = (b: (typeof boxes)[number]) => [b.category, `${t("charts.stat.count")}: ${num(b.n, digits)}`, `${t("charts.stat.max")}: ${num(b.max, digits)}`,
+    `${t("charts.stat.q3")}: ${num(b.q3, digits)}`, `${t("charts.stat.median")}: ${num(b.median, digits)}`, `${t("charts.stat.q1")}: ${num(b.q1, digits)}`,
+    `${t("charts.stat.min")}: ${num(b.min, digits)}`].join("\n");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} style={{ direction: "ltr" }} className="chart-svg">
+      {ya.ticks.map((tk) => (
+        <g key={`y${tk}`}>
+          <line x1={pad.l} x2={W - pad.r} y1={py(tk)} y2={py(tk)} className="chart-grid" />
+          <text x={pad.l - 4} y={py(tk) + 3} textAnchor="end" className="chart-text">{localizeDigits(compact(tk), digits)}</text>
+        </g>
+      ))}
+      {boxes.map((b, i) => (
+        <g key={i} className="chart-box">
+          <title>{tip(b)}</title>
+          <line x1={cx(i)} x2={cx(i)} y1={py(b.whisker_high)} y2={py(b.q3)} stroke={color(i)} strokeWidth={1.5} />
+          <line x1={cx(i)} x2={cx(i)} y1={py(b.q1)} y2={py(b.whisker_low)} stroke={color(i)} strokeWidth={1.5} />
+          <line x1={cx(i) - bw / 4} x2={cx(i) + bw / 4} y1={py(b.whisker_high)} y2={py(b.whisker_high)} stroke={color(i)} strokeWidth={1.5} />
+          <line x1={cx(i) - bw / 4} x2={cx(i) + bw / 4} y1={py(b.whisker_low)} y2={py(b.whisker_low)} stroke={color(i)} strokeWidth={1.5} />
+          <rect x={cx(i) - bw / 2} y={py(b.q3)} width={bw} height={Math.max(1, py(b.q1) - py(b.q3))} fill={color(i)} fillOpacity={0.3} stroke={color(i)} strokeWidth={1.5} />
+          <line x1={cx(i) - bw / 2} x2={cx(i) + bw / 2} y1={py(b.median)} y2={py(b.median)} stroke={color(i)} strokeWidth={2.5} />
+          {b.outliers.map((o, k) => <circle key={k} cx={cx(i)} cy={py(o)} r={2.5} fill="none" stroke={color(i)} strokeWidth={1.2} />)}
+        </g>
+      ))}
+      {names.map((i) => (
+        <text key={i} x={cx(i)} y={H - pad.b + 12} textAnchor="middle" className="chart-text">{shorten(localizeDigits(boxes[i]!.category, digits), 12)}</text>
+      ))}
+      <AxisTitle text={titles.x} x={pad.l + plotW / 2} y={H - 4} />
+      <AxisTitle text={titles.y} x={11} y={pad.t + plotH / 2} rotate />
+    </svg>
+  );
 }
 
 function Cartesian({ spec, data, label, digits }: Props) {
@@ -239,6 +328,8 @@ const NOTE_KEYS: Record<string, MessageKey> = {
   other_merged: "charts.note.otherMerged",
   sampled: "charts.note.sampled",
   extra_series_ignored: "charts.note.extraSeries",
+  small_sample: "charts.note.smallSample",
+  outliers_limited: "charts.note.outliersLimited",
 };
 
 /** What the chart left out or summarised, in plain words. Unknown codes from a newer server are skipped. */

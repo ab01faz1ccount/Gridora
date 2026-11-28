@@ -126,6 +126,7 @@ export interface HistoryEntry {
 
 export type ChartColumn = string | number;
 export type ChartAggregate = "sum" | "avg" | "count" | "min" | "max" | "count_distinct" | "median";
+export type ChartType = "bar" | "line" | "pie" | "scatter" | "area" | "histogram" | "boxplot";
 export interface ChartSeries { name?: string; value_col: ChartColumn; category_col?: ChartColumn; aggregate?: ChartAggregate }
 /** v0.7.0: one row test; all filters of a chart are AND-ed (same operators as the `filter` operation). */
 export interface ChartFilter {
@@ -143,16 +144,18 @@ export interface ChartOptions {
   stacked: boolean; legend: boolean; axis_titles?: Record<string, string> | null;
   stack?: "none" | "stacked" | "percent" | null; orientation?: "vertical" | "horizontal";
   labels?: "none" | "value" | "percent"; nulls?: "gap" | "zero"; donut?: boolean;
+  bins?: number | null; bin_width?: number | null; as_percent?: boolean; outliers?: boolean; // v0.7.0 histogram / boxplot
 }
 export interface ChartSpec {
   schema_version: number; id?: string; document_id: string;
-  type: "bar" | "line" | "pie" | "scatter" | "area"; title?: string; source: Target;
+  type: ChartType; title?: string; source: Target;
   series: ChartSeries[];
   options: ChartOptions;
   series_by?: ChartColumn | null; filters?: ChartFilter[]; sort?: ChartSort | null; limit?: ChartLimit | null; time?: ChartTime | null;
 }
 /** v0.7.0: something to tell the person about what the chart shows. Codes: rows_excluded, empty_values,
- *  negative_values, categories_limited, other_merged, sampled, dates_unreadable. */
+ *  negative_values, categories_limited, other_merged, sampled, dates_unreadable, extra_series_ignored,
+ *  small_sample, outliers_limited. */
 export interface ChartNote { code: string; params: Record<string, unknown> }
 export interface ChartData {
   categories: (string | number)[]; series: { name: string; values: (number | null)[] }[];

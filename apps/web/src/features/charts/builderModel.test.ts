@@ -201,3 +201,58 @@ describe("switchType", () => {
     expect(switchType(d, "bar", COLS, [])).toBe(d);
   });
 });
+
+describe("distribution charts in the builder", () => {
+  it("know what they need: one number, no labels column, no combining of rows", () => {
+    expect(capabilities("histogram")).toMatchObject({ categoryRole: "none", bins: true, percent: true, aggregate: false, sort: false, limit: false, multiValues: false });
+    expect(capabilities("boxplot")).toMatchObject({ categoryRole: "group", outliers: true, sort: true, aggregate: false, multiValues: false });
+  });
+  it("a histogram needs only a number; a box plot picks a small category as the group if there is one", () => {
+    const h = newDraft("histogram", COLS);
+    expect([h.category, h.values, h.aggregate]).toEqual([null, [1], "none"]);
+    expect(missing(h)).toEqual([]);
+    const b = newDraft("boxplot", COLS);
+    expect([b.category, b.values]).toEqual([0, [1]]);
+    expect(newDraft("boxplot", [COLS[1]!]).category).toBeNull();
+    expect(missing(newDraft("boxplot", [COLS[1]!]))).toEqual([]); // the group is optional
+    expect(missing(newDraft("histogram", []))).toEqual(["values"]);
+  });
+  it("writes the spec the server expects, only with the settings of its type", () => {
+    const h = { ...newDraft("histogram", COLS), binMode: "count" as const, bins: 12, asPercent: true, title: "T" };
+    const spec = draftToSpec(h, CTX);
+    expect(spec.series).toEqual([{ name: "sales", value_col: 1 }]);
+    expect(spec.options).toEqual({ stacked: false, legend: true, bins: 12, as_percent: true });
+    expect(draftToSpec({ ...h, binMode: "width" as const, binWidth: 2.5 }, CTX).options).toMatchObject({ bin_width: 2.5 });
+    expect(draftToSpec({ ...h, binMode: "auto" as const }, CTX).options).not.toHaveProperty("bins");
+    const b = { ...newDraft("boxplot", COLS), outliers: false };
+    expect(draftToSpec(b, CTX).series).toEqual([{ name: "sales", value_col: 1, category_col: 0 }]);
+    expect(draftToSpec(b, CTX).options).toMatchObject({ outliers: false });
+    expect(draftToSpec(newDraft("boxplot", COLS), CTX).options).not.toHaveProperty("outliers");
+    expect(draftToSpec({ ...h, category: 0 }, CTX).series[0]).not.toHaveProperty("category_col"); // a histogram never sends one
+  });
+  it("round-trips through a saved chart", () => {
+    const h = { ...newDraft("histogram", COLS), binMode: "width" as const, binWidth: 5, asPercent: true };
+    expect(specToDraft(draftToSpec(h, CTX, "x"), COLS)).toMatchObject({ type: "histogram", binMode: "width", binWidth: 5, asPercent: true, category: null });
+    const b = { ...newDraft("boxplot", COLS), outliers: false };
+    expect(specToDraft(draftToSpec(b, CTX, "y"), COLS)).toMatchObject({ type: "boxplot", outliers: false, category: 0 });
+  });
+  it("moving between a bar chart and a histogram starts from sensible roles, and between the two distribution charts keeps the number", () => {
+    const bar = { ...newDraft("bar", COLS), title: "T" };
+    const h = switchType(bar, "histogram", COLS, []);
+    expect([h.type, h.category, h.values, h.title]).toEqual(["histogram", null, [1], "T"]);
+    const box = switchType({ ...h, values: [2] }, "boxplot", COLS, []);
+    expect(box.values).toEqual([2]);
+    expect(switchType(box, "histogram", COLS, []).category).toBeNull();
+  });
+  it("a suggestion for a histogram carries its column", () => {
+    const s: ChartSuggestion = { type: "histogram", reason: "one_number", series: [{ name: "age", value_col: 2 }] };
+    const d = draftFromSuggestion(s, COLS);
+    expect([d.type, d.values, d.aggregate, d.category]).toEqual(["histogram", [2], "none", null]);
+  });
+  it("explains bin and group problems in plain words", () => {
+    const err = (code: string, path: string) => new ApiError({ code: "validation_failed", message: "x", status: 400, details: [{ code, path, message: "m" }] });
+    expect(problemOf(err("invalid_param", "/options/bin_width"), newDraft("histogram", COLS), COLS)).toMatchObject({ field: "bins", key: "charts.problem.bins" });
+    expect(problemOf(err("chart_too_many_categories", "/series/0/category_col"), newDraft("boxplot", COLS), COLS)).toMatchObject({ key: "charts.problem.tooManyGroups" });
+    expect(problemOf(err("invalid_param", "/series/0/category_col"), newDraft("histogram", COLS), COLS)).toMatchObject({ key: "charts.problem.histogramOneColumn" });
+  });
+});

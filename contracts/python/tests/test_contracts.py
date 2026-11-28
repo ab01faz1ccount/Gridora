@@ -213,3 +213,15 @@ def test_chart_profile_models_and_optional_protocol():
         def chart_profile(self, source, ctx):  # noqa: ANN001
             return prof
     assert isinstance(Impl(), ChartProfiler) and not isinstance(object(), ChartProfiler)
+
+
+def test_distribution_chart_types_and_options():
+    from gridora_contracts.models import ChartOptions, ChartSeries
+    for kind in ("histogram", "boxplot"):
+        spec = ChartSpec(document_id="d", type=kind, source=DataTableTarget(table_id="t"),
+                         series=[ChartSeries(value_col="v")], options=ChartOptions(bins=10, as_percent=True, outliers=False))
+        assert ChartSpec.model_validate_json(spec.model_dump_json()) == spec
+    assert ChartOptions().bins is None and ChartOptions().outliers is True and ChartOptions().as_percent is False
+    for bad in ({"bins": 1}, {"bins": 201}, {"bin_width": 0}, {"bin_width": -1}):
+        with pytest.raises(Exception):
+            ChartOptions(**bad)

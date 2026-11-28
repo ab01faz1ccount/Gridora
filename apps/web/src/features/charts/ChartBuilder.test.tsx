@@ -59,6 +59,37 @@ describe("ChartBuilder", () => {
     await waitFor(() => expect(lastPreview(api).series.map((x) => x.aggregate)).toEqual(["max", "avg"]));
   });
 
+  it("a histogram needs one number: no labels column, bins are optional and change the preview", async () => {
+    const api = routes();
+    wrap(<ChartBuilder documentId="w1" sources={SOURCES} onSaved={() => {}} onCancel={() => {}} />);
+    await screen.findByRole("img", { name: "bar" });
+    await userEvent.click(screen.getAllByRole("radio", { name: /Histogram/ })[0]!);
+    await waitFor(() => expect(lastPreview(api).type).toBe("histogram"));
+    expect(screen.queryByLabelText("Labels (x axis)")).not.toBeInTheDocument();
+    expect(lastPreview(api).series).toEqual([{ name: "sales", value_col: 1 }]);
+    expect(lastPreview(api).options).not.toHaveProperty("bins"); // automatic unless asked
+    await userEvent.selectOptions(screen.getByLabelText("Ranges (bins)"), "count");
+    await userEvent.clear(screen.getByLabelText("Number of ranges"));
+    await userEvent.type(screen.getByLabelText("Number of ranges"), "8");
+    await waitFor(() => expect(lastPreview(api).options.bins).toBe(8));
+    await userEvent.click(screen.getByRole("checkbox", { name: /percent instead of counts/ }));
+    await waitFor(() => expect(lastPreview(api).options.as_percent).toBe(true));
+  });
+
+  it("a box plot groups by an optional column and can hide unusual values", async () => {
+    const api = routes();
+    wrap(<ChartBuilder documentId="w1" sources={SOURCES} onSaved={() => {}} onCancel={() => {}} />);
+    await screen.findByRole("img", { name: "bar" });
+    await userEvent.click(screen.getAllByRole("radio", { name: /Box plot/ })[0]!);
+    await waitFor(() => expect(lastPreview(api).type).toBe("boxplot"));
+    expect(lastPreview(api).series).toEqual([{ name: "sales", value_col: 1, category_col: 0 }]);
+    await userEvent.selectOptions(screen.getByLabelText("Compare groups by (optional)"), "");
+    await waitFor(() => expect(lastPreview(api).series[0]).not.toHaveProperty("category_col"));
+    await userEvent.click(screen.getByRole("checkbox", { name: /unusual values as points/ }));
+    await waitFor(() => expect(lastPreview(api).options.outliers).toBe(false));
+    expect(screen.getByRole("button", { name: "Save the chart" })).toBeEnabled(); // no group chosen is fine
+  });
+
   it("lists recommended types first but keeps every type reachable", async () => {
     routes();
     wrap(<ChartBuilder documentId="w1" sources={SOURCES} onSaved={() => {}} onCancel={() => {}} />);

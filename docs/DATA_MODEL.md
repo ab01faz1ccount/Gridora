@@ -121,13 +121,14 @@ A Tool is a saved, parameterized Pipeline. Running a Tool binds its inputs to a 
 
 ```ts
 ChartSpec {
-  id, document_id, type: "bar"|"line"|"pie"|"scatter"|"area",
+  id, document_id, type: "bar"|"line"|"pie"|"scatter"|"area"|"histogram"|"boxplot",
   title?, source: Target,
   series: { name?, value_col, category_col?,
             aggregate?: "sum"|"avg"|"count"|"min"|"max"|"count_distinct"|"median" }[],
   options: { stacked?, legend?, axis_titles?: {x?,y?},                       // legacy
              stack?: "none"|"stacked"|"percent", orientation?: "vertical"|"horizontal",
-             labels?: "none"|"value"|"percent", nulls?: "gap"|"zero", donut? },  // v0.7.0
+             labels?: "none"|"value"|"percent", nulls?: "gap"|"zero", donut?,   // v0.7.0
+             bins?: 2..200, bin_width?: >0, as_percent?, outliers? },           // histogram / boxplot
   // v0.7.0, all optional:
   series_by?: column,                      // one series per value of this column (one `series` entry)
   filters?: { column, op, value?, value2? }[],   // AND-ed; same operators as the `filter` operation
@@ -145,10 +146,12 @@ A spec stores references and settings, never data. A spec saved before 0.7.0 loa
 
 Rules the engine follows (tested in `packages/dataops/tests/test_charts_engine.py`):
 - **Empty is not zero.** A group whose values are all empty is empty (a gap), not 0; `nulls: "zero"` is an explicit user choice. Counts are real zeros.
-- **Nothing disappears silently.** Rows or values a chart cannot draw (empty/unreadable dates, scatter points missing x or y, negative pie values, sampled points, Top N) are reported in `ChartData.notes`. Note codes: `rows_excluded {count, reason}`, `dates_unreadable {count, examples}`, `empty_values {count}`, `negative_values {count}`, `categories_limited {shown, total}`, `other_merged {count}`, `sampled {kept, total}`, `extra_series_ignored {count}`.
+- **Nothing disappears silently.** Rows or values a chart cannot draw (empty/unreadable dates, scatter points missing x or y, negative pie values, sampled points, Top N) are reported in `ChartData.notes`. Note codes: `rows_excluded {count, reason}`, `dates_unreadable {count, examples}`, `empty_values {count}`, `negative_values {count}`, `categories_limited {shown, total}`, `other_merged {count}`, `sampled {kept, total}`, `extra_series_ignored {count}`, `small_sample {count, minimum}`, `outliers_limited {shown, total}`.
 - **Time is time.** A date column (or a text column with `time` set) becomes a chronological axis in the chosen calendar; Jalali text dates in any digit script are read as dates. `labels` carry the display text (`1404/01`), `categories` the bucket start date (ISO).
 - **Filters never touch the source**, they only change what the chart reads.
 - **Top N** ranks categories by the sum of their series values; "Other" is only allowed for sums and counts and always comes last; it is refused on a time axis.
+- **Histogram** reads one numeric column: automatic bins use the Freedman–Diaconis width (Sturges when the spread is zero) rounded to 1/2/5 x 10^k and kept between 5 and 50 bins; `bins` gives exactly that many equal bins, `bin_width` bins that start on a multiple of the width (at most 200). A value on an edge belongs to the bin on its right; the maximum closes the last bin. `meta = {kind:"histogram", edges, counts, total, percent}`.
+- **Box plot** reads one numeric column, optionally by group (at most 50 groups, in source order or sorted by name/median). Quartiles use linear interpolation (Excel `QUARTILE.INC`); whiskers reach the furthest value within 1.5 x IQR of the box; points beyond are outliers (at most 300 per group are sent, the rest counted). Groups with fewer than 5 values are computed but flagged (`small_sample`). `meta = {kind:"boxplot", boxes:[{category, n, min, q1, median, q3, max, whisker_low, whisker_high, outliers, outlier_count}], whisker, quartiles}`.
 - **Scatter** shows rows as they are (no aggregate); above 5,000 points it keeps every k-th row (deterministic) and says so.
 
 ## 9. Validation errors and compatibility warnings

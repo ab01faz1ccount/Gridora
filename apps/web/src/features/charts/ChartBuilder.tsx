@@ -124,8 +124,11 @@ export function ChartBuilder({ documentId, sources, initial, onSaved, onCancel }
 
       <fieldset className="cb-section">
         <legend>{t("charts.step.fields")}</legend>
-        <ColumnSelect label={t(cap.categoryRole === "x" ? "charts.role.x" : timeAxis ? "charts.role.time" : "charts.role.category")}
-          cols={cols} value={draft.category} onChange={(v) => set({ category: v, values: draft.values.filter((x) => x !== v) })} />
+        {cap.categoryRole !== "none" ? (
+          <ColumnSelect label={t(cap.categoryRole === "x" ? "charts.role.x" : cap.categoryRole === "group" ? "charts.role.group" : timeAxis ? "charts.role.time" : "charts.role.category")}
+            cols={cols} value={draft.category} optional={cap.categoryRole === "group"}
+            onChange={(v) => set({ category: v, values: draft.values.filter((x) => x !== v) })} />
+        ) : null}
         {need.includes("category") ? <p className="muted">{t("charts.needCategory")}</p> : null}
         {fieldProblem("category")}
         {cap.multiValues ? (
@@ -143,7 +146,8 @@ export function ChartBuilder({ documentId, sources, initial, onSaved, onCancel }
             ))}
           </fieldset>
         ) : (
-          <ColumnSelect label={t("charts.role.value")} cols={cols.filter((c) => c.index !== draft.category)} value={draft.values[0] ?? null}
+          <ColumnSelect label={t(cap.bins || cap.outliers ? "charts.role.distValue" : "charts.role.value")}
+            cols={cols.filter((c) => c.index !== draft.category && (!(cap.bins || cap.outliers) || c.kind === "number"))} value={draft.values[0] ?? null}
             onChange={(v) => set({ values: v === null ? [] : [v] })} />
         )}
         {need.includes("values") && !need.includes("category") ? <p className="muted">{t("charts.needValues")}</p> : null}
@@ -191,6 +195,21 @@ export function ChartBuilder({ documentId, sources, initial, onSaved, onCancel }
             {fieldProblem("time")}
           </>
         ) : null}
+        {cap.bins ? (
+          <fieldset className="field">
+            <Select label={t("charts.bins.label")} value={draft.binMode} onChange={(v) => set({ binMode: v as Draft["binMode"] })}
+              options={[["auto", t("charts.bins.auto")], ["count", t("charts.bins.count")], ["width", t("charts.bins.width")]]} />
+            {draft.binMode === "count" ? (
+              <NumberField label={t("charts.bins.n")} value={draft.bins} min={2} max={200} integer onCommit={(n) => set({ bins: n })} />
+            ) : null}
+            {draft.binMode === "width" ? (
+              <NumberField label={t("charts.bins.w")} value={draft.binWidth} min={Number.MIN_VALUE} onCommit={(n) => set({ binWidth: n })} />
+            ) : null}
+            {fieldProblem("bins")}
+          </fieldset>
+        ) : null}
+        {cap.percent ? <label className="check"><input type="checkbox" checked={draft.asPercent} onChange={(e) => set({ asPercent: e.target.checked })} /> {t("charts.percent")}</label> : null}
+        {cap.outliers ? <label className="check"><input type="checkbox" checked={draft.outliers} onChange={(e) => set({ outliers: e.target.checked })} /> {t("charts.outliers")}</label> : null}
         {cap.sort ? (
           <div className="cb-row">
             <Select label={t("charts.sort.by")} value={draft.sortBy} onChange={(v) => set({ sortBy: v as Draft["sortBy"] })}
@@ -207,9 +226,7 @@ export function ChartBuilder({ documentId, sources, initial, onSaved, onCancel }
             {draft.topN !== null ? (
               <div className="cb-row">
                 <Select label={t("charts.limit.end")} hideLabel value={draft.topEnd} onChange={(v) => set({ topEnd: v as Draft["topEnd"] })} options={[["top", t("charts.limit.top")], ["bottom", t("charts.limit.bottom")]]} />
-                <label className="field">{t("charts.limit.n")}
-                  <input type="number" min={1} max={500} value={draft.topN} onChange={(e) => set({ topN: Math.min(500, Math.max(1, Math.trunc(Number(e.target.value)) || 1)) })} />
-                </label>
+                <NumberField label={t("charts.limit.n")} value={draft.topN} min={1} max={500} integer onCommit={(n) => set({ topN: n })} />
                 <label className="check"><input type="checkbox" checked={draft.other} onChange={(e) => set({ other: e.target.checked })} /> {t("charts.limit.other")}</label>
               </div>
             ) : null}
@@ -253,7 +270,7 @@ export function ChartBuilder({ documentId, sources, initial, onSaved, onCancel }
 
 // Fields whose problem is shown right next to the control (inside "More options" or the columns); the rest go below the preview.
 function visibleField(f: Field): boolean {
-  return ["category", "values", "splitBy", "aggregate", "limit", "time", "filters"].includes(f);
+  return ["category", "values", "splitBy", "aggregate", "limit", "time", "filters", "bins"].includes(f);
 }
 
 function ProblemText({ problem }: { problem: Problem }) {
@@ -273,6 +290,24 @@ function Gallery({ kinds, current, onPick, star }: { kinds: Kind[]; current: Kin
         </button>
       ))}
     </div>
+  );
+}
+
+/** A number box you can clear and retype: only a valid number is passed on, and the box shows the real value again on blur. */
+function NumberField({ label, value, min, max, integer, onCommit }: {
+  label: string; value: number; min: number; max?: number; integer?: boolean; onCommit: (n: number) => void;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  return (
+    <label className="field">{label}
+      <input type="number" step={integer ? 1 : "any"} min={integer ? min : undefined} max={max} value={text ?? String(value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Number(e.target.value);
+          if (e.target.value.trim() !== "" && Number.isFinite(n) && n >= min && (max === undefined || n <= max) && (!integer || Number.isInteger(n))) onCommit(n);
+        }}
+        onBlur={() => setText(null)} />
+    </label>
   );
 }
 

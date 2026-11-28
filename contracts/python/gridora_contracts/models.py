@@ -498,6 +498,9 @@ ChartColumn = Union[str, int]
 ChartAggregate = Literal["sum", "avg", "count", "min", "max", "count_distinct", "median"]
 
 
+ChartType = Literal["bar", "line", "pie", "scatter", "area", "histogram", "boxplot"]
+
+
 class ChartSeries(_Base):
     name: Optional[str] = None
     value_col: ChartColumn
@@ -547,13 +550,17 @@ class ChartOptions(_Base):
     labels: Literal["none", "value", "percent"] = "none"  # v0.7.0
     nulls: Literal["gap", "zero"] = "gap"  # v0.7.0: empty values are gaps unless the user asks for zero
     donut: bool = False  # v0.7.0 (pie)
+    bins: Optional[int] = Field(default=None, ge=2, le=200)  # v0.7.0 histogram: number of bins (auto when unset)
+    bin_width: Optional[float] = Field(default=None, gt=0)  # v0.7.0 histogram: width of a bin (instead of `bins`)
+    as_percent: bool = False  # v0.7.0 histogram: percent of values instead of counts
+    outliers: bool = True  # v0.7.0 boxplot: draw the points beyond the whiskers
 
 
 class ChartSpec(_Base):
     schema_version: int = SCHEMA_VERSION
     id: Optional[str] = None
     document_id: str
-    type: Literal["bar", "line", "pie", "scatter", "area"]
+    type: ChartType
     title: Optional[str] = None
     source: Target
     series: list[ChartSeries]
@@ -568,7 +575,8 @@ class ChartSpec(_Base):
 class ChartNote(_Base):
     """v0.7.0: something the person should know about what the chart shows (never an error).
     `code` is a stable key the UI translates; `params` fills the text. Codes: rows_excluded, empty_values,
-    negative_values, categories_limited, other_merged, sampled, dates_unreadable."""
+    negative_values, categories_limited, other_merged, sampled, dates_unreadable, extra_series_ignored,
+    small_sample, outliers_limited."""
 
     code: str
     params: dict[str, Any] = Field(default_factory=dict)
@@ -606,7 +614,7 @@ class ChartSuggestion(_Base):
     """v0.7.0: a chart that fits the columns, with its mapping already filled in (column indexes).
     `reason` is a stable key the UI translates: time_and_number, category_and_number, two_numbers, ..."""
 
-    type: Literal["bar", "line", "pie", "scatter", "area"]
+    type: ChartType
     series: list[ChartSeries]
     time: Optional[ChartTime] = None
     limit: Optional[ChartLimit] = None  # set when the category column has many distinct values

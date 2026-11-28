@@ -132,3 +132,32 @@ export function localizeDigits(text: string, digits: "latin" | "persian" | "arab
   const set = digits === "persian" ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩";
   return text.replace(/\d/g, (d) => set[Number(d)]!);
 }
+
+// ---- the extra payload (ChartData.meta) of the distribution charts; the server writes it, the view reads it here
+export interface HistogramMeta { kind: "histogram"; edges: number[]; counts: number[]; total: number; percent: boolean }
+export interface Box {
+  category: string; n: number; min: number; q1: number; median: number; q3: number; max: number;
+  whisker_low: number; whisker_high: number; outliers: number[]; outlier_count: number;
+}
+export interface BoxMeta { kind: "boxplot"; boxes: Box[] }
+
+const isNumbers = (v: unknown): v is number[] => Array.isArray(v) && v.every((x) => typeof x === "number");
+
+export function asHistogram(meta: Record<string, unknown> | null | undefined): HistogramMeta | null {
+  if (!meta || meta.kind !== "histogram" || !isNumbers(meta.edges) || !isNumbers(meta.counts)) return null;
+  if (meta.edges.length !== meta.counts.length + 1) return null;
+  return { kind: "histogram", edges: meta.edges, counts: meta.counts, total: Number(meta.total ?? 0), percent: meta.percent === true };
+}
+
+export function asBoxes(meta: Record<string, unknown> | null | undefined): BoxMeta | null {
+  if (!meta || meta.kind !== "boxplot" || !Array.isArray(meta.boxes)) return null;
+  const ok = (meta.boxes as Record<string, unknown>[]).every((b) =>
+    typeof b.category === "string" && ["n", "min", "q1", "median", "q3", "max", "whisker_low", "whisker_high"].every((k) => typeof b[k] === "number")
+    && isNumbers(b.outliers));
+  return ok ? { kind: "boxplot", boxes: meta.boxes as Box[] } : null;
+}
+
+/** Tick marks that fall inside [lo, hi] (a histogram axis keeps its exact ends). */
+export function ticksWithin(lo: number, hi: number, count = 5): number[] {
+  return niceTicks(lo, hi, count).ticks.filter((v) => v >= lo - 1e-12 && v <= hi + 1e-12);
+}

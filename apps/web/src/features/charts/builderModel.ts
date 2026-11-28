@@ -16,6 +16,8 @@ export const KINDS: { type: Kind; group: Group }[] = [
   { type: "bar", group: "comparison" },
   { type: "line", group: "trend" },
   { type: "area", group: "trend" },
+  { type: "histogram", group: "distribution" },
+  { type: "boxplot", group: "distribution" },
   { type: "scatter", group: "relationship" },
   { type: "pie", group: "composition" },
 ];
@@ -37,19 +39,23 @@ export interface Draft {
   stack: "none" | "stacked" | "percent"; orientation: "vertical" | "horizontal";
   labels: "none" | "value" | "percent"; nulls: "gap" | "zero"; donut: boolean; legend: boolean;
   axisX: string; axisY: string; filters: DraftFilter[];
+  binMode: "auto" | "count" | "width"; bins: number; binWidth: number; asPercent: boolean; outliers: boolean;
 }
 
 /** Which controls a chart type has. The builder shows only these; everything else would be noise. */
 export interface Capabilities {
   multiValues: boolean; splitBy: boolean; aggregate: boolean; sort: boolean; limit: boolean; time: boolean;
   stack: boolean; orientation: boolean; labels: boolean; donut: boolean; nulls: boolean; axisTitles: boolean;
-  categoryRole: "category" | "x";
+  bins: boolean; percent: boolean; outliers: boolean;
+  /** category: labels axis; x: numeric x axis; group: optional groups to compare; none: no such column */
+  categoryRole: "category" | "x" | "group" | "none";
 }
 
 export function capabilities(type: Kind): Capabilities {
   const none: Capabilities = {
     multiValues: false, splitBy: false, aggregate: false, sort: false, limit: false, time: false, stack: false,
     orientation: false, labels: false, donut: false, nulls: false, axisTitles: false, categoryRole: "category",
+    bins: false, percent: false, outliers: false,
   };
   switch (type) {
     case "bar":
@@ -63,6 +69,10 @@ export function capabilities(type: Kind): Capabilities {
       return { ...none, aggregate: true, sort: true, limit: true, labels: true, donut: true };
     case "scatter":
       return { ...none, multiValues: true, splitBy: true, axisTitles: true, categoryRole: "x" };
+    case "histogram":
+      return { ...none, axisTitles: true, bins: true, percent: true, categoryRole: "none" };
+    case "boxplot":
+      return { ...none, sort: true, axisTitles: true, outliers: true, categoryRole: "group" };
   }
 }
 
@@ -73,31 +83,36 @@ function pickValues(type: Kind, cols: ChartColumnProfile[], category: number | n
   const measures = rest.filter(isMeasure);
   const numeric = rest.filter((c) => c.kind === "number");
   const chosen = (measures.length ? measures : numeric).map((c) => c.index);
-  return type === "pie" || type === "scatter" ? chosen.slice(0, 1) : chosen.slice(0, 3);
+  return capabilities(type).multiValues ? chosen.slice(0, 3) : chosen.slice(0, 1);
 }
 
 /** A first draft for a chart type from the column facts: obvious roles filled, all of them changeable. */
 export function newDraft(type: Kind, cols: ChartColumnProfile[]): Draft {
   const scatter = type === "scatter";
+  const raw = !capabilities(type).aggregate; // charts that show the values as they are
   const time = cols.find((c) => c.looks_like === "time");
   const cat = cols.find((c) => c.looks_like === "category");
+  const fewGroups = cols.find((c) => c.looks_like === "category" && c.distinct <= 12);
   const measures = cols.filter(isMeasure);
   const category: number | null = scatter ? (measures[0]?.index ?? cols.find((c) => c.kind === "number")?.index ?? null)
+    : type === "histogram" ? null
+    : type === "boxplot" ? (fewGroups?.index ?? null)
     : type === "pie" ? (cat?.index ?? null)
     : (time ?? cat)?.index ?? null;
   const values = pickValues(type, cols, category);
   const first = cols.find((c) => c.index === values[0]);
-  const aggOf = (i: number): AggregateChoice => (scatter ? "none" : (cols.find((c) => c.index === i)?.default_aggregate ?? "sum"));
+  const aggOf = (i: number): AggregateChoice => (raw ? "none" : (cols.find((c) => c.index === i)?.default_aggregate ?? "sum"));
   const timeCol = cols.find((c) => c.index === category && c.looks_like === "time");
   return {
     type, title: "", category, values, splitBy: null,
-    aggregate: scatter ? "none" : (first?.default_aggregate ?? "sum"),
+    aggregate: raw ? "none" : (first?.default_aggregate ?? "sum"),
     aggregates: Object.fromEntries(values.map((v) => [v, aggOf(v)])),
     sortBy: "source", sortDir: "asc", topN: null, topEnd: "top", other: false,
     granularity: timeCol && timeCol.distinct > 60 ? "month" : null,
     calendar: timeCol?.date_text === "jalali" ? "jalali" : "gregorian",
     stack: "none", orientation: "vertical", labels: "none", nulls: "gap", donut: false, legend: true,
     axisX: "", axisY: "", filters: [],
+    binMode: "auto", bins: 10, binWidth: 1, asPercent: false, outliers: true,
   };
 }
 
@@ -107,7 +122,7 @@ export function draftFromSuggestion(s: ChartSuggestion, cols: ChartColumnProfile
   if (first) {
     d.category = typeof first.category_col === "number" ? first.category_col : d.category;
     d.values = s.series.map((x) => x.value_col).filter((v): v is number => typeof v === "number");
-    d.aggregate = first.aggregate ?? (s.type === "scatter" ? "none" : d.aggregate);
+    d.aggregate = first.aggregate ?? (capabilities(s.type).aggregate ? d.aggregate : "none");
     d.aggregates = Object.fromEntries(s.series.flatMap((x) => (typeof x.value_col === "number" ? [[x.value_col, x.aggregate ?? "none"]] : [])));
   }
   if (s.time) { d.calendar = s.time.calendar; d.granularity = s.time.granularity ?? null; }
@@ -123,12 +138,13 @@ export function switchType(d: Draft, type: Kind, cols: ChartColumnProfile[], sug
     const s = suggestions.find((x) => x.type === type);
     return s ? draftFromSuggestion(s, cols) : newDraft(type, cols);
   })();
-  const roleChange = (type === "scatter") !== (d.type === "scatter");
+  const shape = (k: Kind) => (k === "scatter" ? "xy" : k === "histogram" || k === "boxplot" ? "distribution" : "categories");
+  const roleChange = shape(type) !== shape(d.type);
   const keep: Partial<Draft> = { title: d.title, filters: d.filters, legend: d.legend };
   if (!roleChange) {
     const cap = capabilities(type);
     const values = cap.multiValues ? d.values : d.values.slice(0, 1);
-    Object.assign(keep, { category: d.category, values, aggregate: d.aggregate, aggregates: d.aggregates, splitBy: cap.splitBy && values.length === 1 ? d.splitBy : null });
+    Object.assign(keep, { category: cap.categoryRole === "none" ? null : d.category, values, aggregate: d.aggregate, aggregates: d.aggregates, splitBy: cap.splitBy && values.length === 1 ? d.splitBy : null });
   }
   return { ...fresh, ...keep };
 }
@@ -145,7 +161,7 @@ export function draftToSpec(d: Draft, ctx: Ctx, id?: string): ChartSpec {
     const choice = d.aggregates[v] ?? d.aggregate;
     return {
       name: nameOf(ctx.columns, v), value_col: v,
-      ...(d.category !== null ? { category_col: d.category } : {}),
+      ...(d.category !== null && cap.categoryRole !== "none" ? { category_col: d.category } : {}),
       ...(cap.aggregate && choice !== "none" ? { aggregate: choice } : {}),
     };
   });
@@ -157,6 +173,8 @@ export function draftToSpec(d: Draft, ctx: Ctx, id?: string): ChartSpec {
       ...(cap.stack ? { stack: d.stack } : {}), ...(cap.orientation ? { orientation: d.orientation } : {}),
       ...(cap.labels ? { labels: d.labels } : {}), ...(cap.nulls ? { nulls: d.nulls } : {}),
       ...(cap.donut && d.donut ? { donut: true } : {}),
+      ...(cap.bins && d.binMode === "count" ? { bins: d.bins } : {}), ...(cap.bins && d.binMode === "width" ? { bin_width: d.binWidth } : {}),
+      ...(cap.percent && d.asPercent ? { as_percent: true } : {}), ...(cap.outliers && !d.outliers ? { outliers: false } : {}),
       ...(cap.axisTitles && (d.axisX || d.axisY) ? { axis_titles: { ...(d.axisX ? { x: d.axisX } : {}), ...(d.axisY ? { y: d.axisY } : {}) } } : {}),
     },
   };
@@ -209,6 +227,8 @@ export function specToDraft(spec: ChartSpec, cols: ChartColumnProfile[]): Draft 
   d.stack = o.stack ?? (o.stacked ? "stacked" : "none"); d.orientation = o.orientation ?? "vertical";
   d.labels = o.labels ?? "none"; d.nulls = o.nulls ?? "gap"; d.donut = o.donut ?? false; d.legend = o.legend;
   d.axisX = o.axis_titles?.x ?? ""; d.axisY = o.axis_titles?.y ?? "";
+  d.binMode = o.bins ? "count" : o.bin_width ? "width" : "auto"; d.bins = o.bins ?? d.bins; d.binWidth = o.bin_width ?? d.binWidth;
+  d.asPercent = o.as_percent ?? false; d.outliers = o.outliers ?? true;
   d.filters = (spec.filters ?? []).map((f) => ({
     column: colIndex(cols, f.column), op: f.op, value: f.value === null || f.value === undefined ? "" : String(f.value),
   }));
@@ -219,13 +239,14 @@ export function specToDraft(spec: ChartSpec, cols: ChartColumnProfile[]): Draft 
 export type Missing = "category" | "values";
 export function missing(d: Draft): Missing[] {
   const out: Missing[] = [];
-  if (d.category === null) out.push("category");
+  const role = capabilities(d.type).categoryRole;
+  if (d.category === null && (role === "category" || role === "x")) out.push("category");
   if (d.values.filter((v) => v !== d.category).length === 0) out.push("values");
   return out;
 }
 
 // ------------------------------------------------------------------------------------------- server problems
-export type Field = "source" | "category" | "values" | "splitBy" | "aggregate" | "limit" | "time" | "filters" | "other";
+export type Field = "source" | "category" | "values" | "splitBy" | "aggregate" | "limit" | "time" | "filters" | "bins" | "other";
 export interface Problem { field: Field; key?: MessageKey; params?: Record<string, string>; message?: string; hint?: string }
 
 function fieldOf(path: string | null | undefined): Field {
@@ -235,6 +256,7 @@ function fieldOf(path: string | null | undefined): Field {
   if (path.startsWith("/filters")) return "filters";
   if (path.startsWith("/time")) return "time";
   if (path.startsWith("/source")) return "source";
+  if (path.startsWith("/options")) return "bins";
   const m = /^\/series\/\d+\/(\w+)/.exec(path);
   if (m?.[1] === "value_col") return "values";
   if (m?.[1] === "category_col") return "category";
@@ -254,11 +276,13 @@ export function problemOf(e: unknown, d: Draft, cols: ChartColumnProfile[]): Pro
   const code = detail.code;
   if (code === "type_mismatch" && field === "values") return { ...p, key: "charts.problem.valueNotNumber", params: { column: col } };
   if (code === "type_mismatch" && field === "category") return { ...p, key: "charts.problem.xNotNumber" };
-  if (code === "chart_too_many_categories") return { ...p, key: "charts.problem.tooManyCategories" };
+  if (code === "chart_too_many_categories") return { ...p, key: d.type === "boxplot" ? "charts.problem.tooManyGroups" : "charts.problem.tooManyCategories" };
   if (code === "chart_too_many_series") return { ...p, key: "charts.problem.tooManySeries" };
   if (code === "chart_series_mismatch") return { ...p, key: "charts.problem.seriesMismatch" };
   if (code === "unknown_column") return { ...p, key: "charts.problem.unknownColumn" };
   if (code === "invalid_param") {
+    if (field === "bins") return { ...p, key: "charts.problem.bins" };
+    if (field === "category" && d.type === "histogram") return { ...p, key: "charts.problem.histogramOneColumn" };
     if (detail.path === "/limit/other") return { ...p, key: "charts.problem.otherNeedsSum" };
     if (field === "limit") return { ...p, key: "charts.problem.topNTime" };
     if (field === "aggregate") return { ...p, key: "charts.problem.scatterAggregate" };

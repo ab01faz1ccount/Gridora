@@ -19,9 +19,11 @@ from gridora_contracts.models import (
 
 from ..persian.chars import variant_fold
 
-MAX_SUGGESTIONS = 4
+MAX_SUGGESTIONS = 5
 MAX_SERIES_SUGGESTED = 3
 MANY_CATEGORIES = 30
+MAX_BOX_GROUPS_SUGGESTED = 12
+BOX_MIN_PER_GROUP = 5  # a box plot of fewer values than this per group says little
 SAMPLE = 500
 _DATE_TEXT = re.compile(r"^(\d{3,4})[/\-.](\d{1,2})[/\-.](\d{1,2})$")
 _ID_NAME = re.compile(r"(^|[\s_\-.])(id|code|no|number|uuid)($|[\s_\-.])|شناسه|کد|شماره", re.IGNORECASE)
@@ -98,7 +100,7 @@ def _role(p: ChartColumnProfile, live: pl.Series) -> Role:
     return "identifier" if p.distinct > 200 and p.distinct >= 0.9 * n else "category"
 
 
-def _suggestions(cols: list[ChartColumnProfile]) -> list[ChartSuggestion]:
+def _suggestions(cols: list[ChartColumnProfile], rows: int) -> list[ChartSuggestion]:
     times = [c for c in cols if c.looks_like == "time"]
     cats = [c for c in cols if c.looks_like == "category"]
     meas = [c for c in cols if c.looks_like == "measure"]
@@ -124,12 +126,18 @@ def _suggestions(cols: list[ChartColumnProfile]) -> list[ChartSuggestion]:
         x, y = meas[0], meas[1]
         out.append(ChartSuggestion(type="scatter", reason="two_numbers",
                                    series=[ChartSeries(name=y.name, value_col=y.index, category_col=x.index)]))
+    if meas:  # one number: how are its values spread?
+        m = meas[0]
+        out.append(ChartSuggestion(type="histogram", reason="one_number", series=[ChartSeries(name=m.name, value_col=m.index)]))
+    if cats and meas and rows >= BOX_MIN_PER_GROUP * max(2, cats[0].distinct) and 2 <= cats[0].distinct <= MAX_BOX_GROUPS_SUGGESTED:
+        out.append(ChartSuggestion(type="boxplot", reason="distribution_by_category",
+                                   series=[ChartSeries(name=meas[0].name, value_col=meas[0].index, category_col=cats[0].index)]))
     return out[:MAX_SUGGESTIONS]
 
 
 def profile_frame(frame: pl.DataFrame) -> ChartProfile:
     cols = [_column(i, name, frame[name]) for i, name in enumerate(frame.columns)]
-    return ChartProfile(rows=frame.height, columns=cols, suggestions=_suggestions(cols))
+    return ChartProfile(rows=frame.height, columns=cols, suggestions=_suggestions(cols, frame.height))
 
 
 __all__ = ["profile_frame"]

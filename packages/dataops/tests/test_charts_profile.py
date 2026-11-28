@@ -70,7 +70,8 @@ def test_suggestions_time_then_category_then_two_numbers() -> None:
     f = pl.DataFrame({"day": [dt.date(2025, 1, i + 1) for i in range(10)], "kind": ["a", "b"] * 5,
                       "x": [3.5, 1.2, 8.8, 4.1, 9.9, 2.2, 7.3, 5.6, 6.4, 0.7], "y": [float(i * 2 % 7) + 0.5 for i in range(10)]})
     kinds = [(s.type, s.reason) for s in profile_frame(f).suggestions]
-    assert kinds == [("line", "time_and_number"), ("bar", "category_and_number"), ("pie", "share_of_total"), ("scatter", "two_numbers")]
+    assert kinds == [("line", "time_and_number"), ("bar", "category_and_number"), ("pie", "share_of_total"), ("scatter", "two_numbers"),
+                     ("histogram", "one_number")]
 
 
 def test_suggestions_carry_a_complete_mapping_that_builds() -> None:
@@ -117,3 +118,24 @@ def test_unique_whole_numbers_are_not_assumed_to_be_ids_only_a_plain_counter_is(
 
 def test_the_executor_offers_the_optional_protocol() -> None:
     assert isinstance(create_executor({}), ChartProfiler)
+
+
+def test_a_number_suggests_its_distribution_and_groups_with_enough_rows_suggest_a_box_plot() -> None:
+    f = pl.DataFrame({"group": ["a", "b"] * 20, "score": [float(i % 17) + 0.5 for i in range(40)]})
+    kinds = [(s.type, s.reason) for s in profile_frame(f).suggestions]
+    assert ("histogram", "one_number") in kinds and ("boxplot", "distribution_by_category") in kinds
+    box = next(s for s in profile_frame(f).suggestions if s.type == "boxplot")
+    assert (box.series[0].category_col, box.series[0].value_col) == (0, 1) and box.series[0].aggregate is None
+
+
+def test_no_box_plot_suggestion_when_groups_are_too_small_or_too_many() -> None:
+    few = pl.DataFrame({"g": ["a", "b", "c", "d"], "v": [1.5, 2.5, 3.5, 4.5]})
+    assert all(s.type != "boxplot" for s in profile_frame(few).suggestions)
+    many = pl.DataFrame({"g": [f"k{i % 40}" for i in range(400)], "v": [float(i) + 0.5 for i in range(400)]})
+    assert all(s.type != "boxplot" for s in profile_frame(many).suggestions)
+
+
+def test_suggestions_never_exceed_five() -> None:
+    f = pl.DataFrame({"day": [dt.date(2025, 1, 1) + dt.timedelta(days=i) for i in range(60)], "g": ["a", "b", "c"] * 20,
+                      "x": [float(i % 7) + 0.25 for i in range(60)], "y": [float(i % 11) + 0.75 for i in range(60)]})
+    assert len(profile_frame(f).suggestions) <= 5
