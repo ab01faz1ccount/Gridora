@@ -13,7 +13,7 @@ import polars as pl
 from gridora_contracts.models import Warning_
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..conversions import number_text
+from ..conversions import number_text, number_to_text
 from ..errors import DataOpsError, pointer, verr
 from ..ops_common import unique_name
 from ..persian.chars import variant_fold
@@ -176,13 +176,7 @@ def _safe_mod(a: pl.Expr, b: pl.Expr) -> pl.Expr:
 
 def _text(e: pl.Expr, t: Ty) -> pl.Expr:
     if t == "num":
-        f = e.cast(pl.Float64)
-        whole = f.is_finite() & (f == f.floor()) & (f.abs() < 1e15)
-        # 0.1 + 0.2 shows as 0.3 (15 significant digits, as a spreadsheet does), not 0.30000000000000004
-        # integers from 10^15 up (card numbers, long ids) are written in full: 15 significant digits would round them
-        return (pl.when(whole).then(f.cast(pl.Int64).cast(pl.String))
-                .when(f.abs() >= 1e15).then(e.cast(pl.String))
-                .otherwise(f.round_sig_figs(15).cast(pl.String)))
+        return number_to_text(e)
     if t == "bool":
         return pl.when(e).then(pl.lit("true")).when(~e).then(pl.lit("false"))  # an empty cell stays empty, not "false"
     if t == "date":
