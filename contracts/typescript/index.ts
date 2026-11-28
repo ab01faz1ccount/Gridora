@@ -160,6 +160,18 @@ export interface ChartData {
   notes?: ChartNote[]; meta?: Record<string, unknown> | null;
 }
 
+/** v0.7.0: cheap facts about one source column; `looks_like` and `default_aggregate` are hints, never verdicts. */
+export interface ChartColumnProfile {
+  index: number; name: string; kind: "number" | "text" | "date" | "bool" | "empty";
+  nulls: number; distinct: number; min?: number | string | null; max?: number | string | null; mean?: number | null;
+  date_text?: "gregorian" | "jalali" | null; looks_like?: "category" | "measure" | "time" | "identifier" | null;
+  default_aggregate?: ChartAggregate | null;
+}
+/** A chart that fits the columns, mapping filled in (column indexes). `reason` is a stable key to translate. */
+export interface ChartSuggestion { type: ChartSpec["type"]; series: ChartSeries[]; time?: ChartTime | null; limit?: ChartLimit | null; reason: string }
+export interface ChartProfile { rows: number; columns: ChartColumnProfile[]; suggestions: ChartSuggestion[] }
+export interface ChartProfileRequest { source: Target }
+
 export interface ErrorDetail { code: string; path?: string; message: string; hint?: string }
 export interface ApiError { code: string; message: string; details: ErrorDetail[]; request_id: string }
 export interface ApiErrorEnvelope { error: ApiError }

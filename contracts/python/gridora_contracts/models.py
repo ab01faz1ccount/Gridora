@@ -585,6 +585,44 @@ class ChartData(_Base):
     meta: Optional[dict[str, Any]] = None  # v0.7.0: extra payload of chart types that are not category/value
 
 
+class ChartColumnProfile(_Base):
+    """v0.7.0: cheap facts about one source column, to suggest a chart. Deterministic, never a verdict:
+    the person can always choose another role."""
+
+    index: int
+    name: str
+    kind: Literal["number", "text", "date", "bool", "empty"]
+    nulls: int
+    distinct: int
+    min: Optional[Union[float, str]] = None  # numbers, or ISO dates
+    max: Optional[Union[float, str]] = None
+    mean: Optional[float] = None
+    date_text: Optional[Literal["gregorian", "jalali"]] = None  # a text column whose values read as dates
+    looks_like: Optional[Literal["category", "measure", "time", "identifier"]] = None
+    default_aggregate: Optional[ChartAggregate] = None
+
+
+class ChartSuggestion(_Base):
+    """v0.7.0: a chart that fits the columns, with its mapping already filled in (column indexes).
+    `reason` is a stable key the UI translates: time_and_number, category_and_number, two_numbers, ..."""
+
+    type: Literal["bar", "line", "pie", "scatter", "area"]
+    series: list[ChartSeries]
+    time: Optional[ChartTime] = None
+    limit: Optional[ChartLimit] = None  # set when the category column has many distinct values
+    reason: str
+
+
+class ChartProfile(_Base):
+    rows: int
+    columns: list[ChartColumnProfile]
+    suggestions: list[ChartSuggestion] = Field(default_factory=list)
+
+
+class ChartProfileRequest(_Base):
+    source: Target
+
+
 # ------------------------------------------------- columnar range (v0.4.0) ----
 ColumnKind = Literal["empty", "num", "str", "bool", "date", "mixed"]
 
