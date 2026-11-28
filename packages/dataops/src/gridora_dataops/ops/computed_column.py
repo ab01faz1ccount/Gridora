@@ -152,6 +152,20 @@ def _count_of(e: pl.Expr) -> pl.Expr:
     return e.cast(pl.Int64).clip(lower_bound=0)
 
 
+def _both_known(args: list[pl.Expr], value: pl.Expr) -> pl.Expr:
+    return pl.when(args[0].is_not_null() & args[1].is_not_null()).then(value)
+
+
+def _round_digits(e: pl.Expr, digits: int) -> pl.Expr:
+    """Half away from zero on the DECIMAL value the user sees: 1.005 is stored as 1.00499999999999989..., so the
+    scaled number is first cleaned to 15 significant digits (1.005 -> 1.01, 2.675 -> 2.68, as a spreadsheet does)."""
+    if digits == 0:
+        return e.round(0, mode="half_away_from_zero")
+    scale = 10.0**digits
+    # the final clean-up matters: a division can land one ulp off (2675 / 1000 -> 2.6750000000000003)
+    return ((e * scale).round_sig_figs(15).round(0, mode="half_away_from_zero") / scale).round_sig_figs(15)
+
+
 def _safe_div(a: pl.Expr, b: pl.Expr) -> pl.Expr:
     return pl.when(b == 0).then(None).otherwise(a / b)
 
@@ -186,8 +200,9 @@ FUNCS: dict[str, _Fn] = {
     "floor": _Fn(1, 1, _all("num", "num"), lambda a: a[0].floor()),
     "ceil": _Fn(1, 1, _all("num", "num"), lambda a: a[0].ceil()),
     "round": _Fn(1, 2, _all("num", "num"), lambda a: a[0].round(0, mode="half_away_from_zero")),  # 2.5 -> 3, -2.5 -> -3
-    "min2": _Fn(2, 2, _all("num", "num"), lambda a: pl.min_horizontal(a)),
-    "max2": _Fn(2, 2, _all("num", "num"), lambda a: pl.max_horizontal(a)),
+    # an empty cell in either argument gives an empty result, like add/sub/mul (use coalesce to pick a stand-in)
+    "min2": _Fn(2, 2, _all("num", "num"), lambda a: _both_known(a, pl.min_horizontal(a))),
+    "max2": _Fn(2, 2, _all("num", "num"), lambda a: _both_known(a, pl.max_horizontal(a))),
     "upper": _Fn(1, 1, _all("text", "text"), lambda a: a[0].str.to_uppercase()),
     "lower": _Fn(1, 1, _all("text", "text"), lambda a: a[0].str.to_lowercase()),
     "trim": _Fn(1, 1, _all("text", "text"), lambda a: a[0].str.strip_chars()),
@@ -279,7 +294,7 @@ class _Compiler:
                                                        and float(d.value).is_integer() and 0 <= d.value <= 15):
                 raise DataOpsError("type_mismatch", "'round' needs a number and, optionally, a literal digit count 0..15",
                                    path=ptr + "/args/1")
-            return exprs[0].round(int(d.value), mode="half_away_from_zero"), "num"
+            return _round_digits(exprs[0], int(d.value)), "num"
         if fn == "to_number":
             sep = "."
             if k == 2:

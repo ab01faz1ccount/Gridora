@@ -42,7 +42,7 @@ def comp(expr, name="r", df=DF):  # type: ignore[no-untyped-def]
     (call("sub", lit(10), col("b")), [8.0, 10.0, 7.0, 5.0]),
     (call("round", call("div", lit(7), lit(2))), [4.0] * 4),
     (call("neg", col("b")), [-2.0, -0.0, -3.0, -5.0]),
-    (call("max2", col("a"), col("b")), [10.0, 4.0, 3.0, 5.0]),
+    (call("max2", col("a"), col("b")), [10.0, 4.0, None, 5.0]),  # an empty cell stays empty, like add/mul
     (call("upper", call("trim", col("s"))), ["علی", "X", None, "ABC"]),
     (call("len", col("s")), [3.0, 3.0, None, 3.0]),
     (call("left", col("s"), lit(2)), ["عل", " x", None, "ab"]),

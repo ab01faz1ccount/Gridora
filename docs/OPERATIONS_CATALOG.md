@@ -32,8 +32,8 @@ Rules:
   - Behaviour worth knowing: `round` goes half away from zero (2.5 → 3, -2.5 → -3); `div`/`mod` by zero leave an empty
     cell and a `division_by_zero` warning; `to_number` leaves non-numbers empty with a `number_parse_failed` warning;
     a negative count in `left`/`right`/`substring` gives empty text; text made from numbers shows 15 significant digits
-    (0.1 + 0.2 → `0.3`); integer literals beyond 2^53 are refused rather than silently rounded; `min2`/`max2` ignore an
-    empty value while `add` and the other arithmetic propagate it. Known limit: `round(1.005, 2)` gives 1 (binary floating
-    point), where a spreadsheet gives 1.01.
+    (0.1 + 0.2 → `0.3`); integer literals beyond 2^53 are refused rather than silently rounded; `min2`/`max2` and all
+    other arithmetic leave an empty cell empty (use `coalesce` for a stand-in); `round` with digits works on the decimal
+    value you see (`round(1.005, 2)` → 1.01, as in a spreadsheet).
 - Operations that create new data (`group_aggregate`, `pivot`, `join`, …) return `output` and never overwrite the source.
 - New operations are added by registering a descriptor and an implementation; no UI change needed.

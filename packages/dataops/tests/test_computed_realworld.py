@@ -87,8 +87,24 @@ def test_round_with_digits() -> None:
     df = pl.DataFrame({"x": [2.675, 0.125, -1.236, 1234.5678]})
     assert comp(df, call("round", col("x"), lit(2)))[0] == [2.68, 0.13, -1.24, 1234.57]
     assert comp(df, call("round", col("x"), lit(0)))[0] == [3.0, 0.0, -1.0, 1235.0]
+    assert comp(df, call("round", col("x"), lit(3)))[0] == [2.675, 0.125, -1.236, 1234.568]
     for bad in (lit(16), lit(-1), lit(1.5), col("x"), lit("2")):
         assert fails(df, call("round", col("x"), bad)).path == "/params/expr/args/1"
+
+
+def test_round_follows_the_decimal_number_you_see_not_its_binary_storage() -> None:
+    # 1.005 is stored as 1.00499999999999989..., yet a spreadsheet (and a person) rounds it to 1.01
+    df = pl.DataFrame({"x": [1.005, 1.255, 8.345, 0.285, -1.005, 1.004, None]})
+    assert comp(df, call("round", col("x"), lit(2)))[0] == [1.01, 1.26, 8.35, 0.29, -1.01, 1.0, None]
+
+
+def test_min2_and_max2_leave_an_empty_cell_empty_like_the_other_arithmetic() -> None:
+    df = pl.DataFrame({"a": [1.0, None, 5.0, None], "b": [2.0, 3.0, None, None]})
+    assert comp(df, call("min2", col("a"), col("b")))[0] == [1.0, None, None, None]
+    assert comp(df, call("max2", col("a"), col("b")))[0] == [2.0, None, None, None]
+    # a stand-in value is one coalesce away
+    filled = call("max2", call("coalesce", col("a"), lit(0)), call("coalesce", col("b"), lit(0)))
+    assert comp(df, filled)[0] == [2.0, 3.0, 5.0, 0.0]
 
 
 # ------------------------------------------------------------------ text extraction that used to crash
