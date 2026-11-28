@@ -42,7 +42,7 @@ export const err = (
   status: number,
   code: string,
   headers?: Record<string, string>,
-  details: { code: string; message: string }[] = [],
+  details: { code: string; message: string; path?: string; hint?: string }[] = [],
 ) => ({
   status,
   headers,

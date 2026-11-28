@@ -1,6 +1,6 @@
 // Calls behind the Save/Export, Data Table, chart and saved-tool panels.
 import type {
-  ChartData, ChartSpec, CompatibilityReport, DataTable, FileRecord, FindResult, Job, Range, TablePreview, TableRows, Tool,
+  ChartData, ChartProfile, ChartSpec, CompatibilityReport, DataTable, FileRecord, FindResult, Job, Range, TablePreview, TableRows, Tool,
 } from "@contracts";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
@@ -37,6 +37,12 @@ export function useChartData(chartId: string | undefined) {
     queryFn: () => api.get<ChartData>(`/charts/${chartId}/data`) });
 }
 export const createChart = (documentId: string, spec: ChartSpec) => api.post<ChartSpec>(`/documents/${documentId}/charts`, spec);
+export const updateChart = (id: string, spec: ChartSpec) => api.put<ChartSpec>(`/charts/${id}`, spec);
+/** The data of a chart that is not saved yet: the builder's live preview (nothing is stored). */
+export const previewChart = (documentId: string, spec: ChartSpec) => api.post<ChartData>(`/documents/${documentId}/charts/preview`, spec);
+/** Column facts and suggested charts for a source (docs/DATA_MODEL.md section 8). */
+export const profileChartSource = (documentId: string, source: ChartSpec["source"]) =>
+  api.post<ChartProfile>(`/documents/${documentId}/charts/profile`, { source });
 export const deleteChart = (id: string) => api.delete<void>(`/charts/${id}`);
 
 // ---- saved tools

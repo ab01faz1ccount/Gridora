@@ -7,6 +7,7 @@ import { errorKey } from "@/api/errors";
 import { useJob } from "@/api/hooks";
 import { createFromRange, downloadUrl, exportTable, previewFromRange, tableRows, useTables } from "@/api/panels";
 import { Button } from "@/components/Button";
+import { ChartsManager } from "@/features/charts/ChartsPanel";
 import type { WorkbookEditor } from "@/grid/editing";
 import type { RangeBounds } from "@/grid/selection";
 import { useT } from "@/i18n";
@@ -146,6 +147,10 @@ function OneTable({ table, workbookId, sheet, active, editor }: {
       {job.data?.status === "succeeded" && job.data.result_ref ? (
         <a className="btn btn-primary" href={downloadUrl(job.data.result_ref)} download>{t("export.download", { format: "CSV" })}</a>
       ) : null}
+      <details className="cb-more">
+        <summary>{t("charts.title")}</summary>
+        <ChartsManager documentId={table.id} sources={[{ id: "table", label: t("charts.source.table"), source: { kind: "data_table", table_id: table.id } }]} />
+      </details>
     </div>
   );
 }

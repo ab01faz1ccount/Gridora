@@ -330,7 +330,7 @@ function WorkbookView({
       ) : null}
       {panel === "charts" ? (
         <aside className="wbs-panel" aria-label={t("charts.title")}>
-          <ChartsPanel workbookId={editor.workbookId} sheet={sheet} bounds={b} cache={cache} onClose={() => setPanel(null)} />
+          <ChartsPanel workbookId={editor.workbookId} sheet={sheet} bounds={b} onClose={() => setPanel(null)} />
         </aside>
       ) : null}
       {panel === "tables" ? (
