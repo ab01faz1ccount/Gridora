@@ -35,5 +35,15 @@ Rules:
     (0.1 + 0.2 → `0.3`); integer literals beyond 2^53 are refused rather than silently rounded; `min2`/`max2` and all
     other arithmetic leave an empty cell empty (use `coalesce` for a stand-in); `round` with digits works on the decimal
     value you see (`round(1.005, 2)` → 1.01, as in a spreadsheet).
+- Behaviour worth knowing (each is pinned by `tests/test_dataops_realworld.py`):
+  - `join`: integer keys are compared exactly (never as floats); null keys never match; duplicate keys multiply rows (capped);
+    text keys can ignore spaces (`trim`), English case (`case_sensitive: false`) and Arabic/Persian letter variants;
+    a suffix that would create a duplicate column name is an error at `/params/suffix`.
+  - `change_type` to date: a text such as `1403/01/01` is a Jalali date, not the year 1403 — it counts as unconvertible
+    (with a `dates_look_jalali` warning); read it with `convert_calendar` `from_jalali`. Numbers become text with at most
+    15 significant digits, integers from 10^15 up in full; an empty boolean stays empty.
+  - `fill` constant on all columns skips the columns the value does not fit (`fill_skipped_columns`); on chosen columns it
+    names the column that cannot take it. `remove_duplicates` does not trim: run `clean_text` first (empty cells count as one).
+  - `split_column` keeps the empty first part of a leading delimiter, as a spreadsheet's text-to-columns does.
 - Operations that create new data (`group_aggregate`, `pivot`, `join`, …) return `output` and never overwrite the source.
 - New operations are added by registering a descriptor and an implementation; no UI change needed.

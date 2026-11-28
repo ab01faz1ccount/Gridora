@@ -33,6 +33,17 @@ class Conversion:
     warnings: list[Warning_] = field(default_factory=list)
 
 
+def number_to_text(e: pl.Expr) -> pl.Expr:
+    """A number as a person reads it, ONE definition for `change_type` and computed columns: whole numbers without
+    ".0", at most 15 significant digits (0.1 + 0.2 -> 0.3, as a spreadsheet shows it), and integers from 10^15 up in
+    full (a 16-digit id must never be rounded)."""
+    f = e.cast(pl.Float64)
+    whole = f.is_finite() & (f == f.floor()) & (f.abs() < 1e15)
+    return (pl.when(whole).then(f.cast(pl.Int64).cast(pl.String))
+            .when(f.abs() >= 1e15).then(e.cast(pl.String))
+            .otherwise(f.round_sig_figs(15).cast(pl.String)))
+
+
 def number_text(e: pl.Expr, decimal_separator: str = ".") -> pl.Expr:
     e = variant_fold(e.str.strip_chars())
     e = e.str.replace_all(r"[\s\u00a0\u202f]", "")
@@ -41,6 +52,20 @@ def number_text(e: pl.Expr, decimal_separator: str = ".") -> pl.Expr:
     else:
         e = e.str.replace_all(r"[,\u066c\u060c]", "").str.replace_all(r"\u066b", ".")
     return pl.when(e == "").then(None).otherwise(e)
+
+
+JALALI_YEARS = (1300, 1500)  # the years persian/jalali.py supports; as a Gregorian year they are not plausible data
+
+
+def _not_jalali(parsed: pl.Expr) -> pl.Expr:
+    """A text date such as 1403/01/01 is a Jalali date, not the year 1403: never store it as one. It counts as
+    unconvertible (see `looks_jalali`), so on_error decides; convert_calendar(from_jalali) is the way to read it."""
+    return pl.when(parsed.dt.year().is_between(*JALALI_YEARS)).then(None).otherwise(parsed)
+
+
+def looks_jalali(col: pl.Expr) -> pl.Expr:
+    year = variant_fold(col.str.strip_chars()).str.extract(r"^(\d{4})[/.\-]\d{1,2}[/.\-]\d{1,2}", 1).cast(pl.Int64, strict=False)
+    return year.is_between(*JALALI_YEARS)
 
 
 def _text_to(col: pl.Expr, to: str, decimal_separator: str, date_format: str | None) -> pl.Expr:
@@ -63,7 +88,7 @@ def _text_to(col: pl.Expr, to: str, decimal_separator: str, date_format: str | N
         if to == "date":
             fmt = date_format or "%Y-%m-%d"
             t = t if date_format else t.str.replace_all(r"[/.]", "-")
-            return t.str.to_date(fmt, strict=False)
+            return _not_jalali(t.str.to_date(fmt, strict=False))
         if date_format:
             return t.str.to_datetime(date_format, strict=False)
         t = t.str.replace_all(r"[/.]", "-").str.replace("T", " ")
@@ -75,9 +100,7 @@ def _text_to(col: pl.Expr, to: str, decimal_separator: str, date_format: str | N
 
 def _numeric_to(col: pl.Expr, to: str) -> pl.Expr:
     if to == "string":
-        f = col.cast(pl.Float64)
-        whole = f.is_finite() & (f == f.floor()) & (f.abs() < 1e15)
-        return pl.when(whole).then(f.cast(pl.Int64).cast(pl.String)).otherwise(col.cast(pl.String))
+        return number_to_text(col)
     if to == "int64":
         f = col.cast(pl.Float64)
         return pl.when(f.is_finite() & (f == f.floor()) & (f.abs() < INT_LIMIT)).then(f.cast(pl.Int64))
@@ -99,7 +122,7 @@ def _expr(col: pl.Expr, src: pl.DataType, to: str, decimal_separator: str, date_
         return _numeric_to(col, to)
     if src == pl.Boolean:
         if to == "string":
-            return pl.when(col).then(pl.lit("true")).otherwise(pl.lit("false"))
+            return pl.when(col).then(pl.lit("true")).when(~col).then(pl.lit("false"))  # an empty cell stays empty
         if to in ("int64", "float64"):
             return col.cast(pl.Int64 if to == "int64" else pl.Float64)
     if src == pl.Date:
@@ -134,12 +157,22 @@ def convert_column(df: pl.DataFrame, column: str, to: str, *, on_error: str = "f
     bad_df = work.filter(orig_has & pl.col("__new").is_null())
     bad = bad_df.height
     examples = [str(x) for x in bad_df[column].head(3).to_list()]
+    jalali = 0
+    if bad and src == pl.String and to in ("date", "datetime"):
+        jalali = bad_df.filter(looks_jalali(pl.col(column))).height
+    hint = "e.g. " + "; ".join(examples)
+    if jalali:
+        hint += f" ({jalali} look like Jalali dates: use convert_calendar from_jalali)"
     if bad and on_error == "fail":
         raise DataOpsError("type_mismatch", f"{bad} value(s) in '{column}' cannot be converted to {to}",
-                           path=pointer("params", "column"), hint="e.g. " + "; ".join(examples))
+                           path=pointer("params", "column"), hint=hint)
     out = work.with_columns(pl.col("__new").alias(column)).drop("__new")
     warnings = []
     if bad:
         warnings.append(Warning_(code="values_set_to_null", severity="warn", location=column,
                                  message=f"{bad} value(s) could not be converted to {to} and were left empty"))
+        if jalali:
+            warnings.append(Warning_(code="dates_look_jalali", severity="warn", location=column,
+                                     message=f"{jalali} value(s) look like Jalali dates (year 1300-1500) and were not read "
+                                             "as Gregorian: use convert_calendar from_jalali"))
     return Conversion(out, bad, examples, warnings)

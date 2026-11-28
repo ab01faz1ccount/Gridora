@@ -44,28 +44,32 @@ class PivotOp(OperationSpec):
             raise DataOpsError("invalid_param", "index, columns and values must be different columns",
                                path=pointer("params", "columns"))
         piv = pl.col(params.columns).cast(pl.String).fill_null(NULL_CATEGORY)
-        work = frame.select([*[pl.col(c) for c in params.index], piv.alias(params.columns), pl.col(params.values)])
+        # index columns get private names while pivoting: a pivoted value called like an index column ("r") used to
+        # crash the run with an untyped duplicate-column error
+        ix = [f"__ix{i}" for i in range(len(params.index))]
+        work = frame.select([*[pl.col(c).alias(t) for c, t in zip(params.index, ix, strict=True)],
+                             piv.alias(params.columns), pl.col(params.values)])
         n = work[params.columns].n_unique()
         if n > MAX_PIVOT_COLUMNS:
             raise DataOpsError("result_too_large", f"{n} distinct values would create too many columns "
                                f"(limit {MAX_PIVOT_COLUMNS})", path=pointer("params", "columns"))
-        out = work.pivot(on=params.columns, index=params.index, values=params.values,
+        out = work.pivot(on=params.columns, index=ix, values=params.values,
                          aggregate_function=_FN[params.fn], maintain_order=True, sort_columns=False)
         if params.fn == "sum":  # Polars gives 0 for a missing combination; an empty cell says "no data", 0 says "zero"
-            seen = work.pivot(on=params.columns, index=params.index, values=params.values, aggregate_function="len",
+            seen = work.pivot(on=params.columns, index=ix, values=params.values, aggregate_function="len",
                               maintain_order=True, sort_columns=False)
             out = out.with_columns([pl.when(seen[c] == 0).then(None).otherwise(out[c]).alias(c)
-                                    for c in out.columns if c not in params.index])
+                                    for c in out.columns if c not in ix])
         taken = set(params.index)
         renames = {}
         for c in out.columns:
-            if c in params.index:
+            if c in ix:
                 continue
             new = unique_name(c, taken)
             taken.add(new)
             if new != c:
                 renames[c] = new
-        out = out.rename(renames) if renames else out
+        out = out.rename({**renames, **dict(zip(ix, params.index, strict=True))})
         if params.fill_value is not None:
             out = out.with_columns([pl.col(c).fill_null(params.fill_value) for c in out.columns if c not in params.index])
         return OpOutput(out)

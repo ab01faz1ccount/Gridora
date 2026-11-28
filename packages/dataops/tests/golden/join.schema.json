@@ -1,6 +1,11 @@
 {
   "additionalProperties": false,
   "properties": {
+    "case_sensitive": {
+      "default": true,
+      "title": "ops.join.params.case_sensitive.title",
+      "type": "boolean"
+    },
     "has_header": {
       "default": true,
       "title": "ops.join.params.has_header.title",
@@ -63,6 +68,11 @@
       "minLength": 1,
       "title": "ops.join.params.suffix.title",
       "type": "string"
+    },
+    "trim": {
+      "default": false,
+      "title": "ops.join.params.trim.title",
+      "type": "boolean"
     }
   },
   "required": [
